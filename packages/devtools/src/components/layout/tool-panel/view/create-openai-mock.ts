@@ -1,4 +1,3 @@
-import { assign, cloneDeep } from "lodash-es";
 import type {
   AppsSdkContext,
   AppsSdkMethods,
@@ -6,11 +5,13 @@ import type {
   CallToolArgs,
   CallToolResponse,
   DisplayMode,
+  Intent,
+  Notification,
   RequestDisplayMode,
   UnknownObject,
 } from "enpilink/web";
-
 import { SET_GLOBALS_EVENT_TYPE, SetGlobalsEvent } from "enpilink/web";
+import { assign, cloneDeep } from "lodash-es";
 import { useInspectorPreferencesStore } from "@/lib/inspector-preferences-store.js";
 
 function createOpenaiMethods(
@@ -40,6 +41,18 @@ function createOpenaiMethods(
     },
     sendFollowUpMessage: async (args: { prompt: string }) => {
       log("sendFollowUpMessage", args);
+    },
+    // enpilink extensions (notify + intent interaction types). Surfaced in the
+    // logs drawer so all four mcp-ui interaction types are observable locally.
+    notify: async (notification: Notification) => {
+      log(`notify [${notification.level ?? "info"}]`, {
+        ...notification,
+      } as unknown as UnknownObject);
+    },
+    sendIntent: async (intent: Intent) => {
+      log(`intent: ${intent.name}`, {
+        ...intent,
+      } as unknown as UnknownObject);
     },
     requestClose: async () => {
       log("requestClose", {});

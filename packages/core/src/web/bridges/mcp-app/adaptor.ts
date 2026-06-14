@@ -7,6 +7,8 @@ import type {
   DownloadResult,
   HostContext,
   HostContextStore,
+  Intent,
+  Notification,
   OpenExternalOptions,
   RequestDisplayMode,
   RequestModalOptions,
@@ -124,6 +126,70 @@ export class McpAppAdaptor implements Adaptor {
         },
       ],
     });
+  };
+
+  /**
+   * Surface a notification to the host via the MCP Apps logging channel.
+   *
+   * Uses the **real** MCP protocol: `app.sendLog` (`notifications/message`).
+   * The `level` maps to the syslog levels the spec defines; `"success"` has no
+   * equivalent and is coerced to `"info"` (the structured `title`/`data` are
+   * preserved in the log payload). Hosts may render this as a toast or simply
+   * record it for debugging. Best-effort — failures are swallowed; never throws.
+   *
+   * @remarks Per-runtime: apps-sdk surfaces the same call via
+   * `window.openai.notify` / a `postMessage` fallback (see the apps-sdk
+   * adaptor); the MCP Apps runtime uses standard `notifications/message`.
+   */
+  public notify = async (notification: Notification): Promise<void> => {
+    try {
+      const app = await McpAppBridge.getInstance().getApp();
+      const level =
+        notification.level === "success" ? "info" : notification.level;
+      await app.sendLog({
+        level: level ?? "info",
+        logger: "enpilink",
+        data: {
+          ...(notification.title ? { title: notification.title } : {}),
+          message: notification.message,
+          ...(notification.level ? { level: notification.level } : {}),
+          ...(notification.data !== undefined
+            ? { data: notification.data }
+            : {}),
+        },
+      });
+    } catch (error) {
+      console.warn("[enpilink] notify: failed to deliver notification", error);
+    }
+  };
+
+  /**
+   * Forward a high-level intent to the host.
+   *
+   * The MCP Apps spec has **no intent/action primitive**, so this is an
+   * **enpilink extension**: the intent is delivered best-effort over the
+   * standard `notifications/message` channel (`app.sendLog`) tagged with
+   * `logger: "enpilink/intent"` and a structured `{ intent, params }` payload.
+   * A compliant host that doesn't understand intents simply records it as a
+   * log entry (no error). Never throws.
+   *
+   * @remarks enpilink extension — not part of the MCP Apps spec. Real-host
+   * routing of intents is therefore best-effort and unverifiable here.
+   */
+  public sendIntent = async (intent: Intent): Promise<void> => {
+    try {
+      const app = await McpAppBridge.getInstance().getApp();
+      await app.sendLog({
+        level: "info",
+        logger: "enpilink/intent",
+        data: {
+          intent: intent.name,
+          ...(intent.params ? { params: intent.params } : {}),
+        },
+      });
+    } catch (error) {
+      console.warn("[enpilink] sendIntent: failed to deliver intent", error);
+    }
   };
 
   public download = async (params: DownloadParams): Promise<DownloadResult> => {

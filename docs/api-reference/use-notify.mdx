@@ -1,0 +1,62 @@
+---
+title: useNotify
+description: "Surface a status/notification (toast, badge, or log) to the host from your view."
+---
+
+The `useNotify` hook returns a function that surfaces a notification to the host
+— for example, to confirm an action succeeded. It is one of the four mcp-ui
+view→host interaction types (`tool`, `prompt`, `notify`, `intent`).
+
+<Note>
+**Best-effort delivery.** How — and whether — a notification is shown is
+host-driven. enpilink delivers it over the most appropriate channel for each
+runtime (see [Runtime support](#runtime-support)); a host that supports neither
+path simply no-ops. The call never throws.
+</Note>
+
+## Basic usage
+
+```tsx
+import { useNotify } from "enpilink/web";
+
+function SaveButton() {
+  const notify = useNotify();
+
+  return (
+    <button
+      onClick={() => notify({ level: "success", message: "Saved!" })}
+    >
+      Save
+    </button>
+  );
+}
+```
+
+## Returns
+
+```tsx
+notify: (notification: Notification) => Promise<void>
+```
+
+### Parameters
+
+- `notification.message: string` — **Required.** The notification text.
+- `notification.level?: "info" | "success" | "warning" | "error"` — Severity.
+  Maps to the host's notification styling. Defaults to `info`.
+- `notification.title?: string` — Optional short title.
+- `notification.data?: unknown` — Optional structured payload for the host.
+
+## Runtime support
+
+| Runtime | How it's delivered | Notes |
+|---|---|---|
+| **MCP Apps** | Real MCP protocol: `notifications/message` (`app.sendLog`, `logger: "enpilink"`). | `level: "success"` has no MCP logging equivalent and is **coerced to `info`** — the original level is preserved in the structured payload. Hosts may render a toast or just record it for debugging. |
+| **ChatGPT Apps SDK** | **enpilink extension** — not part of the Apps SDK. Uses a `window.openai.notify` host method if present, else falls back to `window.parent.postMessage({ type: "notify", payload }, "*")`. | Real-host rendering is unverified; degrades to a no-op. |
+| **devtools emulator** | Shown as a `notify [level]` entry in the Logs drawer. | Always observable locally. |
+
+<Warning>
+On the MCP Apps runtime `notify` uses the **real** `notifications/message`
+protocol, so a compliant host receives it as a standard log. On the ChatGPT
+Apps SDK it is an **enpilink extension** and best-effort. Do not rely on a
+specific visual treatment across hosts.
+</Warning>

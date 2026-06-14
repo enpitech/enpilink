@@ -1,0 +1,55 @@
+---
+title: useIntent
+description: "Express a high-level intent for the host to route/handle from your view."
+---
+
+The `useIntent` hook returns a function that forwards a high-level **intent**
+(e.g. `add_to_cart`, `open_settings`) to the host. It is one of the four mcp-ui
+view→host interaction types (`tool`, `prompt`, `notify`, `intent`).
+
+<Warning>
+**Intents are an enpilink extension.** The MCP Apps spec and the ChatGPT Apps
+SDK define **no** intent/action primitive. enpilink delivers intents
+best-effort over each runtime's nearest legitimate channel; a host that does
+not understand intents simply ignores them (or records them as a log entry).
+Real-host routing is therefore best-effort and unverifiable. The call never
+throws.
+</Warning>
+
+## Basic usage
+
+```tsx
+import { useIntent } from "enpilink/web";
+
+function AddToCartButton() {
+  const sendIntent = useIntent();
+
+  return (
+    <button
+      onClick={() => sendIntent({ name: "add_to_cart", params: { sku: "ABC-123" } })}
+    >
+      Add to cart
+    </button>
+  );
+}
+```
+
+## Returns
+
+```tsx
+sendIntent: (intent: Intent) => Promise<void>
+```
+
+### Parameters
+
+- `intent.name: string` — **Required.** The intent identifier (namespace it,
+  e.g. `cart_add`, to avoid collisions).
+- `intent.params?: Record<string, unknown>` — Optional structured parameters.
+
+## Runtime support
+
+| Runtime | How it's delivered | Notes |
+|---|---|---|
+| **MCP Apps** | enpilink extension over the standard `notifications/message` channel (`app.sendLog`, `logger: "enpilink/intent"`, payload `{ intent, params }`). | A compliant host that doesn't route intents records it as a log entry — never an error. |
+| **ChatGPT Apps SDK** | enpilink extension. Uses a `window.openai.sendIntent` host method if present, else `window.parent.postMessage({ type: "intent", payload }, "*")`. | Degrades to a no-op on hosts without support. |
+| **devtools emulator** | Shown as an `intent: <name>` entry in the Logs drawer. | Always observable locally. |

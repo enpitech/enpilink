@@ -3,6 +3,8 @@ import type {
   CallToolArgs,
   CallToolResponse,
   FileMetadata,
+  Intent,
+  Notification,
   RequestModalOptions,
   UploadFileOptions,
 } from "../types.js";
@@ -129,6 +131,22 @@ export type AppsSdkMethods<WS extends AppsSdkWidgetState = AppsSdkWidgetState> =
      * This URL will be opened in the app when the user clicks on the top right button in fullscreen mode.
      */
     setOpenInAppUrl: (args: { href: string }) => Promise<void>;
+
+    /**
+     * enpilink extension (NOT part of the ChatGPT Apps SDK): surface a
+     * notification to the host. Optional — feature-detected by the adaptor; if
+     * the host doesn't provide it, the adaptor falls back to
+     * `window.parent.postMessage`. The devtools emulator implements it.
+     */
+    notify?: (notification: Notification) => Promise<void>;
+
+    /**
+     * enpilink extension (NOT part of the ChatGPT Apps SDK): forward a
+     * high-level intent to the host. Optional — feature-detected by the
+     * adaptor; falls back to `window.parent.postMessage` when absent. The
+     * devtools emulator implements it.
+     */
+    sendIntent?: (intent: Intent) => Promise<void>;
   };
 
 // Dispatched when any global changes in the host page

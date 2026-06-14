@@ -6,6 +6,8 @@ import type {
   FileMetadata,
   HostContext,
   HostContextStore,
+  Intent,
+  Notification,
   OpenExternalOptions,
   RequestDisplayMode,
   RequestModalOptions,
@@ -98,6 +100,56 @@ export class AppsSdkAdaptor implements Adaptor {
       prompt,
       scrollToBottom: options?.scrollToBottom,
     });
+  };
+
+  /**
+   * Surface a notification to the host.
+   *
+   * The ChatGPT Apps SDK has no native notification method, so this is
+   * best-effort: if the host exposes a `window.openai.notify` extension
+   * (the devtools emulator does), it is used; otherwise we fall back to a
+   * `window.parent.postMessage({ type: "notify", payload }, "*")` — the raw
+   * mcp-ui contract — which a compliant host may pick up and others ignore.
+   * Never throws.
+   *
+   * @remarks enpilink extension — not part of the ChatGPT Apps SDK.
+   */
+  public notify = async (notification: Notification): Promise<void> => {
+    try {
+      if (typeof window.openai?.notify === "function") {
+        await window.openai.notify(notification);
+        return;
+      }
+      window.parent?.postMessage(
+        { type: "notify", payload: notification },
+        "*",
+      );
+    } catch (error) {
+      console.warn("[enpilink] notify: failed to deliver notification", error);
+    }
+  };
+
+  /**
+   * Forward a high-level intent to the host.
+   *
+   * Best-effort, same strategy as {@link notify}: use `window.openai.sendIntent`
+   * if present (emulator), else `window.parent.postMessage({ type: "intent",
+   * payload }, "*")`. Hosts that don't understand intents ignore the message.
+   * Never throws.
+   *
+   * @remarks enpilink extension — neither the ChatGPT Apps SDK nor the MCP Apps
+   * spec defines an intent primitive.
+   */
+  public sendIntent = async (intent: Intent): Promise<void> => {
+    try {
+      if (typeof window.openai?.sendIntent === "function") {
+        await window.openai.sendIntent(intent);
+        return;
+      }
+      window.parent?.postMessage({ type: "intent", payload: intent }, "*");
+    } catch (error) {
+      console.warn("[enpilink] sendIntent: failed to deliver intent", error);
+    }
   };
 
   public download = async (

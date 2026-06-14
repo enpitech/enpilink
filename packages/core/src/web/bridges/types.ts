@@ -156,6 +156,37 @@ export type OpenExternalOptions = {
 /** Options for {@link useSendFollowUpMessage}. */
 export type SendFollowUpMessageOptions = { scrollToBottom?: boolean };
 
+/**
+ * Severity of a {@link Notification}. Maps to the host's notification styling
+ * (toast color, badge, log level). `"success"` has no MCP logging equivalent
+ * and is coerced to `info` on the MCP Apps runtime — see {@link useNotify}.
+ */
+export type NotificationLevel = "info" | "success" | "warning" | "error";
+
+/**
+ * A best-effort, fire-and-forget status surfaced to the host (toast / badge /
+ * log). See {@link useNotify} for per-runtime behavior and caveats.
+ */
+export type Notification = {
+  level?: NotificationLevel;
+  title?: string;
+  message: string;
+  data?: unknown;
+};
+
+/**
+ * A high-level intent the view asks the host to route/handle (e.g.
+ * `"add_to_cart"`, `"open_settings"`). See {@link useIntent}.
+ *
+ * NOTE: intents are an **enpilink extension** — the MCP Apps spec has no
+ * intent/action primitive. They are delivered best-effort and a compliant host
+ * that does not understand them simply ignores them (no error).
+ */
+export type Intent = {
+  name: string;
+  params?: Record<string, unknown>;
+};
+
 /** Options for {@link useRequestSize}. Omit a dimension to leave it unchanged. */
 export type RequestSizeOptions = {
   width?: number;
@@ -239,6 +270,17 @@ export interface Adaptor {
     prompt: string,
     options?: SendFollowUpMessageOptions,
   ): Promise<void>;
+  /**
+   * Surface a status/notification to the host. Best-effort: degrades to a
+   * no-op on hosts that don't support it; never throws. See {@link useNotify}.
+   */
+  notify(notification: Notification): Promise<void>;
+  /**
+   * Express a high-level intent for the host to route/handle. Best-effort
+   * **enpilink extension** (no MCP Apps spec equivalent); a host that does not
+   * understand it ignores it. Never throws. See {@link useIntent}.
+   */
+  sendIntent(intent: Intent): Promise<void>;
   openExternal(href: string, options?: OpenExternalOptions): void;
   download(params: DownloadParams): Promise<DownloadResult>;
   setViewState(stateOrUpdater: SetViewStateAction): Promise<void>;

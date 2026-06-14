@@ -4,3 +4,6 @@ dist/
 .vercel/
 *.tsbuildinfo
 .DS_Store
+
+# Playwright MCP browser artifacts (transient)
+.playwright-mcp/

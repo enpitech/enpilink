@@ -8,7 +8,9 @@ export {
 export { useDisplayMode } from "./use-display-mode.js";
 export { type DownloadFn, useDownload } from "./use-download.js";
 export { useFiles } from "./use-files.js";
+export { type IntentFn, useIntent } from "./use-intent.js";
 export { type LayoutState, useLayout } from "./use-layout.js";
+export { type NotifyFn, useNotify } from "./use-notify.js";
 export { type OpenExternalFn, useOpenExternal } from "./use-open-external.js";
 export { useRegisterViewTool } from "./use-register-view-tool.js";
 export { type RequestCloseFn, useRequestClose } from "./use-request-close.js";
