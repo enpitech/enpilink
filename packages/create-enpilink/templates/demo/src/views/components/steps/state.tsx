@@ -1,7 +1,7 @@
-import { Button } from "@alpic-ai/ui/components/button";
 import { HatGlasses } from "lucide-react";
 import Doc from "@/views/components/doc.js";
 import DocLink from "@/views/components/doc-link.js";
+import { Button } from "@/views/components/ui/button.js";
 import { useMascot } from "@/views/use-mascot.js";
 
 export default function State() {

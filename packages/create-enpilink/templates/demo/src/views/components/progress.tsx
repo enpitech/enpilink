@@ -2,7 +2,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@alpic-ai/ui/components/tooltip";
+} from "@/views/components/ui/tooltip.js";
 
 export default function Progress({
   steps,

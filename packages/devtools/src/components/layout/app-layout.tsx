@@ -1,4 +1,4 @@
-import { Button } from "@alpic-ai/ui/components/button";
+import { Button } from "@/components/ui/button.js";
 import { PlugZap } from "lucide-react";
 import { Suspense } from "react";
 import {

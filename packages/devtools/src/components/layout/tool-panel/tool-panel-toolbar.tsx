@@ -5,12 +5,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@alpic-ai/ui/components/command";
+} from "@/components/ui/command.js";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@alpic-ai/ui/components/popover";
+} from "@/components/ui/popover.js";
 import {
   Check,
   Languages,

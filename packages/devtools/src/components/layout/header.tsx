@@ -1,5 +1,5 @@
-import { Button } from "@alpic-ai/ui/components/button";
-import { Separator } from "@alpic-ai/ui/components/separator";
+import { Button } from "@/components/ui/button.js";
+import { Separator } from "@/components/ui/separator.js";
 import { LogIn, LogOut } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { logout, signIn, useServerInfo } from "@/lib/mcp/index.js";
@@ -25,15 +25,47 @@ function BrandChip() {
   const version = serverInfo?.version;
   return (
     <Chip>
-      <img src="/enpilink.svg" alt="" aria-hidden className="size-3.5" />
       <span>{name}</span>
-      <Separator orientation="vertical" className="h-4 self-center!" />
       {version && (
-        <span className="font-mono text-xs text-quaternary-foreground">
-          {version}
-        </span>
+        <>
+          <Separator orientation="vertical" className="h-4 self-center!" />
+          <span className="font-mono text-xs text-quaternary-foreground">
+            {version}
+          </span>
+        </>
       )}
     </Chip>
+  );
+}
+
+/**
+ * Brand lockup: the plain "enpilink" wordmark (Ubuntu, brand purple on light /
+ * white on dark) followed by a small "powered by enpitech" badge using the real
+ * enpitech logo. No invented enpilink icon — honest branding only.
+ */
+function BrandLockup() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="select-none text-lg font-bold tracking-tight text-[#1E1645] dark:text-white">
+        enpilink
+      </span>
+      <a
+        href="https://enpitech.dev"
+        target="_blank"
+        rel="noreferrer noopener"
+        className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-light-gray px-2 py-0.5 transition-colors hover:bg-background-hover"
+        aria-label="powered by enpitech"
+      >
+        <span className="text-[10px] font-medium uppercase tracking-wide text-quaternary-foreground">
+          powered by
+        </span>
+        <img
+          src="/enpitech-logo.png"
+          alt="enpitech"
+          className="h-4 w-auto"
+        />
+      </a>
+    </div>
   );
 }
 
@@ -50,7 +82,9 @@ export const Header = () => {
 
   return (
     <header className="flex h-13 items-center justify-between gap-3 border-b border-border px-4">
-      <div className="flex items-center gap-12">
+      <div className="flex items-center gap-4">
+        <BrandLockup />
+        <Separator orientation="vertical" className="h-5 self-center!" />
         <BrandChip />
       </div>
 

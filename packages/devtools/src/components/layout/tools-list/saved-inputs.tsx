@@ -1,4 +1,4 @@
-import { Button } from "@alpic-ai/ui/components/button";
+import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
   DialogContent,
@@ -6,15 +6,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@alpic-ai/ui/components/dialog";
+} from "@/components/ui/dialog.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@alpic-ai/ui/components/dropdown-menu";
-import { Input } from "@alpic-ai/ui/components/input";
-import { Label } from "@alpic-ai/ui/components/label";
+} from "@/components/ui/dropdown-menu.js";
+import { Input } from "@/components/ui/input.js";
+import { Label } from "@/components/ui/label.js";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useId, useState } from "react";
 import type { SavedInput } from "@/lib/saved-inputs-store.js";

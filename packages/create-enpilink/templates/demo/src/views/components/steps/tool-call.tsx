@@ -1,9 +1,9 @@
-import { Button } from "@alpic-ai/ui/components/button";
 import { Cookie } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useCallTool } from "@/helpers.js";
 import Doc from "@/views/components/doc.js";
 import DocLink from "@/views/components/doc-link.js";
+import { Button } from "@/views/components/ui/button.js";
 
 export default function ToolCall() {
   // useCallTool: invoke a server tool from within the view.

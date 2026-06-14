@@ -1,11 +1,11 @@
+import { useOpenExternal } from "enpilink/web";
+import { BookOpen, CircleStar } from "lucide-react";
 import {
   Card,
   CardContent,
   CardDescription,
   CardTitle,
-} from "@alpic-ai/ui/components/card";
-import { BookOpen, CircleStar } from "lucide-react";
-import { useOpenExternal } from "enpilink/web";
+} from "@/views/components/ui/card.js";
 
 const LINKS = [
   {

@@ -6,15 +6,15 @@ import {
   ComboboxList,
   ComboboxSearch,
   ComboboxTrigger,
-} from "@alpic-ai/ui/components/combobox";
+} from "@/components/ui/combobox.js";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@alpic-ai/ui/components/select";
-import { Switch } from "@alpic-ai/ui/components/switch";
+} from "@/components/ui/select.js";
+import { Switch } from "@/components/ui/switch.js";
 import type {
   EnumOptionsType,
   RegistryWidgetsType,

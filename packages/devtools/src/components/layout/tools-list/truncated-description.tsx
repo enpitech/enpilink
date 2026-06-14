@@ -4,7 +4,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@alpic-ai/ui/components/dialog";
+} from "@/components/ui/dialog.js";
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils.js";
 

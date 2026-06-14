@@ -1,10 +1,10 @@
-import { Button } from "@alpic-ai/ui/components/button";
+import { Button } from "@/components/ui/button.js";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-} from "@alpic-ai/ui/components/popover";
-import { Separator } from "@alpic-ai/ui/components/separator";
+} from "@/components/ui/popover.js";
+import { Separator } from "@/components/ui/separator.js";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Loader2Icon, RocketIcon, UnplugIcon } from "lucide-react";
 import {
@@ -150,7 +150,7 @@ export function DeployButton() {
           icon={<RocketIcon className="size-3.5" />}
           onClick={() => copy(command)}
         >
-          Deploy
+          Build
         </Button>
       }
     >
@@ -161,7 +161,9 @@ export function DeployButton() {
             DESCRIPTION_MAX_W,
           )}
         >
-          Run this command to build your project for deployment to your host
+          Run this command to build your enpilink app, then self-host the output
+          ({" "}
+          <code className="font-mono text-xs">node dist/__entry.js</code>).
         </p>
         <button
           type="button"

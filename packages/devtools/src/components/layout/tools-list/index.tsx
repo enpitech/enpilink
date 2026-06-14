@@ -1,5 +1,5 @@
-import { Accordion } from "@alpic-ai/ui/components/accordion";
-import { Button } from "@alpic-ai/ui/components/button";
+import { Accordion } from "@/components/ui/accordion.js";
+import { Button } from "@/components/ui/button.js";
 import { useTimeout } from "ahooks";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";

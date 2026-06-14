@@ -1,15 +1,15 @@
 import {
   AccordionContent,
   AccordionItem,
-} from "@alpic-ai/ui/components/accordion";
-import { Badge } from "@alpic-ai/ui/components/badge";
-import { Button } from "@alpic-ai/ui/components/button";
-import { Tabs, TabsContent } from "@alpic-ai/ui/components/tabs";
+} from "@/components/ui/accordion.js";
+import { Badge } from "@/components/ui/badge.js";
+import { Button } from "@/components/ui/button.js";
+import { Tabs, TabsContent } from "@/components/ui/tabs.js";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@alpic-ai/ui/components/tooltip";
+} from "@/components/ui/tooltip.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type Form from "@rjsf/core";

@@ -1,5 +1,5 @@
-import { Button } from "@alpic-ai/ui/components/button";
 import { Check } from "lucide-react";
+import { Button } from "@/views/components/ui/button.js";
 
 export default function Nav({
   current,
