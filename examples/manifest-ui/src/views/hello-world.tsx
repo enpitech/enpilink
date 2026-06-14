@@ -2,11 +2,12 @@ import "@/index.css";
 
 import { Github } from "lucide-react";
 import { useOpenExternal } from "enpilink/web";
+import enpitechLogo from "../assets/enpitech-logo.png";
 import { Hero } from "../components/ui/hero.js";
 import { useToolInfo } from "../helpers.js";
 
 const DEFAULT_TITLE = "enpilink";
-const DEFAULT_SUBTITLE = "Build ChatGPT & MCP Apps. The Modern TypeScript Way.";
+const DEFAULT_SUBTITLE = "Build ChatGPT & MCP Apps, the open way — no account, no lock-in.";
 
 function HelloWorld() {
   const openExternal = useOpenExternal();
@@ -20,9 +21,9 @@ function HelloWorld() {
     <Hero
       data={{
         logo1: {
-          text: "enpitech",
-          alt: "enpitech Logo",
-          url: "https://avatars.githubusercontent.com/u/206831205?s=200&v=4",
+          text: "Enpitech",
+          alt: "Powered by Enpitech",
+          url: enpitechLogo,
         },
         title,
         subtitle,
