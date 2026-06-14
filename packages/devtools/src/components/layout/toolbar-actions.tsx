@@ -1,10 +1,3 @@
-import { Button } from "@/components/ui/button.js";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "@/components/ui/popover.js";
-import { Separator } from "@/components/ui/separator.js";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Loader2Icon, RocketIcon, UnplugIcon } from "lucide-react";
 import {
@@ -18,6 +11,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "@/components/ui/button.js";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover.js";
+import { Separator } from "@/components/ui/separator.js";
 import { useCopyToClipboard } from "@/lib/copy.js";
 import { useTunnelStore } from "@/lib/tunnel-store.js";
 import { cn } from "@/lib/utils.js";
@@ -162,8 +162,7 @@ export function DeployButton() {
           )}
         >
           Run this command to build your enpilink app, then self-host the output
-          ({" "}
-          <code className="font-mono text-xs">node dist/__entry.js</code>).
+          ( <code className="font-mono text-xs">node dist/__entry.js</code>).
         </p>
         <button
           type="button"

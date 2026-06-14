@@ -43,7 +43,7 @@ deno init --npm enpilink my-app
 **Prerequisites**
 
 Make sure you have:
-- **Node.js 24+**
+- **Node.js 22+**
 - Basic knowledge of **React** and **TypeScript**
 - Familiarity with **Zod** for schema validation (we'll use it for type-safe tool definitions)
 </Info>
@@ -117,7 +117,7 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-enpilink opens a public tunnel automatically and prints a public `/mcp` URL you can paste into Claude, ChatGPT, or any MCP client. Add `--verbose` to stream tunnel logs.
+enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup — it just needs `ssh`, which ships with macOS and Linux) and prints a public `/mcp` URL you can paste into Claude, ChatGPT, or any MCP client. The URL is stable across runs (derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`). Add `--verbose` to stream tunnel logs.
 
 ## Next steps
 

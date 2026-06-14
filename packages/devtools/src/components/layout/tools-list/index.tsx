@@ -1,8 +1,8 @@
-import { Accordion } from "@/components/ui/accordion.js";
-import { Button } from "@/components/ui/button.js";
 import { useTimeout } from "ahooks";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { Accordion } from "@/components/ui/accordion.js";
+import { Button } from "@/components/ui/button.js";
 import { useSuspenseTools } from "@/lib/mcp/index.js";
 import { queryClient } from "@/lib/query-client.js";
 import { cn } from "@/lib/utils.js";

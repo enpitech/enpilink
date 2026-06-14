@@ -1,3 +1,5 @@
+import { Check, ChevronDown, Trash2 } from "lucide-react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -15,8 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
-import { Check, ChevronDown, Trash2 } from "lucide-react";
-import { type FormEvent, useEffect, useId, useState } from "react";
 import type { SavedInput } from "@/lib/saved-inputs-store.js";
 import { cn } from "@/lib/utils.js";
 

@@ -1,5 +1,5 @@
-import { type RefObject, useEffect } from "react";
 import type { AppsSdkContext, Theme } from "enpilink/web";
+import { type RefObject, useEffect } from "react";
 
 type UseSyncOpenaiThemeParams = {
   iframeRef: RefObject<HTMLIFrameElement | null>;

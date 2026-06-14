@@ -3,210 +3,49 @@ title: Examples
 description: Example apps built with enpilink
 ---
 
-Explore real-world examples built with enpilink. Each app demonstrates different features and integrations. Click an app to see a full-page walkthrough.
+enpilink ships two reference apps in the [`examples/`](https://github.com/enpitech/enpilink/tree/main/examples)
+directory of the repo. Both are open source, account-free, and run entirely on
+your machine — clone the repo, `pnpm install`, and `pnpm dev` in either folder.
 
-<Callout icon="rocket" color="#08F5F9">
-  Want to see enpilink in the wild? Explore the <a href="https://enpilink.tech/showcase" target="_blank">enpilink showcase</a> to discover production MCP Apps shipped by real teams in ChatGPT and Claude.
-</Callout>
+## Kitchen Sink
 
-## Basic
+The **kitchen-sink** (a fictional store called *Northwind*) is the showcase app.
+It exercises **every enpilink framework feature and all four mcp-ui interaction
+types** — `tool`, `prompt`, `notify`, and `intent` — across 9 tools and 9 views,
+with deterministic mock data so demos reproduce exactly.
 
-Starter examples and reference implementations for learning the core enpilink patterns.
+It's also the basis for the `demo` scaffolder template, so `npm create enpilink`
+gives you this app as a starting point.
 
-<CardGroup cols={2}>
+```bash
+cd examples/kitchen-sink
+pnpm install
+pnpm dev          # local devtools emulator + HMR
+pnpm dev:tunnel   # account-free public srv.us tunnel for Claude / ChatGPT
+```
 
-<Card
-  title="Starter"
-  img="/images/showcase-starter.png"
-  href="/examples/starter"
->
-  The default app scaffolded by `npm create enpilink`. A guided onboarding tour through enpilink's core APIs, featuring the enpilink mascot.
+<a href="https://github.com/enpitech/enpilink/tree/main/examples/kitchen-sink" target="_blank"><Icon icon="github" iconType="brands" /> View code on GitHub</a>
 
-  <a href="https://github.com/enpitech/apps-sdk-template" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
+## Manifest UI
 
-<Card
-  title="Everything"
-  img="/images/showcase-example.png"
-  href="/examples/everything"
->
-  Comprehensive playground showcasing all enpilink hooks and features. The ultimate reference implementation.
+A minimal, single-view example used as a smoke test and a starting point for
+component-library experiments.
 
-  <a href="https://everything.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/everything" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
+```bash
+cd examples/manifest-ui
+pnpm install
+pnpm dev
+```
 
-</CardGroup>
+<a href="https://github.com/enpitech/enpilink/tree/main/examples/manifest-ui" target="_blank"><Icon icon="github" iconType="brands" /> View code on GitHub</a>
 
-## Use cases
+## Connecting an example to Claude or ChatGPT
 
-Open-source apps that show how enpilink supports maps, commerce, travel, games, dashboards, and other rich MCP App workflows.
-
-<CardGroup cols={2}>
-
-<Card
-  title="Capitals Explorer"
-  img="/images/showcase-capitals.png"
-  href="/examples/capitals"
->
-  Interactive world map with geolocation, country information from Wikipedia, and dynamic capital exploration.
-
-  <a href="https://capitals.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/capitals" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Chess"
-  img="/images/showcase-chess.png"
-  href="/examples/chess"
->
-  Play chess against the assistant with a picture-in-picture board. Showcases MCP Apps view-provided tools — the model plays through tools registered by the view itself.
-
-  <a href="https://chess.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/chess" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Flight Booking"
-  img="/images/showcase-flight-booking.png"
-  href="/examples/flight-booking"
->
-  Flight search carousel with route details, pricing comparison, and external booking via enpilink docs.
-
-  <a href="https://flight-booking.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/flight-booking" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Ecommerce Carousel"
-  img="/images/showcase-ecommerce.png"
-  href="/examples/ecommerce-carousel"
->
-  Product carousel with persistent cart, localization support, theme switching, and modal dialogs.
-
-  <a href="https://ecommerce.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/ecom-carousel" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Investigation Game"
-  img="/images/showcase-investigation-game.png"
-  href="/examples/investigation-game"
->
-  Interactive murder mystery game with multi-screen gameplay, fullscreen display mode, and dynamic story progression.
-
-  <a href="https://investigation-game.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/investigation-game" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Productivity"
-  img="/images/showcase-productivity.png"
-  href="/examples/productivity"
->
-  Interactive analytics dashboard with charts, theme adaptation, localization, fullscreen mode, and bidirectional tool calls.
-
-  <a href="https://productivity.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/productivity" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Time's Up"
-  img="/images/showcase-times-up.png"
-  href="/examples/times-up"
->
-  Word-guessing party game where the user sees a secret word and gives hints to the AI, which tries to guess it.
-
-  <a href="https://times-up.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/times-up" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-</CardGroup>
-
-## Auth
-
-OAuth examples showing how to connect common authentication providers to enpilink apps.
-
-<CardGroup cols={2}>
-
-<Card
-  title="Auth - Clerk"
-  img="/images/showcase-clerk.png"
-  href="/examples/auth-clerk"
->
-  Full OAuth authentication with Clerk and personalized coffee shop search.
-
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/auth-clerk" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Auth - WorkOS AuthKit"
-  img="/images/showcase-workos.png"
-  href="/examples/auth-workos"
->
-  Full OAuth authentication with WorkOS AuthKit and personalized coffee shop search.
-
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/auth-workos" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Auth - Stytch"
-  img="/images/showcase-stytch.png"
-  href="/examples/auth-stytch"
->
-  Full OAuth authentication with Stytch and personalized coffee shop search.
-
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/auth-stytch" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Auth - Auth0"
-  img="/images/showcase-auth0.png"
-  href="/examples/auth-auth0"
->
-  Full OAuth authentication with Auth0 and personalized coffee shop search.
-
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/auth-auth0" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-</CardGroup>
-
-## UI and component libraries
-
-Examples for building rich interfaces and reusable components in MCP Apps.
-
-<CardGroup cols={2}>
-
-<Card
-  title="Manifest UI"
-  img="/images/showcase-manifest-ui.png"
-  href="/examples/manifest-ui"
->
-  Agentic component library example for rich AI-powered experiences.
-
-  <a href="https://manifest-ui.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/manifest-ui" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-<Card
-  title="Generative UI"
-  img="/images/showcase-generative-ui.png"
-  href="/examples/generative-ui"
->
-  LLM-generated dynamic UIs with json-render and 36 pre-built shadcn/ui components. The AI composes the interface, the view renders it.
-
-  <a href="https://generative-ui.enpilink.tech/try" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="play" /> Try Demo</a>
-  <br />
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples/generative-ui" target="_blank" onClick={(e) => e.stopPropagation()}><Icon icon="github" iconType="brands" /> View code on GitHub</a>
-</Card>
-
-</CardGroup>
+1. Run `pnpm dev:tunnel` (kitchen-sink) — enpilink opens an account-free
+   [srv.us](/quickstart/test-your-app) tunnel and prints a public `/mcp` URL.
+2. In **Claude** → Settings → Connectors → **Add custom connector**, paste the
+   printed `https://<hash>.srv.us/mcp` URL. (In **ChatGPT**, use Settings →
+   Connectors → Create.)
+3. For the kitchen-sink, paste the contents of
+   [`examples/kitchen-sink/specs/SYSTEM_PROMPT.md`](https://github.com/enpitech/enpilink/blob/main/examples/kitchen-sink/specs/SYSTEM_PROMPT.md)
+   into your Claude project instructions so the assistant knows which tools to call.

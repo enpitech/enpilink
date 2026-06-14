@@ -11,8 +11,10 @@ const badgeVariants = cva(
       variant: {
         secondary: "border-border bg-background text-muted-foreground",
         primary: "border-transparent bg-primary text-primary-foreground",
-        success: "border-badge-success/30 bg-badge-success/10 text-badge-success",
-        warning: "border-badge-warning/30 bg-badge-warning/10 text-badge-warning",
+        success:
+          "border-badge-success/30 bg-badge-success/10 text-badge-success",
+        warning:
+          "border-badge-warning/30 bg-badge-warning/10 text-badge-warning",
         error: "border-badge-error/30 bg-badge-error/10 text-badge-error",
       },
       size: {
@@ -27,11 +29,16 @@ const badgeVariants = cva(
   },
 );
 
-interface BadgeProps extends React.ComponentProps<"span">, VariantProps<typeof badgeVariants> {}
+interface BadgeProps
+  extends React.ComponentProps<"span">,
+    VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, size, children, ...props }: BadgeProps) {
   return (
-    <span className={cn(badgeVariants({ variant, size }), className)} {...props}>
+    <span
+      className={cn(badgeVariants({ variant, size }), className)}
+      {...props}
+    >
       {children}
     </span>
   );

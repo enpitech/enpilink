@@ -22,6 +22,7 @@
     "test": "pnpm run test:format && pnpm run test:types",
     "format": "biome check --write --error-on-warnings",
     "test:format": "biome ci",
+    "pretest:types": "vite build --config e2e/fixtures/web/vite.config.ts --logLevel error",
     "test:types": "tsc --noEmit -p e2e/tsconfig.json",
     "preview": "vite preview",
     "e2e:fixture": "tsx ./e2e/fixtures/server.ts",

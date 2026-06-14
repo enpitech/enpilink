@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button.js";
 import { PlugZap } from "lucide-react";
 import { Suspense } from "react";
 import {
@@ -7,6 +6,7 @@ import {
   Separator,
   useDefaultLayout,
 } from "react-resizable-panels";
+import { Button } from "@/components/ui/button.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { connectToServer } from "@/lib/mcp/index.js";
 import { Header } from "./header.js";

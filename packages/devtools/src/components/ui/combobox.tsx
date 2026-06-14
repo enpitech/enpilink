@@ -3,7 +3,14 @@
 import type { VariantProps } from "class-variance-authority";
 import { Command as CommandPrimitive } from "cmdk";
 import { CheckIcon, ChevronDownIcon, SearchIcon, X } from "lucide-react";
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 
 import { cn } from "./cn.js";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
@@ -26,7 +33,9 @@ const ComboboxContext = createContext<ComboboxContextValue | null>(null);
 function useComboboxContext() {
   const context = useContext(ComboboxContext);
   if (!context) {
-    throw new Error("Combobox compound components must be used within <Combobox>");
+    throw new Error(
+      "Combobox compound components must be used within <Combobox>",
+    );
   }
   return context;
 }
@@ -65,13 +74,13 @@ function Combobox(props: ComboboxProps) {
     getOptionLabel,
   } = props;
 
-  const [uncontrolledSingleValue, setUncontrolledSingleValue] = useState<string | null>(
-    !multiple ? ((props as ComboboxSingleProps).defaultValue ?? null) : null,
-  );
+  const [uncontrolledSingleValue, setUncontrolledSingleValue] = useState<
+    string | null
+  >(!multiple ? ((props as ComboboxSingleProps).defaultValue ?? null) : null);
 
-  const [uncontrolledMultiValue, setUncontrolledMultiValue] = useState<string[]>(
-    multiple ? ((props as ComboboxMultipleProps).defaultValue ?? []) : [],
-  );
+  const [uncontrolledMultiValue, setUncontrolledMultiValue] = useState<
+    string[]
+  >(multiple ? ((props as ComboboxMultipleProps).defaultValue ?? []) : []);
 
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
 
@@ -110,10 +119,16 @@ function Combobox(props: ComboboxProps) {
     [multiple, singleValue, multiValues],
   );
 
-  const onValueChangeSingle = !multiple ? (props as ComboboxSingleProps).onValueChange : undefined;
-  const onValueChangeMulti = multiple ? (props as ComboboxMultipleProps).onValueChange : undefined;
-  const isControlledSingle = !multiple && (props as ComboboxSingleProps).value !== undefined;
-  const isControlledMulti = multiple && (props as ComboboxMultipleProps).value !== undefined;
+  const onValueChangeSingle = !multiple
+    ? (props as ComboboxSingleProps).onValueChange
+    : undefined;
+  const onValueChangeMulti = multiple
+    ? (props as ComboboxMultipleProps).onValueChange
+    : undefined;
+  const isControlledSingle =
+    !multiple && (props as ComboboxSingleProps).value !== undefined;
+  const isControlledMulti =
+    multiple && (props as ComboboxMultipleProps).value !== undefined;
 
   const onSelect = useCallback(
     (itemValue: string) => {
@@ -133,7 +148,15 @@ function Combobox(props: ComboboxProps) {
         onOpenChange(false);
       }
     },
-    [multiple, isControlledMulti, isControlledSingle, onValueChangeMulti, onValueChangeSingle, multiValues, onOpenChange],
+    [
+      multiple,
+      isControlledMulti,
+      isControlledSingle,
+      onValueChangeMulti,
+      onValueChangeSingle,
+      multiValues,
+      onOpenChange,
+    ],
   );
 
   const onDeselect = useCallback(
@@ -162,7 +185,17 @@ function Combobox(props: ComboboxProps) {
       onOpenChange,
       getOptionLabel,
     }),
-    [multiple, singleValue, multiValues, onSelect, onDeselect, isSelected, open, onOpenChange, getOptionLabel],
+    [
+      multiple,
+      singleValue,
+      multiValues,
+      onSelect,
+      onDeselect,
+      isSelected,
+      open,
+      onOpenChange,
+      getOptionLabel,
+    ],
   );
 
   return (
@@ -180,10 +213,18 @@ interface ComboboxTriggerProps
   placeholder?: string;
 }
 
-function ComboboxTrigger({ className, size, placeholder, children, ...props }: ComboboxTriggerProps) {
+function ComboboxTrigger({
+  className,
+  size,
+  placeholder,
+  children,
+  ...props
+}: ComboboxTriggerProps) {
   const { multiple, value, values, open, onDeselect } = useComboboxContext();
 
-  const isEmpty = multiple ? values.length === 0 : value === null || value === undefined;
+  const isEmpty = multiple
+    ? values.length === 0
+    : value === null || value === undefined;
 
   return (
     <PopoverTrigger asChild>
@@ -202,7 +243,13 @@ function ComboboxTrigger({ className, size, placeholder, children, ...props }: C
             isEmpty && "text-placeholder",
           )}
         >
-          {isEmpty ? placeholder : multiple ? <ComboboxTags values={values} onDeselect={onDeselect} /> : children}
+          {isEmpty ? (
+            placeholder
+          ) : multiple ? (
+            <ComboboxTags values={values} onDeselect={onDeselect} />
+          ) : (
+            children
+          )}
         </span>
         <ChevronDownIcon className="size-5 shrink-0 text-muted-foreground" />
       </button>
@@ -210,11 +257,19 @@ function ComboboxTrigger({ className, size, placeholder, children, ...props }: C
   );
 }
 
-function ComboboxTags({ values, onDeselect }: { values: string[]; onDeselect: (value: string) => void }) {
+function ComboboxTags({
+  values,
+  onDeselect,
+}: {
+  values: string[];
+  onDeselect: (value: string) => void;
+}) {
   const { getOptionLabel } = useComboboxContext();
   return (
     <>
       {values.map((tagValue) => (
+        // biome-ignore lint/a11y/noStaticElementInteractions: tag chip only stops click propagation; the inner button is the real control
+        // biome-ignore lint/a11y/useKeyWithClickEvents: no keyboard handler needed — stopPropagation guards the wrapping combobox, removal is on the button
         <span
           key={tagValue}
           className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 type-text-xs text-foreground"
@@ -238,20 +293,28 @@ function ComboboxTags({ values, onDeselect }: { values: string[]; onDeselect: (v
   );
 }
 
-interface ComboboxContentProps extends React.ComponentProps<typeof PopoverContent> {
+interface ComboboxContentProps
+  extends React.ComponentProps<typeof PopoverContent> {
   className?: string;
   children?: ReactNode;
   filter?: React.ComponentProps<typeof CommandPrimitive>["filter"];
 }
 
-function ComboboxContent({ className, children, filter, ...props }: ComboboxContentProps) {
+function ComboboxContent({
+  className,
+  children,
+  filter,
+  ...props
+}: ComboboxContentProps) {
   const { multiple } = useComboboxContext();
 
   return (
     <PopoverContent
       className={cn("w-[var(--radix-popover-trigger-width)] p-0", className)}
       align="start"
-      onOpenAutoFocus={multiple ? (event: Event) => event.preventDefault() : undefined}
+      onOpenAutoFocus={
+        multiple ? (event: Event) => event.preventDefault() : undefined
+      }
       {...props}
     >
       <CommandPrimitive
@@ -265,9 +328,15 @@ function ComboboxContent({ className, children, filter, ...props }: ComboboxCont
   );
 }
 
-function ComboboxSearch({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Input>) {
+function ComboboxSearch({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div data-slot="combobox-search" className="flex items-center gap-2 border-b border-border-secondary px-3 py-2.5">
+    <div
+      data-slot="combobox-search"
+      className="flex items-center gap-2 border-b border-border-secondary px-3 py-2.5"
+    >
       <SearchIcon className="size-5 shrink-0 text-muted-foreground" />
       <CommandPrimitive.Input
         data-slot="combobox-search-input"
@@ -283,27 +352,42 @@ function ComboboxSearch({ className, ...props }: React.ComponentProps<typeof Com
   );
 }
 
-function ComboboxList({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.List>) {
+function ComboboxList({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.List>) {
   return (
     <CommandPrimitive.List
       data-slot="combobox-list"
-      className={cn("max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto py-1", className)}
+      className={cn(
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto py-1",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-function ComboboxEmpty({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+function ComboboxEmpty({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Empty>) {
   return (
     <CommandPrimitive.Empty
       data-slot="combobox-empty"
-      className={cn("py-6 text-center type-text-sm text-muted-foreground", className)}
+      className={cn(
+        "py-6 text-center type-text-sm text-muted-foreground",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-function ComboboxGroup({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Group>) {
+function ComboboxGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Group>) {
   return (
     <CommandPrimitive.Group
       data-slot="combobox-group"
@@ -316,7 +400,10 @@ function ComboboxGroup({ className, ...props }: React.ComponentProps<typeof Comm
   );
 }
 
-function ComboboxSeparator({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+function ComboboxSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
   return (
     <CommandPrimitive.Separator
       data-slot="combobox-separator"
@@ -326,11 +413,17 @@ function ComboboxSeparator({ className, ...props }: React.ComponentProps<typeof 
   );
 }
 
-interface ComboboxItemProps extends Omit<React.ComponentProps<typeof CommandPrimitive.Item>, "onSelect"> {
+interface ComboboxItemProps
+  extends Omit<React.ComponentProps<typeof CommandPrimitive.Item>, "onSelect"> {
   itemValue: string;
 }
 
-function ComboboxItem({ className, children, itemValue, ...props }: ComboboxItemProps) {
+function ComboboxItem({
+  className,
+  children,
+  itemValue,
+  ...props
+}: ComboboxItemProps) {
   const { onSelect, isSelected } = useComboboxContext();
   const selected = isSelected(itemValue);
 
@@ -350,17 +443,26 @@ function ComboboxItem({ className, children, itemValue, ...props }: ComboboxItem
       )}
       {...props}
     >
-      <span className="flex flex-1 items-center gap-2 truncate">{children}</span>
+      <span className="flex flex-1 items-center gap-2 truncate">
+        {children}
+      </span>
       {selected && <CheckIcon className="size-5 shrink-0 text-primary" />}
     </CommandPrimitive.Item>
   );
 }
 
-function ComboboxItemText({ className, children, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+function ComboboxItemText({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
       data-slot="combobox-item-text"
-      className={cn("type-text-md font-normal text-subtle-foreground", className)}
+      className={cn(
+        "type-text-md font-normal text-subtle-foreground",
+        className,
+      )}
       {...props}
     >
       {children}

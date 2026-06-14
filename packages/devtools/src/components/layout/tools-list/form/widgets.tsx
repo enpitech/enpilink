@@ -1,3 +1,10 @@
+import type {
+  EnumOptionsType,
+  RegistryWidgetsType,
+  WidgetProps,
+} from "@rjsf/utils";
+import { X } from "lucide-react";
+import { useRef, useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -15,13 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
-import type {
-  EnumOptionsType,
-  RegistryWidgetsType,
-  WidgetProps,
-} from "@rjsf/utils";
-import { X } from "lucide-react";
-import { useRef, useState } from "react";
 import { cn } from "@/lib/utils.js";
 import { denseSelectTriggerClass, denseTextareaClass } from "./styles.js";
 

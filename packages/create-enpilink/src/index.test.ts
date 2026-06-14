@@ -53,12 +53,14 @@ describe("create-enpilink", () => {
     await fs.access(path.join(projectDir, "Dockerfile"));
     await fs.access(path.join(projectDir, "src", "server.ts"));
 
-    // Blank template ships no views directory and no demo styles.
-    await expect(
-      fs.access(path.join(projectDir, "src", "views")),
-    ).rejects.toThrow();
+    // Blank ships ONE minimal starter view so a fresh app builds out of the box,
+    // but no demo styles / domain / data.
+    await fs.access(path.join(projectDir, "src", "views", "hello-world.tsx"));
     await expect(
       fs.access(path.join(projectDir, "src", "index.css")),
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(projectDir, "src", "data")),
     ).rejects.toThrow();
   });
 

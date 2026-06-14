@@ -1,6 +1,6 @@
+import { LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Separator } from "@/components/ui/separator.js";
-import { LogIn, LogOut } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { logout, signIn, useServerInfo } from "@/lib/mcp/index.js";
 import { StatusBadge } from "./status-badge.js";
@@ -59,11 +59,7 @@ function BrandLockup() {
         <span className="text-[10px] font-medium uppercase tracking-wide text-quaternary-foreground">
           powered by
         </span>
-        <img
-          src="/enpitech-logo.png"
-          alt="enpitech"
-          className="h-4 w-auto"
-        />
+        <img src="/enpitech-logo.png" alt="enpitech" className="h-4 w-auto" />
       </a>
     </div>
   );

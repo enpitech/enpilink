@@ -1,6 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { useEffect, useRef } from "react";
 import type { CallToolResponse } from "enpilink/web";
+import { useEffect, useRef } from "react";
 
 // Minimal typings for the WebMCP proposal (https://github.com/webmachinelearning/webmcp).
 // Tools registered on `document.modelContext` are discoverable by browser

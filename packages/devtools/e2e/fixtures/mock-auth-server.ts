@@ -14,8 +14,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import express, { type Router } from "express";
 import { type AuthInfo, InvalidTokenError } from "enpilink/server";
+import express, { type Router } from "express";
 
 export interface MockAuthServerOptions {
   /** Base URL of the fixture (e.g. `http://localhost:4102`). */

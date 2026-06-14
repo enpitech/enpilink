@@ -72,6 +72,7 @@
               "guides/fetching-data",
               "guides/managing-state",
               "guides/communicating-with-model",
+              "guides/interaction-types",
               "guides/host-environment-context"
             ]
           },
@@ -157,79 +158,11 @@
       },
       {
         "tab": "Examples",
-        "pages": [
-          "examples",
-          {
-            "group": "Basic",
-            "pages": ["examples/starter", "examples/everything"]
-          },
-          {
-            "group": "Use cases",
-            "pages": [
-              "examples/capitals",
-              "examples/chess",
-              "examples/flight-booking",
-              "examples/ecommerce-carousel",
-              "examples/investigation-game",
-              "examples/productivity",
-              "examples/times-up"
-            ]
-          },
-          {
-            "group": "Auth",
-            "pages": [
-              "examples/auth-clerk",
-              "examples/auth-workos",
-              "examples/auth-stytch",
-              "examples/auth-auth0"
-            ]
-          },
-          {
-            "group": "UI and Component libraries",
-            "pages": ["examples/manifest-ui", "examples/generative-ui"]
-          }
-        ]
+        "pages": ["examples"]
       }
     ]
   },
-  "redirects": [
-    {
-      "source": "/showcase",
-      "destination": "/examples"
-    },
-    {
-      "source": "/showcase/:slug*",
-      "destination": "/examples/:slug*"
-    },
-    {
-      "source": "/examples/magic-8-ball",
-      "destination": "/examples/starter"
-    },
-    {
-      "source": "/examples/awaze",
-      "destination": "https://enpilink.tech/showcase"
-    },
-    {
-      "source": "/examples/cottages",
-      "destination": "https://enpilink.tech/showcase"
-    },
-    {
-      "source": "/examples/evaneos",
-      "destination": "https://enpilink.tech/showcase"
-    },
-    {
-      "source": "/examples/lumo",
-      "destination": "https://enpilink.tech/showcase"
-    }
-  ],
   "navbar": {
-    "links": [
-      {
-        "label": "Discord",
-        "href": "https://discord.gg/awV4gu74wK",
-        "icon": "discord"
-      }
-    ],
     "primary": {
       "type": "github",
       "href": "https://github.com/enpitech/enpilink"

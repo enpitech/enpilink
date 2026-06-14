@@ -20,7 +20,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: ["bg-primary text-primary-foreground", "[@media(hover:hover)]:hover:bg-primary-hover"].join(" "),
+        primary: [
+          "bg-primary text-primary-foreground",
+          "[@media(hover:hover)]:hover:bg-primary-hover",
+        ].join(" "),
         secondary: [
           "border border-border bg-background text-muted-foreground",
           "[@media(hover:hover)]:hover:bg-background-hover [@media(hover:hover)]:hover:text-muted-foreground-hover",
@@ -68,7 +71,9 @@ const buttonVariants = cva(
   },
 );
 
-interface ButtonProps extends React.ComponentProps<"button">, VariantProps<typeof buttonVariants> {
+interface ButtonProps
+  extends React.ComponentProps<"button">,
+    VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
@@ -101,7 +106,9 @@ function Button({
     >
       {loading ? <Loader2 className="motion-safe:animate-spin" /> : icon}
       {asChild ? <Slottable>{children}</Slottable> : children}
-      {!loading && iconTrailing ? <span data-cta-icon-trailing>{iconTrailing}</span> : null}
+      {!loading && iconTrailing ? (
+        <span data-cta-icon-trailing>{iconTrailing}</span>
+      ) : null}
     </Comp>
   );
 }

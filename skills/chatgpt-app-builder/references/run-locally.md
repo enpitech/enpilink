@@ -32,13 +32,17 @@ Interactions inside the rendered view itself are not WebMCP tools, use regular D
 
 Ask user if they want to test in ChatGPT/Claude or just use local devtools.
 
-If yes, expose the local server via enpitech tunnel:
+If yes, expose the local server with the account-free srv.us tunnel — no login,
+no signup, it just needs `ssh` (present on macOS/Linux):
 
 ```bash
-enpitech tunnel --port 3000
+{pm} run dev -- --tunnel      # or: enpilink dev --tunnel
 ```
 
-Extract the forwarding URL from enpitech tunnel output (e.g., `https://cool-marmot-fondue-420.enpitech.dev`).
+enpilink auto-generates an ed25519 key at `~/.enpilink/id_ed25519` on first use
+and prints a stable public URL (e.g. `https://6x7k9m2qwerasdf.srv.us`). Extract
+that URL from the dev-server output; the MCP endpoint is `{tunnel-url}/mcp`. Add
+`--verbose` to stream the raw tunnel logs.
 
 ### Connect to ChatGPT
 Provide the user with these instructions to create the app in ChatGPT:

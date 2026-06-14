@@ -8,19 +8,28 @@ import type * as React from "react";
 import { Button, type ButtonProps } from "./button.js";
 import { cn } from "./cn.js";
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
+function Dialog({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
 
-function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+function DialogTrigger({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+function DialogPortal({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
-function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+function DialogOverlay({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
@@ -63,7 +72,13 @@ interface DialogContentProps
   showCloseButton?: boolean;
 }
 
-function DialogContent({ className, children, size, showCloseButton = true, ...props }: DialogContentProps) {
+function DialogContent({
+  className,
+  children,
+  size,
+  showCloseButton = true,
+  ...props
+}: DialogContentProps) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -94,7 +109,13 @@ function DialogContent({ className, children, size, showCloseButton = true, ...p
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="dialog-header" className={cn("flex flex-col gap-0.5 py-6 pr-10", className)} {...props} />;
+  return (
+    <div
+      data-slot="dialog-header"
+      className={cn("flex flex-col gap-0.5 py-6 pr-10", className)}
+      {...props}
+    />
+  );
 }
 
 const dialogFooterVariants = cva("pb-6 pt-6", {
@@ -109,13 +130,24 @@ const dialogFooterVariants = cva("pb-6 pt-6", {
   },
 });
 
-interface DialogFooterProps extends React.ComponentProps<"div">, VariantProps<typeof dialogFooterVariants> {}
+interface DialogFooterProps
+  extends React.ComponentProps<"div">,
+    VariantProps<typeof dialogFooterVariants> {}
 
 function DialogFooter({ className, layout, ...props }: DialogFooterProps) {
-  return <div data-slot="dialog-footer" className={cn(dialogFooterVariants({ layout }), className)} {...props} />;
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(dialogFooterVariants({ layout }), className)}
+      {...props}
+    />
+  );
 }
 
-function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
+function DialogTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
@@ -125,7 +157,10 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   );
 }
 
-function DialogClose({ children = "Cancel", ...props }: Omit<ButtonProps, "variant" | "asChild">) {
+function DialogClose({
+  children = "Cancel",
+  ...props
+}: Omit<ButtonProps, "variant" | "asChild">) {
   return (
     <DialogPrimitive.Close data-slot="dialog-cancel" asChild>
       <Button variant="secondary" {...props}>
@@ -135,7 +170,10 @@ function DialogClose({ children = "Cancel", ...props }: Omit<ButtonProps, "varia
   );
 }
 
-function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"

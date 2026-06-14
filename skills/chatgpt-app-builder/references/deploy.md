@@ -1,33 +1,49 @@
 # Deploy
 
-Deploy to enpitech using enpitech CLI.
+enpilink is **account-free** and not tied to any hosting vendor. `enpilink build`
+produces a self-contained bundle you run with plain Node — host it anywhere.
 
 ## Parameters
 
-- {path-to-project} is the path to the project directory. It is relative to the current working directory.
-- When executing a command requiring `{path-to-project}`, check that you provided the correct path to the project.
+- `{path-to-project}` is the path to the project directory, relative to the current working directory. Verify it's correct before running build/deploy commands.
 
 ## Steps
 
-1. **Make sure the user is logged in to enpitech**
+1. **Build for production**
 
-Execute `npx enpitech@latest login` to login to enpitech.
+From the project directory, run the build:
 
-2. **Deploy to enpitech**
+```bash
+{pm} run build      # runs `enpilink build`
+```
 
-If it's a first time deployment (absence of `.enpitech/` folder in the project directory), **ask the user for the project name**.
-Then, execute `npx enpitech@latest deploy --yes --project-name {project-name} {path-to-project}`.
+This emits `dist/__entry.js` (plus Cloudflare/Vercel artifacts under `dist/` and
+`.vercel/`). The build automatically rewrites server `@/…` path aliases, so no
+`tsc-alias` step is needed in the project's own scripts.
 
-3. **Subsequent deployments**
+2. **Run it anywhere that has Node ≥22**
 
-For subsequent deployments (presence of `.enpitech/` folder in the project directory), execute `npx enpitech@latest deploy --yes {path-to-project}`.
+```bash
+__PORT=3000 node dist/__entry.js
+```
 
-4. **Setup GitHub integration**
+> The production entry reads the **`__PORT`** environment variable (NOT `PORT`),
+> defaulting to `3000`. `enpilink start` sets it for you.
 
-If it's a new project, ask the user first if they want to setup git.
-If yes:
+Deploy targets:
 
-- **Push to GitHub** — Commit and push code
-- **Link to enpitech project** - Use `npx enpitech@latest git connect --yes {path-to-project}`
+- **Node host / VM / PaaS** — run `node dist/__entry.js` (or `enpilink start`).
+- **Docker** — generated templates include a multi-stage `Dockerfile`:
+  `docker build -t my-app . && docker run -p 3000:3000 my-app`.
+- **Cloudflare Workers** — add a `wrangler.jsonc` with `nodejs_compat` and
+  `npx wrangler deploy`.
+- **Vercel** — `npx vercel deploy --prebuilt` (the build emits the Build Output
+  API tree under `.vercel/output/`).
 
-Full docs: [docs.enpitech.dev/quickstart](https://docs.enpitech.dev/quickstart)
+3. **Expose it to a host (dev/preview)**
+
+For ad-hoc remote testing, `enpilink dev --tunnel` opens an account-free
+[srv.us](https://srv.us) SSH tunnel and prints a public `/mcp` URL — no login,
+no signup. The URL is stable across runs (derived from `~/.enpilink/id_ed25519`).
+
+Full docs: [docs.enpitech.dev/quickstart/deploy](https://docs.enpitech.dev/quickstart/deploy)

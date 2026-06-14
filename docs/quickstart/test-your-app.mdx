@@ -67,14 +67,14 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-enpilink downloads and runs [enpitech tunnel](https://docs.enpitech.dev/cli/tunnel) automatically, then prints a public URL (e.g., `https://cool-marmot-fondue-420.enpitech.dev/mcp`).
+enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is stable: it's derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run. Add `--verbose` to stream the raw tunnel logs.
 
 #### 2. Connect to ChatGPT
 
 1. In ChatGPT, go to **Profile → Apps → Create app**
 2. Enter the printed `/mcp` URL:
    ```
-   https://cool-marmot-fondue-420.enpitech.dev/mcp
+   https://6x7k9m2qwerasdf.srv.us/mcp
    ```
 3. Click **Create**
 
@@ -116,14 +116,14 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-enpilink downloads and runs [enpitech tunnel](https://docs.enpitech.dev/cli/tunnel) automatically, then prints a public URL (e.g., `https://cool-marmot-fondue-420.enpitech.dev/mcp`).
+enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is stable: it's derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run. Add `--verbose` to stream the raw tunnel logs.
 
 #### 2. Connect to Claude
 
 1. In Claude, go to **Settings → Connectors → Add Custom Connector** and configure your MCP server connection
 2. Enter your App name and the printed `/mcp` URL:
    ```
-   https://cool-marmot-fondue-420.enpitech.dev/mcp
+   https://6x7k9m2qwerasdf.srv.us/mcp
    ```
 3. Click on **Add**
 

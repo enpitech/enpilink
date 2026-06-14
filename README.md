@@ -1,152 +1,176 @@
-# enpilink - the MCP Apps framework
+# enpilink
 
-<p align="center">
-  <a href="https://docs.enpitech.dev">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/enpilink-readme-banner-dark.png" />
-      <img alt="enpilink, the full-stack React framework for MCP apps and MCP servers" src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/enpilink-readme-banner-light.png" width="100%" />
-    </picture>
-  </a>
-</p>
+**The open, account-free full-stack framework for [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (and the ChatGPT Apps SDK).**
 
-<p align="center">
-  <strong>The full-stack React framework for MCP Apps and MCP Servers.</strong>
-</p>
+enpilink lets you build type-safe MCP servers whose tools render interactive
+**React views** inside MCP hosts — Claude, ChatGPT, VS Code, Goose, and any other
+MCP-Apps-compatible client. It is a rebrand-and-strip fork of
+[`alpic-ai/skybridge`](https://github.com/alpic-ai/skybridge) (MIT), maintained by
+**Enpitech**.
 
-<p align="center">
-  <a href="https://docs.enpitech.dev">Documentation</a> ·
-  <a href="https://docs.enpitech.dev/quickstart/create-new-app">Quickstart</a> ·
-  <a href="https://github.com/enpitech/enpilink/tree/main/examples">Examples</a>
-</p>
+> enpilink is shown as a plain text wordmark; the only logo image used in the
+> project is the real **Enpitech** mark ("powered by Enpitech").
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/enpilink"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/npm/v/enpilink?color=77F5EE&amp;labelColor=161B22&amp;style=for-the-badge"><img alt="npm version" src="https://img.shields.io/npm/v/enpilink?color=E3FAF7&amp;labelColor=F6F8FA&amp;style=for-the-badge"></picture></a>
-  <a href="https://www.npmjs.com/package/enpilink"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/npm/dm/enpilink?color=D7FFC8&amp;labelColor=161B22&amp;style=for-the-badge"><img alt="npm downloads" src="https://img.shields.io/npm/dm/enpilink?color=E8FBD9&amp;labelColor=F6F8FA&amp;style=for-the-badge"></picture></a>
-  <a href="https://discord.com/invite/gNAazGueab"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Discord-community-77F5EE?style=for-the-badge&amp;logo=discord&amp;logoColor=77F5EE&amp;labelColor=161B22"><img alt="Discord community" src="https://img.shields.io/badge/Discord-community-E3FAF7?style=for-the-badge&amp;logo=discord&amp;logoColor=5865F2&amp;labelColor=F6F8FA"></picture></a>
-  <a href="https://github.com/enpitech/enpilink/blob/main/LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/github/license/enpitech/enpilink?color=D7FFC8&amp;labelColor=161B22&amp;style=for-the-badge"><img alt="License: MIT" src="https://img.shields.io/github/license/enpitech/enpilink?color=E8FBD9&amp;labelColor=F6F8FA&amp;style=for-the-badge"></picture></a>
-</p>
+---
 
-## About enpilink
+## Why enpilink is different from skybridge
 
-enpilink helps developers build type-safe MCP apps for Claude, ChatGPT and other UI-enabled MCP clients, with a complete set of tooling designed for both humans and agents.
+enpilink keeps skybridge's architecture and API surface, but removes every
+dependency on a vendor account or hosted cloud:
 
-Why? MCP apps extend the [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) with **rich, interactive UI views** rendered from MCP servers. Conversational apps need seamless interaction between the user, the UI, and the model. This means new UX patterns, developer tooling, and abstractions. 
-Plus, the raw SDKs are low-level: no hooks, type safety, HMR, etc.
+| | skybridge (upstream) | **enpilink** |
+|---|---|---|
+| Account | Required for tunnel / deploy / playground | **None, anywhere** |
+| Public tunnel | Proprietary `npx alpic tunnel` (cloud) | **[srv.us](https://srv.us)** — open, SSH-based, no signup |
+| Telemetry | PostHog + StatsD (hardcoded keys/IP) | **Removed** (no network, no keys) |
+| Deploy | `alpic deploy` (hosted) | **Generic** — `enpilink build` + self-host anywhere |
+| Interaction types | `tool`, `prompt` | **all 4 mcp-ui types** (adds `notify`, `intent`) |
 
-That's why we built *enpilink*.
+No login, no token, no hardcoded vendor endpoint — local dev, tunneling, and
+deploy all work account-free.
 
-Features include:
+## MCP Apps compliance
 
-- **Delightful dev environment**: enpilink provides a dev server with a local emulator, hot module reload, and a permanent tunnel to connect your local app to Claude and ChatGPT.
-- **Write once, run everywhere**: the framework abstracts implementation differences between MCP clients, so your app runs seamlessly in Claude, ChatGPT, VSCode, and any other MCP apps compatible client.
-- **Agent-ready**: powerful skills, CLI, and programmatic dev tool APIs, everything your coding agent needs to build MCP apps end-to-end.
-- **Type-safe end-to-end**: tRPC-style inference from MCP server tool definition to React view for type safety from server to frontend.
-- **React-first**: Intuitive React Query-style hooks, with advanced state management. 
-- **Example library**: get started quickly with ChatGPT- and Claude-ready app examples for ecommerce, travel, SaaS, and more.
+enpilink is a compliant **MCP Apps** framework, built on the official
+[`@modelcontextprotocol/ext-apps`](https://github.com/modelcontextprotocol/ext-apps)
+extension (stable spec `2026-01-26`). It serves view resources for both runtimes
+so the same view runs in either host:
 
-They chose to build their MCP apps with enpilink: 
+- `ui://views/ext-apps/*` — MCP Apps (Claude, Goose, VS Code, …)
+- `ui://views/apps-sdk/*` — ChatGPT Apps SDK
 
-<p align="center">
-  <a href="https://www.datadoghq.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/datadog-dark.svg"><img src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/datadog-light.svg" alt="Datadog" height="24"></picture></a>
-  &nbsp;&nbsp;
-  <a href="https://bitmovin.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/bitmovin-dark.svg"><img src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/bitmovin-light.svg" alt="Bitmovin" height="22"></picture></a>
-  &nbsp;&nbsp;
-  <a href="https://www.evaneos.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/evaneos-dark.svg"><img src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/evaneos-light.svg" alt="Evaneos" height="18"></picture></a>
-  &nbsp;&nbsp;
-  <a href="https://www.touchstream.media"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/touchstream-dark.svg"><img src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/touchstream-light.svg" alt="Touchstream" height="24"></picture></a>
-  &nbsp;&nbsp;
-  <a href="https://www.cottages.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/cottages-dark.svg"><img src="https://raw.githubusercontent.com/enpitech/enpilink/main/docs/images/user-logos/cottages-light.svg" alt="Cottages.com" height="24"></picture></a>
-</p>
+## The 4 interaction types (a superset of skybridge)
 
-## Get started
+Views talk back to the host through hooks (never raw `postMessage`). enpilink
+supports all four mcp-ui interaction types:
 
-**For agents**
+| Type | Hook | Honest status |
+|---|---|---|
+| `tool` | `useCallTool` | real on both runtimes (from upstream) |
+| `prompt` | `useSendFollowUpMessage` | real on both runtimes (from upstream) |
+| `notify` | `useNotify` | **enpilink addition** — real MCP `notifications/message` on MCP Apps; best-effort extension on the ChatGPT Apps SDK |
+| `intent` | `useIntent` | **enpilink addition** — no spec equivalent on either runtime; best-effort extension, may no-op on hosts that don't route it |
 
-Install our [skill](https://docs.enpitech.dev/devtools/skills) for building MCP apps and ChatGPT apps:
+`notify` and `intent` are guarded and additive: they never throw and degrade to
+a no-op (or a log line) on hosts without support. See
+[`docs/guides/interaction-types.mdx`](docs/guides/interaction-types.mdx) for the
+full per-runtime matrix.
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+- **Node.js ≥ 22**
+- `ssh` (ships with macOS/Linux) — only needed for `--tunnel`
+
+### Run the built-in kitchen-sink demo
+
+The fastest way to see everything is the bundled **kitchen-sink** showcase
+(a fictional store, *Northwind*): 9 tools, 9 views, all 4 interaction types,
+every host hook, deterministic mock data.
+
 ```bash
-npx skills add enpitech/enpilink -s enpilink
+git clone https://github.com/enpitech/enpilink
+cd enpilink && pnpm install && pnpm run build
+
+cd examples/kitchen-sink
+pnpm dev          # local devtools emulator + HMR at http://localhost:3000/
+pnpm dev:tunnel   # opens an account-free srv.us tunnel and prints a public /mcp URL
 ```
-Once installed, ask your agent "What skills do you have?" to confirm, then try:
 
-- _Create a new MCP app_
-- _Migrate my MCP server to the enpilink framework_
-- _Add a new view to my MCP app_ 
+Then connect it to Claude:
 
-**For humans**
+1. Copy the printed `https://<hash>.srv.us/mcp` URL.
+2. In Claude → **Settings → Connectors → Add custom connector**, paste that URL.
+3. Paste the contents of
+   [`examples/kitchen-sink/specs/SYSTEM_PROMPT.md`](examples/kitchen-sink/specs/SYSTEM_PROMPT.md)
+   into your Claude **project instructions** (MCP can't set a host system prompt,
+   so this tells the assistant which tools to call).
 
-Bootstrap a new project with:
+### Scaffold a new app
+
 ```bash
 npm create enpilink@latest my-app
 ```
-For full install instructions, read our [**Quickstart guide**](https://docs.enpitech.dev/quickstart/create-new-app).
 
-## Documentation
+> **POC distribution caveat.** `enpilink` and `@enpilink/devtools` are not yet
+> published to npm, so a freshly scaffolded app's `npm install` will fail on the
+> `workspace:*` ranges in the templates. For real distribution, publish both
+> packages to npm and run `node scripts/bump.js <version>` to rewrite the
+> templates' `workspace:*` ranges to `^<version>`. Until then, scaffold inside
+> this monorepo (the templates resolve via the workspace) or use local
+> `pnpm pack` tarballs. See [Status](#status) below.
 
-The [enpilink documentation](https://docs.enpitech.dev) covers the full lifecycle of building MCP Apps:
+The account-free tunnel under the hood is just one SSH command:
 
-- [Fundamentals](https://docs.enpitech.dev/fundamentals): understand MCP Apps, ChatGPT Apps, and how enpilink bridges both runtimes.
-- [Core concepts](https://docs.enpitech.dev/concepts): learn about server <> model <> UI data flows, LLM context sync, type safety, and instant local iteration with our devtools.
-- [Guides](https://docs.enpitech.dev/guides/fetching-data): build real app behavior with tools, views, state, and model communication.
-- [API Reference](https://docs.enpitech.dev/api-reference): browse our MCP server APIs, React hooks, CLI commands, and runtime compatibility.
+```bash
+ssh srv.us -R 1:localhost:<port>
+```
 
-## Deploy
+enpilink wraps this with auto key-gen (`~/.enpilink/id_ed25519`), URL parsing,
+and auto-reconnect.
 
-Deploy enpilink apps instantly on [enpitech](https://enpitech.dev) for scalable hosting, MCP-specific analytics, permanent tunneling, app store compliance auditing and submission help. You can also self-host on any Node.js-compatible platform.
+---
 
-See our [deployment guide](https://docs.enpitech.dev/quickstart/deploy) for the full production path.
+## CLI
 
-## Community & Contributing
+```bash
+enpilink dev [--tunnel] [-p <port>]   # dev server + devtools emulator + HMR (alias: enpi)
+enpilink build                        # compile server + views → dist/
+enpilink start                        # run the production build (node dist/__entry.js)
+enpilink create [dir]                 # scaffold a new app (passthrough to create-enpilink)
+```
 
-We'd love your help improving enpilink. Here are a few ways to get involved:
+### Production gotcha
 
-- **Bugs**: If you run into a bug or unexpected behavior, open a [GitHub Issue](https://github.com/enpitech/enpilink/issues) with a clear reproduction.
-- **Questions and ideas**: Need help building with enpilink or have ideas to improve the framework, docs, examples, or developer experience? [Open an issue](https://github.com/enpitech/enpilink/issues).
-- **Pull requests**: For code or documentation changes, read the [Contributing Guide](https://github.com/enpitech/enpilink/blob/main/CONTRIBUTING.md) before opening a PR.
+The production entry reads the **`__PORT`** environment variable (NOT `PORT`),
+defaulting to `3000`:
 
-enpilink is released under the [MIT License](https://github.com/enpitech/enpilink/blob/main/LICENSE). It is forked from [alpic-ai/skybridge](https://github.com/alpic-ai/skybridge) (MIT); see [NOTICE](https://github.com/enpitech/enpilink/blob/main/NOTICE) for attribution.
+```bash
+__PORT=8080 node dist/__entry.js
+```
 
-### Contributors
+`enpilink start` sets `__PORT` for you. `enpilink build` also rewrites server
+`@/…` path aliases automatically, so you do **not** need `tsc-alias` in your own
+build scripts.
 
-Built and maintained with ❤️ by [Harijoe](https://github.com/harijoe), [Fred Barthelet](https://github.com/fredericbarthelet), and the [enpitech](https://enpitech.dev) team.
+---
 
-<a href="https://github.com/enpitech/enpilink/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=enpitech/enpilink" alt="enpilink contributors">
-</a>
+## Repo layout
 
-## Example templates
+```
+enpilink/
+├── packages/
+│   ├── core/             → npm "enpilink": server framework + React hooks + Vite plugin + CLI (oclif + Ink)
+│   ├── devtools/         → "@enpilink/devtools": local emulator / playground UI
+│   └── create-enpilink/  → "create-enpilink": scaffolder (templates: blank, demo)
+├── examples/
+│   ├── kitchen-sink/     → the all-features showcase ("Northwind"); basis of the demo template
+│   └── manifest-ui/      → minimal single-view smoke-test example
+├── docs/                 → Mintlify documentation
+├── skills/               → agent skill for building enpilink apps
+└── scripts/              → version bump / overrides helpers
+```
 
-Explore all our example templates in the [Examples](https://docs.enpitech.dev/examples) section of the documentation.
+## Status
 
-### Basic
+This is a POC fork. Today:
 
-| Preview | App | Description | Demo | Code |
-| --- | --- | --- | --- | --- |
-| <img src="docs/images/showcase-example.png" alt="Everything" width="160" /> | Everything | Comprehensive playground app showcasing all enpilink hooks and features. | [Try Demo](https://everything.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/everything) |
+- ✅ Local dev, devtools emulator, HMR, build, and self-host all work account-free.
+- ✅ The account-free **srv.us** tunnel is live-verified end-to-end (the printed
+  `/mcp` URL round-trips over a real public tunnel and survives reconnects).
+- ⏳ **Real npm distribution** requires publishing `enpilink` + `@enpilink/devtools`
+  to npm, then running `node scripts/bump.js <version>`. Until then,
+  `npm create enpilink` is workspace-linked (works inside this repo / via local
+  tarballs, not from a bare `npm install`).
 
-### Use cases
+## Attribution & license
 
-| Preview | App | Description | Demo | Code |
-| --- | --- | --- | --- | --- |
-| <img src="docs/images/showcase-capitals.png" alt="Capitals Explorer" width="160" /> | Capitals Explorer | Interactive world map with geolocation, country information, and dynamic capital exploration. | [Try Demo](https://capitals.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/capitals) |
-| <img src="docs/images/showcase-flight-booking.png" alt="Flight Booking" width="160" /> | Flight Booking | Flight search carousel with route details, pricing comparison, and external booking. | [Try Demo](https://flight-booking.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/flight-booking) |
-| <img src="docs/images/showcase-ecommerce.png" alt="Ecommerce Carousel" width="160" /> | Ecommerce Carousel | Product carousel with persistent cart, localization, theme switching, and modal dialogs. | [Try Demo](https://ecommerce.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/ecom-carousel) |
-| <img src="docs/images/showcase-investigation-game.png" alt="Investigation Game" width="160" /> | Investigation Game | Multi-screen mystery game with fullscreen mode, dynamic story progression and context asynchronicity demonstration | [Try Demo](https://investigation-game.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/investigation-game) |
-| <img src="docs/images/showcase-productivity.png" alt="Productivity" width="160" /> | Productivity | Interactive analytics dashboard with charts, theme adaptation, localization, fullscreen mode, and bidirectional tool calls. | [Try Demo](https://productivity.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/productivity) |
-| <img src="docs/images/showcase-times-up.png" alt="Time's Up" width="160" /> | Time's Up | Word-guessing party game where the user gives hints and the AI tries to guess. | [Try Demo](https://times-up.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/times-up) |
-| <img src="docs/images/showcase-lumo.png" alt="Lumo Interactive AI Tutor" width="160" /> | Lumo — Interactive AI Tutor | Adaptive tutor with Mermaid diagrams, mind maps, quizzes, and fill-in-the-blank exercises. | [Try Demo](https://lumo-mcp-app-39519fdd.enpitech.live/try) | [View code](https://github.com/connorads/lumo-mcp-app) |
+enpilink is released under the [MIT License](LICENSE). It is forked from
+[`alpic-ai/skybridge`](https://github.com/alpic-ai/skybridge) (MIT); the original
+copyright is retained in `LICENSE`, and the fork's changes are summarized in
+[`NOTICE`](NOTICE).
 
-### Auth
-
-| Preview | Provider | Description | Code |
-| --- | --- | --- | --- |
-| <img src="docs/images/showcase-clerk.png" alt="Auth Clerk" width="160" /> | Clerk | Full OAuth authentication with Clerk and personalized coffee shop search. | [View code](https://github.com/enpitech/enpilink/tree/main/examples/auth-clerk) |
-| <img src="docs/images/showcase-workos.png" alt="Auth WorkOS AuthKit" width="160" /> | WorkOS AuthKit | Full OAuth authentication with WorkOS AuthKit and personalized coffee shop search. | [View code](https://github.com/enpitech/enpilink/tree/main/examples/auth-workos) |
-| <img src="docs/images/showcase-stytch.png" alt="Auth Stytch" width="160" /> | Stytch | Full OAuth authentication with Stytch and personalized coffee shop search. | [View code](https://github.com/enpitech/enpilink/tree/main/examples/auth-stytch) |
-| <img src="docs/images/showcase-auth0.png" alt="Auth Auth0" width="160" /> | Auth0 | Full OAuth authentication with Auth0 and personalized coffee shop search. | [View code](https://github.com/enpitech/enpilink/tree/main/examples/auth-auth0) |
-
-### UI and component libraries
-
-| Preview | App | Description | Demo | Code |
-| --- | --- | --- | --- | --- |
-| <img src="docs/images/showcase-manifest-ui.png" alt="Manifest UI" width="160" /> | Manifest UI | Agentic component library example for rich AI-powered experiences. | [Try Demo](https://manifest-ui.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/manifest-ui) |
-| <img src="docs/images/showcase-generative-ui.png" alt="Generative UI" width="160" /> | Generative UI | LLM-generated dynamic UIs with json-render and 36 pre-built shadcn/ui components. | [Try Demo](https://generative-ui.enpilink.tech/try) | [View code](https://github.com/enpitech/enpilink/tree/main/examples/generative-ui) |
+Built and maintained by the [Enpitech](https://enpitech.dev) team.

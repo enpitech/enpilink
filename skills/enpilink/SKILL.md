@@ -31,7 +31,7 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 
 - **Fetch and render data** → [fetch-and-render-data.md](references/fetch-and-render-data.md): when implementing server handlers and view data fetching
 - **State and context** → [state-and-context.md](references/state-and-context.md): when persisting view UI state and updating LLM context
-- **Prompt LLM** → [prompt-llm.md](references/prompt-llm.md): when view needs to trigger LLM response
+- **View → host interactions** → [prompt-llm.md](references/prompt-llm.md): the 4 mcp-ui interaction types — `useCallTool` (tool), `useSendFollowUpMessage` (prompt), `useNotify` (notify), `useIntent` (intent). notify/intent are enpilink additions and best-effort on hosts.
 - **UI guidelines** → [ui-guidelines.md](references/ui-guidelines.md): display modes, layout constraints, theme, device, and locale
 - **External links** → [open-external-links.md](references/open-external-links.md): when redirecting to external URLs or setting "open in app" target
 - **Download file** → [download-file.md](references/download-file.md): when saving content to the user's filesystem
@@ -40,7 +40,9 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 
 ## Deploy
 
-- **Ship to production** → [deploy.md](references/deploy.md): when ready to deploy via enpitech
-- **Publish to ChatGPT/Claude Directories** → [publish.md](references/publish.md): when ready to submit for review
+enpilink is **account-free** — no login, no vendor lock-in.
+
+- **Ship to production** → [deploy.md](references/deploy.md): build with `enpilink build`, self-host with `node dist/__entry.js` (reads `__PORT`, default 3000) on Node / Docker / Cloudflare / Vercel.
+- **Publish to ChatGPT/Claude Directories** → [publish.md](references/publish.md): when ready to submit for review.
 
 Full API docs: [https://docs.enpitech.dev/api-reference.md](https://docs.enpitech.dev/api-reference.md)

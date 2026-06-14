@@ -29,7 +29,7 @@ enpilink dev
 | Flag | Description |
 |------|-------------|
 | `-p, --port <number>` | Port to run the server on. Defaults to `3000`, or the next available port if `3000` is in use. |
-| `--tunnel` | Open an enpitech tunnel for remote testing. |
+| `--tunnel` | Open an account-free [srv.us](https://srv.us) SSH tunnel for remote testing (no login, no signup). |
 | `--no-open` | Don't open DevTools in the browser when the server is ready. |
 | `-v, --verbose` | Show tunnel logs. |
 
@@ -59,11 +59,13 @@ Build your views and MCP server for production deployment.
 enpilink build
 ```
 
-**What it does:**
+**What it does (in order):**
 
-1. **Building views** - Compiles your React views using Vite
-2. **Compiling server** - Transpiles TypeScript server code
-3. **Copying static assets** - Moves built assets to the `dist/` directory
+1. **Scanning views** - Discovers your view components under `src/views/`
+2. **Compiling server** - Transpiles your TypeScript server with `tsc`
+3. **Rewriting path aliases** - Rewrites server `@/…` imports in the emitted JS to relative paths (so `node dist/__entry.js` resolves them — you do **not** need `tsc-alias` in your own scripts)
+4. **Building views** - Compiles your React views with Vite
+5. **Emitting** the manifest module, the `dist/__entry.js` entry wrapper, and the Cloudflare / Vercel deployment artifacts
 
 The output is placed in the `dist/` directory, ready for production deployment.
 
@@ -79,13 +81,17 @@ enpilink start
 
 **Requirements:**
 - Must run `enpilink build` first
-- Requires `dist/index.js` to exist
+- Requires `dist/__entry.js` (the entry wrapper, which primes the Vite manifest so hashed asset URLs resolve). Falls back to `dist/server.js` if the wrapper is absent.
 
 **What it does:**
-- Runs the compiled server from `dist/index.js`
+- Runs the compiled server (`node dist/__entry.js`)
 - Sets `NODE_ENV=production`
-- Serves the MCP endpoint at `http://localhost:3000/mcp`
-- Serves pre-built view assets from `/assets`
+- Listens on the port from the `__PORT` environment variable (default `3000`)
+- Serves the MCP endpoint at `http://localhost:3000/mcp` and pre-built view assets from `/assets`
+
+<Note>
+The production entry reads the **`__PORT`** environment variable (not `PORT`), defaulting to `3000`. `enpilink start` sets it for you; if you run `node dist/__entry.js` directly, set `__PORT` yourself (e.g. `__PORT=8080 node dist/__entry.js`).
+</Note>
 
 ---
 

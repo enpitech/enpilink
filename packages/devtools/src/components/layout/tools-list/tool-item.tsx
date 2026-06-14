@@ -1,7 +1,14 @@
-import {
-  AccordionContent,
-  AccordionItem,
-} from "@/components/ui/accordion.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import type Form from "@rjsf/core";
+import { Form as FormComponent } from "@rjsf/shadcn";
+import type { RJSFSchema } from "@rjsf/utils";
+import validator from "@rjsf/validator-ajv8";
+import { useKeyPress } from "ahooks";
+import type { CallToolResponse } from "enpilink/web";
+import { Braces, ClipboardList, Loader2, Play, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AccordionContent, AccordionItem } from "@/components/ui/accordion.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent } from "@/components/ui/tabs.js";
@@ -10,16 +17,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip.js";
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import type Form from "@rjsf/core";
-import { Form as FormComponent } from "@rjsf/shadcn";
-import type { RJSFSchema } from "@rjsf/utils";
-import validator from "@rjsf/validator-ajv8";
-import { useKeyPress } from "ahooks";
-import { Braces, ClipboardList, Loader2, Play, Save } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CallToolResponse } from "enpilink/web";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { CopyButton } from "@/lib/copy.js";
 import {

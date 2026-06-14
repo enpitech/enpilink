@@ -80,7 +80,9 @@ function Input({
       )}
       required={required}
       aria-invalid={error ? true : undefined}
-      aria-describedby={fieldId && (hint || error) ? `${fieldId}-description` : undefined}
+      aria-describedby={
+        fieldId && (hint || error) ? `${fieldId}-description` : undefined
+      }
       {...props}
     />
   );
@@ -98,7 +100,12 @@ function Input({
       )}
     >
       {leadingIcon && (
-        <span className={cn("flex items-center text-subtle-foreground [&_svg]:shrink-0", sizes.leadingIcon)}>
+        <span
+          className={cn(
+            "flex items-center text-subtle-foreground [&_svg]:shrink-0",
+            sizes.leadingIcon,
+          )}
+        >
           {leadingIcon}
         </span>
       )}
@@ -112,7 +119,9 @@ function Input({
           {leadingText}
         </span>
       )}
-      <div className={cn("flex flex-1 items-center min-w-0", sizes.inner)}>{inputElement}</div>
+      <div className={cn("flex flex-1 items-center min-w-0", sizes.inner)}>
+        {inputElement}
+      </div>
     </div>
   ) : (
     inputElement
@@ -122,11 +131,17 @@ function Input({
     <div className="flex flex-col gap-1.5">
       {label && (
         <div className="flex items-center gap-0.5">
-          <Label htmlFor={fieldId} className="type-text-sm font-medium text-muted-foreground">
+          <Label
+            htmlFor={fieldId}
+            className="type-text-sm font-medium text-muted-foreground"
+          >
             {label}
           </Label>
           {required && (
-            <span aria-hidden className="type-text-sm font-medium text-required">
+            <span
+              aria-hidden
+              className="type-text-sm font-medium text-required"
+            >
               *
             </span>
           )}
@@ -144,7 +159,10 @@ function Input({
       {(hint || error) && (
         <p
           id={fieldId ? `${fieldId}-description` : undefined}
-          className={cn("type-text-sm", error ? "text-destructive" : "text-subtle-foreground")}
+          className={cn(
+            "type-text-sm",
+            error ? "text-destructive" : "text-subtle-foreground",
+          )}
         >
           {error ?? hint}
         </p>

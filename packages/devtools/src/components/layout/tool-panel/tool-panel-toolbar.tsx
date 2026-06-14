@@ -1,16 +1,4 @@
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command.js";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover.js";
+import type { RequestDisplayMode } from "enpilink/web";
 import {
   Check,
   Languages,
@@ -25,7 +13,19 @@ import {
   Sun,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import type { RequestDisplayMode } from "enpilink/web";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command.js";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.js";
 
 import { useInspectorPreferencesStore } from "@/lib/inspector-preferences-store.js";
 import { cn } from "@/lib/utils.js";

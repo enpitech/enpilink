@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -5,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils.js";
 
 // A description clamped to two lines. When it overflows, the text is cut so an

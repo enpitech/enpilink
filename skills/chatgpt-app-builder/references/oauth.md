@@ -32,7 +32,7 @@ const server = new McpServer(
       grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
     },
-    // SERVER_URL: this server's public URL (localhost:3000, enpitech tunnel, or prod)
+    // SERVER_URL: this server's public URL (localhost:3000, srv.us tunnel, or prod)
     resourceServerUrl: new URL(process.env.SERVER_URL),
   }),
 );

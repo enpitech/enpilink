@@ -119,10 +119,10 @@ enpilink gives you a fast local loop, then smooth paths to production.
     Run `npm run dev` and open `http://localhost:3000/` to access [DevTools](/devtools/devtools): test tools, preview views, switch themes and locales, all without leaving your browser. View changes hot-reload instantly.
   </Step>
   <Step title="Test in ChatGPT, Claude, and more">
-    Run `npm run dev --tunnel` to get a live LLM playground and a public URL for ChatGPT, Claude, or any MCP client to connect to. Validate real model interactions before shipping.
+    Run `npm run dev --tunnel` to open an account-free [srv.us](https://srv.us) tunnel and get a public `/mcp` URL for ChatGPT, Claude, or any MCP client to connect to. Validate real model interactions before shipping.
   </Step>
   <Step title="Build and deploy">
-    Run `npm run deploy` to ship to [enpitech Cloud](https://enpitech.dev), or host on any Node.js-compatible infrastructure.
+    Run `npm run build` to emit `dist/__entry.js`, then self-host on any Node.js-compatible infrastructure (`node dist/__entry.js`) — a VM, container, PaaS, or Cloudflare/Vercel. enpilink is account-free and not tied to any hosting vendor.
   </Step>
 </Steps>
 
@@ -134,7 +134,7 @@ enpilink gives you a fast local loop, then smooth paths to production.
     Compile and optimize
   </Card>
   <Card title="Deploy" icon="cloud-arrow-up" href="/quickstart/deploy">
-    Ship to enpitech Cloud, Cloudflare Workers, or self-host
+    Self-host on Node, Cloudflare Workers, or Vercel
   </Card>
 </CardGroup>
 
