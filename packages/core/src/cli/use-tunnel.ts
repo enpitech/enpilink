@@ -1,0 +1,162 @@
+import { useEffect, useState } from "react";
+import type { PushMessage } from "./use-messages.js";
+
+export type TunnelState =
+  | { status: "idle" }
+  | { status: "starting"; message: string }
+  | { status: "connected"; url: string }
+  | { status: "error"; message: string };
+
+type TunnelActivity = {
+  time: string;
+  text: string;
+  level: "log" | "error";
+};
+
+const POST_RETRY_DELAY_MS = 250;
+
+export function useTunnel(
+  port: number | null,
+  pushMessage: PushMessage,
+  verbose: boolean,
+  autoStart: boolean,
+): TunnelState {
+  const [state, setState] = useState<TunnelState>(
+    port !== null && autoStart
+      ? { status: "starting", message: "Starting tunnel…" }
+      : { status: "idle" },
+  );
+
+  useEffect(() => {
+    if (port === null) {
+      return;
+    }
+
+    const baseUrl = `http://localhost:${port}`;
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const pushLog = (text: string, type: "log" | "error") => {
+      const time = new Date().toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+      pushMessage(`${time} [tunnel] ${text}`, type);
+    };
+
+    const handleEvent = (event: string, data: string) => {
+      if (event === "state") {
+        const next = JSON.parse(data) as TunnelState;
+        setState(next);
+        return;
+      }
+      if (event === "activity") {
+        if (!verbose) {
+          return;
+        }
+        const activity = JSON.parse(data) as TunnelActivity;
+        pushLog(activity.text, activity.level);
+      }
+    };
+
+    const consumeSse = async () => {
+      const res = await fetch(`${baseUrl}/__skybridge/tunnel/events`, {
+        signal: controller.signal,
+        headers: { Accept: "text/event-stream" },
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`SSE connection failed (${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!cancelled) {
+        const { value, done } = await reader.read();
+        if (done) {
+          return;
+        }
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE frames are separated by a blank line ("\n\n").
+        let sep = buffer.indexOf("\n\n");
+        while (sep !== -1) {
+          const frame = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          let eventName = "message";
+          const dataLines: string[] = [];
+          for (const rawLine of frame.split("\n")) {
+            const line = rawLine.replace(/\r$/, "");
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+          if (dataLines.length > 0) {
+            handleEvent(eventName, dataLines.join("\n"));
+          }
+          sep = buffer.indexOf("\n\n");
+        }
+      }
+    };
+
+    const postUntilStarted = async () => {
+      // Retry indefinitely until POST lands once. Bounded by the effect
+      // lifetime via controller.abort() on unmount. Once the manager has
+      // been started, this returns and never POSTs again — a user-driven
+      // DELETE /tunnel won't be auto-undone.
+      while (!cancelled) {
+        try {
+          const res = await fetch(`${baseUrl}/__skybridge/tunnel`, {
+            method: "POST",
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            return;
+          }
+        } catch {
+          // dev server not up yet (or restarting under nodemon) — wait, retry
+        }
+        await new Promise((r) => setTimeout(r, POST_RETRY_DELAY_MS));
+      }
+    };
+
+    // Always observe the tunnel state so external triggers (curl, future
+    // devtools UI) update the cli UI. `autoStart` only decides whether we
+    // also POST /tunnel on mount. Reconnects indefinitely so we survive
+    // dev-server boot delay and nodemon restarts; the cli owns the actual
+    // subprocess so a temporarily-unreachable dev server is fine.
+    const observe = async () => {
+      while (!cancelled) {
+        try {
+          await consumeSse();
+        } catch {
+          // network error or stream ended abnormally — fall through to retry
+        }
+        if (cancelled) {
+          return;
+        }
+        await new Promise((r) => setTimeout(r, POST_RETRY_DELAY_MS));
+      }
+    };
+
+    // observe() always runs — it owns the cli's view of tunnel state. POST is
+    // a fire-and-forget side-effect that nudges the manager into starting and
+    // retries until it lands at least once.
+    if (autoStart) {
+      void postUntilStarted();
+    }
+    void observe();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [port, pushMessage, verbose, autoStart]);
+
+  return state;
+}

@@ -1,0 +1,62 @@
+import net from "node:net";
+
+const DEFAULT_PORT = 3000;
+const MAX_PORT_INCREMENT = 100;
+
+export async function resolvePort(flagPort?: number) {
+  if (flagPort && flagPort > 1) {
+    return { port: flagPort, fallback: false };
+  }
+
+  const rawEnv = process.env.PORT;
+  if (rawEnv) {
+    const parsed = Number(rawEnv);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return { port: parsed, fallback: false };
+    }
+    return {
+      port: await detectAvailablePort(DEFAULT_PORT),
+      fallback: false,
+      envWarning: `Invalid PORT="${rawEnv}", ignoring and using default`,
+    };
+  }
+
+  const port = await detectAvailablePort(DEFAULT_PORT);
+  return { port, fallback: port !== DEFAULT_PORT };
+}
+
+/**
+ * Returns the first available port at or after `startPort`, incrementing
+ * by one until a free port is found or `MAX_PORT_INCREMENT` is reached.
+ *
+ * @param host - Bind address for the check. Pass `"localhost"` for
+ *   services that bind to 127.0.0.1 (e.g. Vite HMR). Omit for
+ *   services that bind to all interfaces (e.g. the HTTP server).
+ */
+export async function detectAvailablePort(
+  startPort: number,
+  host?: string,
+): Promise<number> {
+  for (let port = startPort; port < startPort + MAX_PORT_INCREMENT; port++) {
+    if (await isPortAvailable(port, host)) {
+      return port;
+    }
+    console.log(`Port ${port} is in use, trying another one...`);
+  }
+  throw new Error(
+    `No available port found between ${startPort} and ${startPort + MAX_PORT_INCREMENT - 1}`,
+  );
+}
+
+function isPortAvailable(port: number, host?: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+
+    server.listen(port, host);
+  });
+}

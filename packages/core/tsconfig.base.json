@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    // Module resolution options
+    "module": "NodeNext",
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+
+    // Output options
+    "rootDir": "${configDir}/src",
+    "outDir": "${configDir}/dist",
+    "noEmit": false,
+    "incremental": true,
+    "sourceMap": true,
+
+    // Language and environment options
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+
+    // Type declarations
+    "types": ["node", "vite/client"],
+
+    // Strictness and checking options
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Code quality & diagnostics
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}

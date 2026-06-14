@@ -1,0 +1,280 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Skybridge",
+  "theme": "mint",
+  "colors": {
+    "primary": "#002FFF",
+    "light": "#08F5F9",
+    "dark": "#002FFF"
+  },
+  "favicon": {
+    "light": "/images/SkybridgeFaviconmidnight.svg",
+    "dark": "/images/SkybridgeFaviconwhite.svg"
+  },
+  "logo": {
+    "light": "/images/Skybridgemidnight.svg",
+    "dark": "/images/Skybridgewhite(1).svg"
+  },
+  "search": {
+    "prompt": "Search Skybridge docs..."
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "icon": "rocket",
+            "pages": [
+              "home",
+              {
+                "group": "Fundamentals",
+                "icon": "graduation-cap",
+                "pages": [
+                  "fundamentals",
+                  "fundamentals/apps-sdk",
+                  "fundamentals/mcp-apps"
+                ]
+              },
+              "quickstart/create-new-app",
+              {
+                "group": "Add to Existing App",
+                "icon": "puzzle-piece",
+                "pages": [
+                  "quickstart/add-to-existing-app",
+                  "quickstart/add-to-existing-app/server",
+                  "quickstart/add-to-existing-app/web"
+                ]
+              },
+              "quickstart/migrate",
+              "quickstart/test-your-app",
+              "quickstart/build-for-production",
+              "quickstart/deploy"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "icon": "lightbulb",
+            "pages": [
+              "concepts/index",
+              "concepts/write-once-run-everywhere",
+              "concepts/data-flow",
+              "concepts/llm-context-sync",
+              "concepts/fast-iteration",
+              "concepts/type-safety"
+            ]
+          },
+          {
+            "group": "Guides",
+            "icon": "book",
+            "pages": [
+              "guides/fetching-data",
+              "guides/managing-state",
+              "guides/communicating-with-model",
+              "guides/host-environment-context"
+            ]
+          },
+          {
+            "group": "DevTools",
+            "icon": "wrench",
+            "pages": ["devtools/skills", "devtools/devtools"]
+          },
+          {
+            "group": "Resources",
+            "icon": "circle-question",
+            "pages": ["faq", "telemetry"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "icon": "house",
+            "pages": ["api-reference"]
+          },
+          {
+            "group": "CLI",
+            "icon": "terminal",
+            "pages": ["api-reference/cli"]
+          },
+          {
+            "group": "Server",
+            "icon": "server",
+            "pages": ["api-reference/mcp-server", "api-reference/register-tool"]
+          },
+          {
+            "group": "Hooks",
+            "icon": "fishing-rod",
+            "pages": [
+              "api-reference/use-tool-info",
+              "api-reference/use-call-tool",
+              "api-reference/use-register-view-tool",
+              "api-reference/use-layout",
+              "api-reference/use-user",
+              "api-reference/use-display-mode",
+              "api-reference/use-open-external",
+              "api-reference/use-set-open-in-app-url",
+              "api-reference/use-send-follow-up-message",
+              "api-reference/use-view-state",
+              "api-reference/use-request-modal",
+              "api-reference/use-request-close",
+              "api-reference/use-request-size",
+              "api-reference/use-files",
+              "api-reference/use-download"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "icon": "toolbox",
+            "pages": [
+              "api-reference/create-store",
+              "api-reference/generate-helpers",
+              "api-reference/data-llm"
+            ]
+          },
+          {
+            "group": "Types",
+            "icon": "brackets-curly",
+            "pages": [
+              "api-reference/infer-utility-types",
+              "api-reference/file-ref"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "icon": "gear",
+            "pages": [
+              "api-reference/use-apps-sdk-context",
+              "api-reference/use-mcp-app-context"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "pages": [
+          "examples",
+          {
+            "group": "Basic",
+            "pages": ["examples/starter", "examples/everything"]
+          },
+          {
+            "group": "Use cases",
+            "pages": [
+              "examples/capitals",
+              "examples/chess",
+              "examples/flight-booking",
+              "examples/ecommerce-carousel",
+              "examples/investigation-game",
+              "examples/productivity",
+              "examples/times-up"
+            ]
+          },
+          {
+            "group": "Auth",
+            "pages": [
+              "examples/auth-clerk",
+              "examples/auth-workos",
+              "examples/auth-stytch",
+              "examples/auth-auth0"
+            ]
+          },
+          {
+            "group": "UI and Component libraries",
+            "pages": ["examples/manifest-ui", "examples/generative-ui"]
+          }
+        ]
+      }
+    ]
+  },
+  "redirects": [
+    {
+      "source": "/showcase",
+      "destination": "/examples"
+    },
+    {
+      "source": "/showcase/:slug*",
+      "destination": "/examples/:slug*"
+    },
+    {
+      "source": "/examples/magic-8-ball",
+      "destination": "/examples/starter"
+    },
+    {
+      "source": "/examples/awaze",
+      "destination": "https://skybridge.tech/showcase"
+    },
+    {
+      "source": "/examples/cottages",
+      "destination": "https://skybridge.tech/showcase"
+    },
+    {
+      "source": "/examples/evaneos",
+      "destination": "https://skybridge.tech/showcase"
+    },
+    {
+      "source": "/examples/lumo",
+      "destination": "https://skybridge.tech/showcase"
+    }
+  ],
+  "navbar": {
+    "links": [
+      {
+        "label": "Discord",
+        "href": "https://discord.gg/awV4gu74wK",
+        "icon": "discord"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/alpic-ai/skybridge"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/alpic-ai/skybridge"
+    }
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-0W0ZMXTSDZ"
+    },
+    "posthog": {
+      "apiKey": "phc_REDACTED"
+    }
+  },
+  "description": "The #1 full stack open-source TS framework for building ChatGPT and MCP Apps",
+  "background": {
+    "color": {
+      "dark": "#051413"
+    }
+  },
+  "fonts": {
+    "body": {
+      "family": "Inter",
+      "weight": 400
+    },
+    "heading": {
+      "family": "Inter",
+      "weight": 600
+    }
+  },
+  "seo": {
+    "indexing": "navigable",
+    "metatags": {
+      "og:site_name": "Skybridge Documentation",
+      "og:type": "website"
+    }
+  },
+  "errors": {
+    "404": {
+      "title": "Oops, well that's awkward..."
+    }
+  },
+  "interaction": {
+    "drilldown": false
+  }
+}

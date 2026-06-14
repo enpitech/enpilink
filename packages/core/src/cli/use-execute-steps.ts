@@ -1,0 +1,45 @@
+import { useCallback, useState } from "react";
+import { runCommand } from "./run-command.js";
+
+export interface CommandStep {
+  label: string;
+  command?: string;
+  run?: () => void | Promise<void>;
+}
+
+export const useExecuteSteps = (steps: CommandStep[]) => {
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [status, setStatus] = useState<"running" | "success" | "error">(
+    "running",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const execute = useCallback(async () => {
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (step) {
+          setCurrentStep(i);
+          if (step.run) {
+            await step.run();
+          }
+          if (step.command) {
+            await runCommand(step.command);
+          }
+        }
+      }
+      setStatus("success");
+      setImmediate(() => {
+        process.exit(0);
+      });
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : String(err));
+      setImmediate(() => {
+        process.exit(1);
+      });
+    }
+  }, [steps]);
+
+  return { currentStep, status, error, execute };
+};

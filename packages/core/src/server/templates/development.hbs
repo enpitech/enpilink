@@ -1,0 +1,12 @@
+<script type="module">window.skybridge = { hostType: "{{hostType}}", serverUrl: "{{serverUrl}}" };</script>
+<script type="module">
+  import { injectIntoGlobalHook } from "{{serverUrl}}/assets/@react-refresh";
+  injectIntoGlobalHook(window); window.$RefreshReg$ = () => {};
+  window.$RefreshSig$ = () => (type) => type;
+  window.__vite_plugin_react_preamble_installed__ = true;
+</script>
+<script type="module" src="{{serverUrl}}/@vite/client"></script>
+<div id="root"></div>
+<script type="module" id="dev-view-entry">
+  import('{{serverUrl}}/_skybridge/view/{{viewName}}');
+</script>

@@ -1,0 +1,14 @@
+{
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "always",
+    "source.organizeImports.biome": "always"
+  },
+  "[mdx]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.biome": "never",
+      "source.organizeImports.biome": "never"
+    }
+  }
+}

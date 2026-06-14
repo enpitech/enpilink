@@ -1,0 +1,118 @@
+{
+  "name": "skybridge",
+  "version": "1.0.0",
+  "description": "Skybridge is a framework for building ChatGPT and MCP Apps",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alpic-ai/skybridge.git"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "tsconfig.base.json"
+  ],
+  "exports": {
+    "./tsconfig": "./tsconfig.base.json",
+    "./tsconfig.json": "./tsconfig.base.json",
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "default": "./dist/web/index.js"
+    },
+    "./vite": {
+      "types": "./dist/web/plugin/plugin.d.ts",
+      "default": "./dist/web/plugin/plugin.js"
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "shx cp ../../README.md ./README.md",
+    "build": "shx rm -rf dist && pnpm run build:templates && tsc",
+    "build:templates": "node scripts/precompile-templates.mjs",
+    "format": "biome check --write --error-on-warnings",
+    "test": "pnpm run test:unit && pnpm run test:format",
+    "test:unit": "pnpm run build:templates && vitest run",
+    "test:format": "biome ci"
+  },
+  "keywords": [
+    "chatgpt",
+    "app",
+    "ai",
+    "skybridge"
+  ],
+  "author": "Frédéric Barthelet",
+  "license": "ISC",
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": ">=1.27.0",
+    "@skybridge/devtools": "^1.0.0",
+    "nodemon": ">=3.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "vite": ">=7.3.1"
+  },
+  "dependencies": {
+    "@babel/core": "^7.29.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.3",
+    "@oclif/core": "^4.10.3",
+    "ci-info": "^4.4.0",
+    "cors": "^2.8.6",
+    "cross-spawn": "^7.0.6",
+    "dequal": "^2.0.3",
+    "es-toolkit": "^1.45.1",
+    "esbuild": "^0.27.0",
+    "express": "^5.2.1",
+    "handlebars": "^4.7.9",
+    "ink": "^7.0.0",
+    "open": "^11.0.0",
+    "posthog-node": "^5.28.9",
+    "superjson": "^2.2.6",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@total-typescript/tsconfig": "^1.0.4",
+    "@types/babel__core": "^7.20.5",
+    "@types/cors": "^2.8.19",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/express": "^5.0.6",
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/ui": "^4.1.4",
+    "jsdom": "^29.0.1",
+    "shx": "^0.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.4",
+    "zod": "^4.3.6"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "bin": {
+    "sb": "./bin/run.js",
+    "skybridge": "./bin/run.js"
+  },
+  "oclif": {
+    "bin": "skybridge",
+    "commands": "./dist/commands",
+    "dirname": "skybridge",
+    "topicSeparator": " ",
+    "helpClass": {
+      "target": "./dist/commands/create",
+      "identifier": "SkybridgeHelp"
+    },
+    "hooks": {
+      "finally": "./dist/cli/telemetry"
+    }
+  }
+}

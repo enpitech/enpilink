@@ -1,0 +1,275 @@
+---
+title: useFiles
+description: "Upload, select, and download files within views, with host-managed storage across tool calls."
+tag: "ChatGPT"
+---
+
+<Warning>
+**Runtime Support**: ChatGPT Apps only
+
+This hook is not available in MCP Apps. Calling it in an MCP Apps environment will throw an error.
+</Warning>
+
+The `useFiles` hook provides methods for uploading, selecting, and downloading files within your view. Files are managed by the host and can be referenced across tool calls.
+
+## Basic usage
+
+```tsx
+import { useFiles } from "skybridge/web";
+import { useState } from "react";
+
+function FileUploader() {
+  const { upload } = useFiles();
+  const [fileId, setFileId] = useState<string | null>(null);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const { fileId } = await upload(file);
+      setFileId(fileId);
+    }
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleUpload} />
+      {fileId && <p>Uploaded file ID: {fileId}</p>}
+    </div>
+  );
+}
+```
+
+## Returns
+
+### `upload`
+
+```tsx
+upload: (file: File, options?: { library?: boolean }) => Promise<{ fileId: string }>
+```
+
+Uploads a file to the host. Returns a promise that resolves with the file metadata containing a unique `fileId`.
+
+- `file: File`
+  - The file object to upload
+- `options?: { library?: boolean }`
+  - Pass `{ library: true }` to also save the upload into the user's ChatGPT file library (when available)
+
+### `selectFiles`
+
+```tsx
+selectFiles: () => Promise<Array<{ fileId: string; fileName?: string; mimeType?: string }>>
+```
+
+Opens ChatGPT's file library picker and returns app-authorized files selected by the user. Feature-detect before using — this method may not be available on all host versions.
+
+### `getDownloadUrl`
+
+```tsx
+getDownloadUrl: (file: { fileId: string }) => Promise<{ downloadUrl: string }>
+```
+
+Get the download URL of a file. Returns a promise that resolves with a `downloadUrl` that can be used to fetch the file content.
+
+- `file: { fileId: string }`
+  - An object containing the `fileId` of the file to download
+
+<Note>
+Works for files uploaded by the view, files selected via `selectFiles()`, or files provided via tool/file params.
+</Note>
+
+## Examples
+
+### Image Upload and Preview
+
+```tsx
+import { useFiles } from "skybridge/web";
+import { useState } from "react";
+
+function ImageUploader() {
+  const { upload, getDownloadUrl } = useFiles();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const { fileId } = await upload(file);
+      const { downloadUrl } = await getDownloadUrl({ fileId });
+      setPreviewUrl(downloadUrl);
+    } catch (error) {
+      console.error("Upload failed:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleUpload}
+        disabled={isUploading}
+      />
+      {isUploading && <p>Uploading...</p>}
+      {previewUrl && <img src={previewUrl} alt="Preview" />}
+    </div>
+  );
+}
+```
+
+### Upload to File Library
+
+```tsx
+import { useFiles } from "skybridge/web";
+import { useState } from "react";
+
+function LibraryUploader() {
+  const { upload } = useFiles();
+  const [fileId, setFileId] = useState<string | null>(null);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Save to the user's ChatGPT file library
+    const { fileId } = await upload(file, { library: true });
+    setFileId(fileId);
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleUpload} />
+      {fileId && <p>Saved to library: {fileId}</p>}
+    </div>
+  );
+}
+```
+
+### Select Files from Library
+
+```tsx
+import { useFiles } from "skybridge/web";
+import type { FileMetadata } from "skybridge/web";
+import { useState } from "react";
+
+function FileSelector() {
+  const { selectFiles, getDownloadUrl } = useFiles();
+  const [files, setFiles] = useState<FileMetadata[]>([]);
+
+  const handleSelect = async () => {
+    const selected = await selectFiles();
+    setFiles(selected);
+  };
+
+  const handleDownload = async (fileId: string) => {
+    const { downloadUrl } = await getDownloadUrl({ fileId });
+    window.open(downloadUrl, "_blank");
+  };
+
+  return (
+    <div>
+      <button onClick={handleSelect}>Select from Library</button>
+      <ul>
+        {files.map((file) => (
+          <li key={file.fileId}>
+            {file.fileName ?? file.fileId}
+            {file.mimeType && <span> ({file.mimeType})</span>}
+            <button onClick={() => handleDownload(file.fileId)}>
+              Download
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### Document Manager
+
+```tsx
+import { useFiles } from "skybridge/web";
+import { useState } from "react";
+
+type Document = {
+  name: string;
+  fileId: string;
+};
+
+function DocumentManager() {
+  const { upload, getDownloadUrl } = useFiles();
+  const [documents, setDocuments] = useState<Document[]>([]);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const { fileId } = await upload(file);
+    setDocuments((prev) => [...prev, { name: file.name, fileId }]);
+  };
+
+  const handleDownload = async (doc: Document) => {
+    const { downloadUrl } = await getDownloadUrl({ fileId: doc.fileId });
+    window.open(downloadUrl, "_blank");
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={handleUpload} />
+      <ul>
+        {documents.map((doc) => (
+          <li key={doc.fileId}>
+            {doc.name}
+            <button onClick={() => handleDownload(doc)}>Download</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### Multiple File Upload
+
+```tsx
+import { useFiles } from "skybridge/web";
+import { useState } from "react";
+
+function MultiFileUploader() {
+  const { upload } = useFiles();
+  const [uploadedIds, setUploadedIds] = useState<string[]>([]);
+  const [progress, setProgress] = useState<number>(0);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const ids: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const { fileId } = await upload(files[i]);
+      ids.push(fileId);
+      setProgress(((i + 1) / files.length) * 100);
+    }
+    setUploadedIds(ids);
+    setProgress(0);
+  };
+
+  return (
+    <div>
+      <input type="file" multiple onChange={handleUpload} />
+      {progress > 0 && <progress value={progress} max={100} />}
+      {uploadedIds.length > 0 && (
+        <p>Uploaded {uploadedIds.length} files</p>
+      )}
+    </div>
+  );
+}
+```
+
+## See also
+
+- [`FileRef`](/api-reference/file-ref): Helper schema and types for ChatGPT file references in tool inputs and output.
