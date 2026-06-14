@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+ * Northwind kitchen-sink — brand theme.
+ *
+ * The demo brand is a neutral, generic store/SaaS called "Northwind". The
+ * *framework attribution* is always enpitech, so the palette is enpitech's
+ * purple gradient (#4A00E0 -> #8E2DE2) on light/dark surfaces, Ubuntu font.
+ * Views compose from these CSS vars / the `theme/brand.ts` tokens instead of
+ * hardcoding colors.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --font-sans: Ubuntu, ui-sans-serif, system-ui, sans-serif;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local("Ubuntu");
+}
+
+:root {
+  /* enpitech brand */
+  --brand-1: #4a00e0;
+  --brand-2: #8e2de2;
+  --brand-border: #8f2ee3;
+  --brand-soft: #bb81ee;
+  --brand-gradient: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
+
+  --background: #f8f8fc;
+  --foreground: #1e1645;
+  --card: #ffffff;
+  --card-foreground: #1e1645;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b6386;
+  --border: #ece8f6;
+  --primary: #8e2de2;
+  --primary-foreground: #ffffff;
+  --accent: #ff941f;
+  --success: #1aae6f;
+  --warning: #ff941f;
+  --destructive: #e5484d;
+}
+
+.dark {
+  --background: #090715;
+  --foreground: #f4f1fb;
+  --card: #130c38;
+  --card-foreground: #f4f1fb;
+  --muted: #1e1645;
+  --muted-foreground: #b0a8cf;
+  --border: #2a2057;
+  --primary: #8e2de2;
+  --primary-foreground: #ffffff;
+  --accent: #ffbe78;
+  --success: #38d399;
+  --warning: #ffbe78;
+  --destructive: #ff6b70;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  /* Full-bleed view surface — fills the host iframe with no floating seam. */
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

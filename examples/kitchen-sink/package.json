@@ -1,0 +1,41 @@
+{
+  "name": "enpilink-kitchen-sink",
+  "version": "0.0.1",
+  "private": true,
+  "description": "enpilink kitchen-sink — a generic-brand (Northwind) demo MCP App that exercises every framework feature and all 4 mcp-ui interaction types.",
+  "type": "module",
+  "scripts": {
+    "dev": "enpilink dev",
+    "dev:tunnel": "enpilink dev --tunnel",
+    "build": "enpilink build && tsc-alias -p tsconfig.json",
+    "start": "enpilink start",
+    "deploy": "enpilink build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "enpilink": "workspace:*",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^4.1.18",
+    "vite": "^8.0.3",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@enpilink/devtools": "workspace:*",
+    "@types/node": "^25.0.10",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

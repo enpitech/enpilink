@@ -1,0 +1,11 @@
+{
+  "extends": "enpilink/tsconfig",
+
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+
+  "include": ["src", ".enpilink/**/*.d.ts"]
+}
