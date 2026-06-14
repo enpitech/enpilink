@@ -18,7 +18,7 @@ import type { UnknownObject } from "./types.js";
  * Use this when you outgrow {@link useViewState} and want first-class Zustand
  * ergonomics (selectors, actions, middleware). Otherwise prefer `useViewState`.
  *
- * Skybridge-internal context fields (see {@link DataLLM}) are filtered out
+ * enpilink-internal context fields (see {@link DataLLM}) are filtered out
  * automatically before reaching your store.
  *
  * @typeParam State - Shape of the store's state. Must be a plain object.
@@ -33,7 +33,7 @@ import type { UnknownObject } from "./types.js";
  * );
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/create-store
+ * @see https://docs.enpitech.dev/api-reference/create-store
  */
 export function createStore<State extends UnknownObject>(
   storeCreator: StateCreator<State, [], [], State>,

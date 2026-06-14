@@ -11,7 +11,7 @@ export class AppsSdkBridge implements Bridge<AppsSdkContext> {
 
   public static getInstance(): AppsSdkBridge {
     if (
-      window.skybridge.hostType !== "apps-sdk" ||
+      window.enpilink.hostType !== "apps-sdk" ||
       window.openai === undefined
     ) {
       throw new Error(
@@ -62,7 +62,7 @@ export class AppsSdkBridge implements Bridge<AppsSdkContext> {
   public getSnapshot = <K extends keyof AppsSdkContext>(key: K) => {
     if (window.openai === undefined) {
       throw new Error(
-        `window.openai is not available. Make sure you're calling the hook requiring ${key} within the OpenAI iFrame skybridge runtime.`,
+        `window.openai is not available. Make sure you're calling the hook requiring ${key} within the OpenAI iFrame enpilink runtime.`,
       );
     }
 

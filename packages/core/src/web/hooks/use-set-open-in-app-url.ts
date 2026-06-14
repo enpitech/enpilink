@@ -16,7 +16,7 @@ import { getAdaptor } from "../bridges/index.js";
  * useEffect(() => { setOpenInAppUrl(`https://example.com/orders/${orderId}`); }, [orderId]);
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-set-open-in-app-url
+ * @see https://docs.enpitech.dev/api-reference/use-set-open-in-app-url
  */
 export function useSetOpenInAppUrl() {
   const adaptor = getAdaptor();

@@ -36,7 +36,7 @@ Annotations (set `true` when):
 
 - src/server.ts
 ```typescript
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
 const server = new McpServer(
@@ -100,7 +100,7 @@ export type AppType = typeof server;
 
 - src/helpers.ts
 ```typescript
-import { generateHelpers } from "skybridge/web";
+import { generateHelpers } from "enpilink/web";
 import type { AppType } from "./server.js";
 
 export const { useToolInfo, useCallTool } = generateHelpers<AppType>();

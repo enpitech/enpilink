@@ -63,12 +63,12 @@ async function startControl() {
 }
 
 describe("createTunnelProxyRouter", () => {
-  describe("POST /__skybridge/tunnel", () => {
+  describe("POST /__enpilink/tunnel", () => {
     it("forwards to upstream and returns the upstream JSON", async () => {
       const { control } = await startControl();
       const { port } = await startProxy(control.port);
 
-      const res = await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
 
@@ -92,7 +92,7 @@ describe("createTunnelProxyRouter", () => {
 
       const { port } = await startProxy(deadPort);
 
-      const res = await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
       expect(res.status).toBe(502);
@@ -102,17 +102,17 @@ describe("createTunnelProxyRouter", () => {
     });
   });
 
-  describe("DELETE /__skybridge/tunnel", () => {
+  describe("DELETE /__enpilink/tunnel", () => {
     it("forwards to upstream and returns the upstream JSON", async () => {
       const { control, child } = await startControl();
       const { port } = await startProxy(control.port);
 
       // First start the tunnel so DELETE has something to stop.
-      await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
 
-      const res = await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "DELETE",
       });
 
@@ -131,21 +131,21 @@ describe("createTunnelProxyRouter", () => {
 
       const { port } = await startProxy(deadPort);
 
-      const res = await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "DELETE",
       });
       expect(res.status).toBe(502);
     });
   });
 
-  describe("GET /__skybridge/tunnel/events", () => {
+  describe("GET /__enpilink/tunnel/events", () => {
     it("pipes the upstream SSE stream through to the client", async () => {
       const { control, child } = await startControl();
       const { port } = await startProxy(control.port);
 
       // Get the manager into a known state so the initial SSE frame is
       // deterministic.
-      await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
       child.stdout.emit(
@@ -156,7 +156,7 @@ describe("createTunnelProxyRouter", () => {
       );
 
       const res = await fetch(
-        `http://127.0.0.1:${port}/__skybridge/tunnel/events`,
+        `http://127.0.0.1:${port}/__enpilink/tunnel/events`,
       );
 
       expect(res.status).toBe(200);
@@ -182,12 +182,12 @@ describe("createTunnelProxyRouter", () => {
       const { control, child } = await startControl();
       const { port } = await startProxy(control.port);
 
-      await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
 
       const res = await fetch(
-        `http://127.0.0.1:${port}/__skybridge/tunnel/events`,
+        `http://127.0.0.1:${port}/__enpilink/tunnel/events`,
       );
       const body = res.body;
       if (!body) {
@@ -238,7 +238,7 @@ describe("createTunnelProxyRouter", () => {
       const { port } = await startProxy(deadPort);
 
       const res = await fetch(
-        `http://127.0.0.1:${port}/__skybridge/tunnel/events`,
+        `http://127.0.0.1:${port}/__enpilink/tunnel/events`,
       );
       expect(res.status).toBe(502);
       const body = (await res.json()) as { status: string };
@@ -249,7 +249,7 @@ describe("createTunnelProxyRouter", () => {
       const { control } = await startControl();
       const { port, server } = await startProxy(control.port);
 
-      await fetch(`http://127.0.0.1:${port}/__skybridge/tunnel`, {
+      await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
 
@@ -259,7 +259,7 @@ describe("createTunnelProxyRouter", () => {
       const baseActivityListeners = control.manager.listenerCount("activity");
 
       const res = await fetch(
-        `http://127.0.0.1:${port}/__skybridge/tunnel/events`,
+        `http://127.0.0.1:${port}/__enpilink/tunnel/events`,
       );
       const body = res.body;
       if (!body) {

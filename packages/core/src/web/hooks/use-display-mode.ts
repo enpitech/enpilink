@@ -20,7 +20,7 @@ import type { RequestDisplayMode } from "../bridges/types.js";
  * <button onClick={() => setMode("fullscreen")}>Expand</button>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-display-mode
+ * @see https://docs.enpitech.dev/api-reference/use-display-mode
  */
 export function useDisplayMode() {
   const displayMode = useHostContext("displayMode");

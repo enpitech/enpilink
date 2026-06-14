@@ -81,7 +81,7 @@ export const commandSteps: CommandStep[] = [
 
 export default class Build extends Command {
   static override description = "Build the views and MCP server";
-  static override examples = ["skybridge build"];
+  static override examples = ["enpilink build"];
 
   public async run(): Promise<void> {
     const App = () => {

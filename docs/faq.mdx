@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: "Common questions and troubleshooting for Skybridge type safety, deployment, and App development."
+description: "Common questions and troubleshooting for enpilink type safety, deployment, and App development."
 ---
 
 # Frequently Asked Questions
@@ -9,21 +9,21 @@ description: "Common questions and troubleshooting for Skybridge type safety, de
 
 ### "Property does not exist on type" when using typed hooks
 
-Make sure you're importing from your generated helpers file, not directly from `skybridge/web`:
+Make sure you're importing from your generated helpers file, not directly from `enpilink/web`:
 
 ```typescript
 // Wrong
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 // Right
-import { useCallTool } from "../skybridge";
+import { useCallTool } from "../enpilink";
 ```
 
 ### No autocomplete for tool names
 
 Check that:
 1. Your server exports `type AppType = typeof server`
-2. Your `skybridge.ts` imports this type correctly
+2. Your `enpilink.ts` imports this type correctly
 3. You're using [method chaining](/concepts/type-safety#method-chaining-requirement) when registering tools
 
 ## Network Issues

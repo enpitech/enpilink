@@ -30,4 +30,4 @@ server.registerTool(
 );
 ```
 
-Skybridge auto-includes the server's domain. Only add external domains.
+enpilink auto-includes the server's domain. Only add external domains.

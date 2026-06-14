@@ -1,10 +1,10 @@
 # Manifest UI Starter
 
-An example MCP app built with [Skybridge](https://docs.skybridge.tech/home): a starter template combining Skybridge with [Manifest UI](https://ui.manifest.build) agentic component library for building rich, interactive widgets.
+An example MCP app built with [enpilink](https://docs.enpitech.dev/home): a starter template combining enpilink with [Manifest UI](https://ui.manifest.build) agentic component library for building rich, interactive widgets.
 
 ## What This Example Showcases
 
-### Skybridge features
+### enpilink features
 
 - **Interactive Widget Rendering**: A React-based widget that displays an interactive product carousel directly in AI conversations
 - **Tool Info Access**: Widgets access tool input, output, and metadata via `useToolInfo()` hook
@@ -25,7 +25,7 @@ An example MCP app built with [Skybridge](https://docs.skybridge.tech/home): a s
 
 ## Live Demo
 
-[Try it in Alpic's Playground](https://manifest-ui.skybridge.tech/try) to launch the live widget experience, or use the MCP URL with your client of choice: `https://manifest-ui.skybridge.tech/mcp`.
+[Try it in enpitech's Playground](https://manifest-ui.enpilink.tech/try) to launch the live widget experience, or use the MCP URL with your client of choice: `https://manifest-ui.enpilink.tech/mcp`.
 
 ## Getting Started
 
@@ -64,7 +64,7 @@ bun dev
 This command starts:
 
 - Your MCP server at `http://localhost:3000/mcp`.
-- Skybridge DevTools UI at `http://localhost:3000/`.
+- enpilink DevTools UI at `http://localhost:3000/`.
 
 #### 3. Project structure
 
@@ -80,7 +80,7 @@ This command starts:
 │   │   └── index.css          # Global styles
 │   ├── components.json        # shadcn/ui config
 │   └── vite.config.ts
-├── alpic.json                 # Deployment config
+├── enpitech.json                 # Deployment config
 └── package.json
 ```
 
@@ -88,7 +88,7 @@ This command starts:
 
 #### 1. Add a new widget
 
-- Register a widget in `src/server.ts` with a unique name (e.g., `my-widget`) using [`registerTool`](https://docs.skybridge.tech/api-reference/register-tool)
+- Register a widget in `src/server.ts` with a unique name (e.g., `my-widget`) using [`registerTool`](https://docs.enpitech.dev/api-reference/register-tool)
 - Create a matching React component at `src/views/my-widget.tsx`. **The file name must match the widget name exactly**.
 
 #### 2. Edit widgets with Hot Module Replacement (HMR)
@@ -116,7 +116,7 @@ And use it in your widget:
         subtitle: "Let's build some apps",
       }}
       actions={{
-        onPrimaryClick: () => openExternal("https://docs.skybridge.tech"),
+        onPrimaryClick: () => openExternal("https://docs.enpitech.dev"),
       }}
     />
 ```
@@ -129,22 +129,22 @@ Modify files in `server/` and refresh the connection with your testing MCP Clien
 
 You can test your App locally by using our DevTools UI on `http://localhost:3000` while running the dev command.
 
-To test your app with other MCP Clients like ChatGPT, Claude or VSCode, see [Testing Your App](https://docs.skybridge.tech/quickstart/test-your-app).
+To test your app with other MCP Clients like ChatGPT, Claude or VSCode, see [Testing Your App](https://docs.enpitech.dev/quickstart/test-your-app).
 
 ## Deploy to Production
 
-Skybridge is infrastructure vendor agnostic, and your app can be deployed on any cloud platform supporting MCP.
+enpilink is infrastructure vendor agnostic, and your app can be deployed on any cloud platform supporting MCP.
 
-The simplest way to deploy your App in minutes is [Alpic](https://alpic.ai/).
+The simplest way to deploy your App in minutes is [enpitech](https://enpitech.dev/).
 
-1. Create an account on [Alpic platform](https://app.alpic.ai/).
+1. Create an account on [enpitech platform](https://app.enpitech.dev/).
 2. Connect your GitHub repository to automatically deploy at each commit.
-3. Use your remote App URL to connect it to MCP Clients, or use the Alpic Playground to easily test your App.
+3. Use your remote App URL to connect it to MCP Clients, or use the enpitech Playground to easily test your App.
 
 ## Resources
 
-- [Skybridge Documentation](https://docs.skybridge.tech/)
+- [enpilink Documentation](https://docs.enpitech.dev/)
 - [Manifest UI](https://ui.manifest.build)
 - [Apps SDK Documentation](https://developers.openai.com/apps-sdk)
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Alpic Documentation](https://docs.alpic.ai/)
+- [enpitech Documentation](https://docs.enpitech.dev/)

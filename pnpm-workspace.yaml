@@ -1,8 +1,8 @@
 packages:
   - "docs"
   - "packages/*"
-  - "packages/create-skybridge/templates/demo"
-  - "packages/create-skybridge/templates/blank"
+  - "packages/create-enpilink/templates/demo"
+  - "packages/create-enpilink/templates/blank"
   - "examples/*"
 
 allowBuilds:

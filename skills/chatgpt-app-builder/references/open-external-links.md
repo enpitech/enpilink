@@ -9,7 +9,7 @@ Top right corner in fullscreen mode. Set programmatically. If the origin matches
 
 **Example**:
 ```tsx
-import { useSetOpenInAppUrl } from "skybridge/web";
+import { useSetOpenInAppUrl } from "enpilink/web";
 import { useEffect } from "react";
 
 function ProductDetail({ productId }: { productId: string }) {
@@ -27,7 +27,7 @@ function ProductDetail({ productId }: { productId: string }) {
 
 **Example**:
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 function ExternalLink() {
   const openExternal = useOpenExternal();

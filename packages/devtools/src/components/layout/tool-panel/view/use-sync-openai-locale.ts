@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import type { AppsSdkContext } from "skybridge/web";
+import type { AppsSdkContext } from "enpilink/web";
 
 type UseSyncOpenaiLocaleParams = {
   iframeRef: RefObject<HTMLIFrameElement | null>;

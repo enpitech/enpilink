@@ -3,7 +3,7 @@ import type {
   AppsSdkContext,
   CallToolResponse,
   UnknownObject,
-} from "skybridge/web";
+} from "enpilink/web";
 import { create } from "zustand";
 
 export type OpenAiLog = {

@@ -43,20 +43,20 @@ describe("data-llm plugin", () => {
     const result = await transform(code, "test.tsx");
 
     expect(result).not.toBeNull();
-    expect(result?.code).toContain('import { DataLLM } from "skybridge/web"');
+    expect(result?.code).toContain('import { DataLLM } from "enpilink/web"');
   });
 
   it("should handle DataLLM imports correctly", async () => {
     // No duplicate import
     const codeWithImport = `
-      import { DataLLM } from "skybridge/web";
+      import { DataLLM } from "enpilink/web";
       function Component() {
         return <div data-llm="Test">Content</div>;
       }
     `;
     const result1 = await transform(codeWithImport, "test.tsx");
     expect(
-      result1?.code.match(/import.*DataLLM.*from.*skybridge\/web/g),
+      result1?.code.match(/import.*DataLLM.*from.*enpilink\/web/g),
     ).toHaveLength(1);
 
     // Preserve other imports and add missing DataLLM
@@ -70,7 +70,7 @@ describe("data-llm plugin", () => {
     const result2 = await transform(codeWithOthers, "test.tsx");
     expect(result2?.code).toContain('import React from "react"');
     expect(result2?.code).toContain('import { useState } from "react"');
-    expect(result2?.code).toContain('import { DataLLM } from "skybridge/web"');
+    expect(result2?.code).toContain('import { DataLLM } from "enpilink/web"');
   });
 
   it("should handle complex JSX with multiple data-llm attributes", async () => {

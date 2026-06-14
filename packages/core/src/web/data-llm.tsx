@@ -76,7 +76,7 @@ interface DataLLMProps {
  * </DataLLM>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/data-llm
+ * @see https://docs.enpitech.dev/api-reference/data-llm
  */
 export function DataLLM({ content, children }: DataLLMProps) {
   const parentId = useContext(ParentIdContext);

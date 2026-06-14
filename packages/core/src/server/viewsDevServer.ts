@@ -8,7 +8,7 @@ import { assetBaseUrlTransformPlugin } from "./asset-base-url-transform-plugin.j
  * Vite dev-server middleware for view assets.
  *
  * MUST be mounted at the Express app root so Vite can intercept
- * `/@vite/client`, `/@react-refresh`, and `/_skybridge/view/...` imports:
+ * `/@vite/client`, `/@react-refresh`, and `/_enpilink/view/...` imports:
  *
  *   const app = express();
  *   if (env.NODE_ENV !== "production") {
@@ -52,7 +52,7 @@ export const viewsDevServer = async (
       },
     },
     root,
-    // optimizeDeps is set by the skybridge Vite plugin (entries + include)
+    // optimizeDeps is set by the enpilink Vite plugin (entries + include)
     // so it can derive the view glob from `viewsDir`.
     plugins: [...userPlugins, assetBaseUrlTransformPlugin()],
   });

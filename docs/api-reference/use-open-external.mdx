@@ -8,7 +8,7 @@ The `useOpenExternal` hook returns a function to open external links. This is th
 ## Basic usage
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 function ExternalLink() {
   const openExternal = useOpenExternal();
@@ -46,7 +46,7 @@ A function that opens the provided URL in the host's browser or redirects the mo
 ### Link Button Component
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 type ExternalLinkButtonProps = {
   href: string;
@@ -80,7 +80,7 @@ function App() {
 ### Product Card with External Link
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 type Product = {
   name: string;
@@ -108,7 +108,7 @@ function ProductCard({ product }: { product: Product }) {
 ### Social Links
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 const socialLinks = [
   { name: "Twitter", url: "https://twitter.com/example", icon: "🐦" },
@@ -138,7 +138,7 @@ function SocialLinks() {
 ### Article with References
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 type Reference = {
   title: string;
@@ -172,7 +172,7 @@ function ArticleReferences({ references }: { references: Reference[] }) {
 ### Disable redirect URL appending
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 function ExternalLinkNoReturn() {
   const openExternal = useOpenExternal();
@@ -192,7 +192,7 @@ function ExternalLinkNoReturn() {
 ### Dynamic URL Opening
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 import { useState } from "react";
 
 function SearchRedirect() {

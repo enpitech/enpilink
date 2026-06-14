@@ -20,7 +20,7 @@ import type {
  * @example
  * ```tsx
  * import * as z from "zod";
- * import { useRegisterViewTool } from "skybridge/web";
+ * import { useRegisterViewTool } from "enpilink/web";
  *
  * useRegisterViewTool(
  *   {
@@ -40,7 +40,7 @@ import type {
  * );
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-register-view-tool
+ * @see https://docs.enpitech.dev/api-reference/use-register-view-tool
  */
 export const useRegisterViewTool = <
   TInput extends ZodRawShapeCompat = ZodRawShapeCompat,

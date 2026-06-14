@@ -12,17 +12,17 @@ import type { useSyncExternalStore } from "react";
 import type { ViewHostType } from "../../server/index.js";
 
 /**
- * Globals injected on `window.skybridge` by the host. Tells the view which
+ * Globals injected on `window.enpilink` by the host. Tells the view which
  * runtime it's running under and where to reach the MCP server.
  */
-export type SkybridgeProperties = {
+export type EnpilinkProperties = {
   hostType: ViewHostType;
   serverUrl: string;
 };
 
 declare global {
   interface Window {
-    skybridge: SkybridgeProperties;
+    enpilink: EnpilinkProperties;
   }
 }
 

@@ -14,7 +14,7 @@ The `useDisplayMode` hook allows you to read and control the display mode of you
 ## Basic usage
 
 ```tsx
-import { useDisplayMode } from "skybridge/web";
+import { useDisplayMode } from "enpilink/web";
 
 function ExpandableView() {
   const [displayMode, setDisplayMode] = useDisplayMode();
@@ -62,7 +62,7 @@ A function to request a new display mode. Note that the host may reject the requ
 ### Fullscreen Media Player
 
 ```tsx
-import { useDisplayMode } from "skybridge/web";
+import { useDisplayMode } from "enpilink/web";
 
 function MediaPlayer() {
   const [displayMode, setDisplayMode] = useDisplayMode();
@@ -82,7 +82,7 @@ function MediaPlayer() {
 ### Adaptive Layout
 
 ```tsx
-import { useDisplayMode } from "skybridge/web";
+import { useDisplayMode } from "enpilink/web";
 
 function AdaptiveView() {
   const [displayMode] = useDisplayMode();
@@ -108,7 +108,7 @@ function AdaptiveView() {
 ### Picture-in-Picture Mode
 
 ```tsx
-import { useDisplayMode, useUser } from "skybridge/web";
+import { useDisplayMode, useUser } from "enpilink/web";
 
 function FloatingView() {
   const [displayMode, setDisplayMode] = useDisplayMode();

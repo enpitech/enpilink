@@ -5,7 +5,7 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
-const PREFIX = "skybridge-devtools-oauth";
+const PREFIX = "enpilink-devtools-oauth";
 
 const KEYS = {
   clientInfo: `${PREFIX}:client-info`,
@@ -27,7 +27,7 @@ export class BrowserOAuthProvider implements OAuthClientProvider {
       token_endpoint_auth_method: "none",
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      client_name: "Skybridge Devtools",
+      client_name: "enpilink Devtools",
       client_uri: window.location.origin,
     };
   }

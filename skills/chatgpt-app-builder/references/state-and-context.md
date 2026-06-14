@@ -43,7 +43,7 @@ function SeatPicker({ seats }) {
 Shared across components, complex mutations. `createStore` is a thin wrapper around Zustand.
 
 ```tsx
-import { createStore } from "skybridge/web";
+import { createStore } from "enpilink/web";
 
 const useCartStore = createStore<CartState>((set) => ({
   cart: [],

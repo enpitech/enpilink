@@ -8,7 +8,7 @@ import type { UnknownObject } from "../types.js";
  * is restored on subsequent renders of the same tool invocation.
  *
  * Returns a `[state, setState]` pair with the same ergonomics as
- * `useState`. State is filtered to strip Skybridge-internal context fields
+ * `useState`. State is filtered to strip enpilink-internal context fields
  * (see {@link DataLLM}) before being returned to your component.
  *
  * Provide a `defaultState` (value or lazy initializer) to get a non-nullable
@@ -22,7 +22,7 @@ import type { UnknownObject } from "../types.js";
  * setFilters((f) => ({ ...f, page: f.page + 1 }));
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-view-state
+ * @see https://docs.enpitech.dev/api-reference/use-view-state
  */
 export function useViewState<T extends UnknownObject>(
   defaultState: T | (() => T),

@@ -23,7 +23,7 @@ view _exposes_ a tool for the model to call.
 ## Basic usage
 
 ```tsx
-import { useRegisterViewTool } from "skybridge/web";
+import { useRegisterViewTool } from "enpilink/web";
 import * as z from "zod";
 
 function Counter() {
@@ -117,7 +117,7 @@ without forcing a re-registration.
 ## Example: a chess move tool
 
 ```tsx
-import { useRegisterViewTool } from "skybridge/web";
+import { useRegisterViewTool } from "enpilink/web";
 import * as z from "zod";
 
 useRegisterViewTool(
@@ -144,5 +144,5 @@ useRegisterViewTool(
 );
 ```
 
-See the [`chess` example](https://github.com/alpic-ai/skybridge/tree/main/examples/chess)
+See the [`chess` example](https://github.com/enpitech/enpilink/tree/main/examples/chess)
 for a full app built around view tools.

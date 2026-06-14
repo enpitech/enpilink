@@ -4,13 +4,13 @@ import type { Adaptor } from "./types.js";
 
 /**
  * @internal
- * Resolve the host-specific {@link Adaptor} based on `window.skybridge.hostType`.
+ * Resolve the host-specific {@link Adaptor} based on `window.enpilink.hostType`.
  * Prefer the documented hooks (`useCallTool`, `useViewState`, etc.) over
  * calling this directly — it's the escape hatch used by the hooks themselves
  * and by advanced integrations.
  */
 export const getAdaptor = (): Adaptor => {
-  return window.skybridge.hostType === "apps-sdk"
+  return window.enpilink.hostType === "apps-sdk"
     ? AppsSdkAdaptor.getInstance()
     : McpAppAdaptor.getInstance();
 };

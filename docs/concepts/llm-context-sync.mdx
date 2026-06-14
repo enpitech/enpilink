@@ -186,7 +186,7 @@ const selectedNames = items.filter(item => item.selected).map(item => item.name)
 
 ## __view_context Reserved Key
 
-Skybridge uses a reserved key `__view_context` in view state. In **Apps SDK (ChatGPT)**, view state lives in `window.openai.widgetState`; in **MCP Apps**, the same key is used in the polyfilled `useViewState` store.
+enpilink uses a reserved key `__view_context` in view state. In **Apps SDK (ChatGPT)**, view state lives in `window.openai.widgetState`; in **MCP Apps**, the same key is used in the polyfilled `useViewState` store.
 
 ```typescript
 // Apps SDK example
@@ -195,7 +195,7 @@ window.openai.widgetState = {
   selectedItemId: "123",
   filters: { ... },
 
-  // Skybridge's context (auto-managed)
+  // enpilink's context (auto-managed)
   __view_context: "User viewing item 123\n  Price: $50\n  In stock"
 }
 ```

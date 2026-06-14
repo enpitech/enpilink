@@ -5,7 +5,7 @@ export const useDocumentTitle = () => {
   const serverInfo = useServerInfo();
   useEffect(() => {
     if (serverInfo?.name) {
-      document.title = `${serverInfo.name} · Skybridge`;
+      document.title = `${serverInfo.name} · enpilink`;
     }
   }, [serverInfo?.name]);
 };

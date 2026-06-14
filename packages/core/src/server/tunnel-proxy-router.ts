@@ -1,13 +1,13 @@
 import express, { type Router } from "express";
 
 /**
- * Builds an Express router that forwards `/__skybridge/tunnel` (POST/DELETE)
- * and `/__skybridge/tunnel/events` (GET, SSE) to the cli's loopback control
- * server. The `/__skybridge/` prefix avoids colliding with user-defined routes.
+ * Builds an Express router that forwards `/__enpilink/tunnel` (POST/DELETE)
+ * and `/__enpilink/tunnel/events` (GET, SSE) to the cli's loopback control
+ * server. The `/__enpilink/` prefix avoids colliding with user-defined routes.
  */
 export function createTunnelProxyRouter(controlPort: number): Router {
   const router = express.Router();
-  const upstream = `http://127.0.0.1:${controlPort}/__skybridge/tunnel`;
+  const upstream = `http://127.0.0.1:${controlPort}/__enpilink/tunnel`;
 
   const forwardJson = async (
     method: "POST" | "DELETE",
@@ -29,15 +29,15 @@ export function createTunnelProxyRouter(controlPort: number): Router {
     }
   };
 
-  router.post("/__skybridge/tunnel", (_req, res) => {
+  router.post("/__enpilink/tunnel", (_req, res) => {
     void forwardJson("POST", res);
   });
 
-  router.delete("/__skybridge/tunnel", (_req, res) => {
+  router.delete("/__enpilink/tunnel", (_req, res) => {
     void forwardJson("DELETE", res);
   });
 
-  router.get("/__skybridge/tunnel/events", async (req, res) => {
+  router.get("/__enpilink/tunnel/events", async (req, res) => {
     // Abort the upstream fetch when the client disconnects (or when the dev
     // server shuts down and destroys the response).
     const controller = new AbortController();

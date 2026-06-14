@@ -16,7 +16,7 @@ describe("useOpenExternal", () => {
       vi.stubGlobal("openai", {
         openExternal: openExternalMock,
       });
-      vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+      vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
     });
 
     afterEach(() => {
@@ -52,7 +52,7 @@ describe("useOpenExternal", () => {
     let postMessageMock: ReturnType<typeof getMcpAppHostPostMessageMock>;
 
     beforeEach(() => {
-      vi.stubGlobal("skybridge", { hostType: "mcp-app" });
+      vi.stubGlobal("enpilink", { hostType: "mcp-app" });
       vi.stubGlobal("ResizeObserver", MockResizeObserver);
       postMessageMock = getMcpAppHostPostMessageMock();
       vi.stubGlobal("parent", { postMessage: postMessageMock });

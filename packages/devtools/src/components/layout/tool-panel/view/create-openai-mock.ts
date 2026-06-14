@@ -8,9 +8,9 @@ import type {
   DisplayMode,
   RequestDisplayMode,
   UnknownObject,
-} from "skybridge/web";
+} from "enpilink/web";
 
-import { SET_GLOBALS_EVENT_TYPE, SetGlobalsEvent } from "skybridge/web";
+import { SET_GLOBALS_EVENT_TYPE, SetGlobalsEvent } from "enpilink/web";
 import { useInspectorPreferencesStore } from "@/lib/inspector-preferences-store.js";
 
 function createOpenaiMethods(
@@ -66,7 +66,7 @@ function createOpenaiMethods(
     },
     requestModal: async (args: { title?: string }) => {
       log("requestModal", args);
-      openai.displayMode = "modal" as DisplayMode; // TODO: To remove once https://github.com/alpic-ai/skybridge/pull/92 is merged
+      openai.displayMode = "modal" as DisplayMode; // TODO: To remove once https://github.com/enpitech/enpilink/pull/92 is merged
       openai.view = { mode: "modal" };
       setValue("displayMode", "modal");
     },

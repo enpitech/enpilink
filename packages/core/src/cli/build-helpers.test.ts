@@ -19,7 +19,7 @@ import {
   VERCEL_VC_CONFIG,
 } from "./build-helpers.js";
 
-function mkTmp(prefix = "skybridge-build-helpers-") {
+function mkTmp(prefix = "enpilink-build-helpers-") {
   return mkdtempSync(path.join(tmpdir(), prefix));
 }
 
@@ -30,7 +30,7 @@ describe("emitEntryWrapper", () => {
     const out = readFileSync(path.join(dir, "__entry.js"), "utf-8");
     expect(out).toBe(ENTRY_WRAPPER_CONTENT);
     expect(out).toContain(
-      'import { __setBuildManifest } from "skybridge/server"',
+      'import { __setBuildManifest } from "enpilink/server"',
     );
     expect(out).toContain('import manifest from "./vite-manifest.js"');
     expect(out).toContain("__setBuildManifest(manifest)");
@@ -67,7 +67,7 @@ describe("emitVercelBuildOutput", () => {
       path.join(root, "dist", "server.js"),
       "export default function handler(_req, res) { res.end('ok'); }\n",
     );
-    // Minimal `dist/__entry.js` (the real wrapper imports `skybridge/server`,
+    // Minimal `dist/__entry.js` (the real wrapper imports `enpilink/server`,
     // which isn't resolvable in this test's tmp dir — the function-bundling
     // contract we care about here is just "bundle whatever `__entry.js`
     // imports into a single function file").

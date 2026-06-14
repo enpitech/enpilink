@@ -8,7 +8,7 @@ The `useSendFollowUpMessage` hook returns a function to programmatically trigger
 ## Basic usage
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 
 function FollowUpButton() {
   const sendFollowUpMessage = useSendFollowUpMessage();
@@ -47,7 +47,7 @@ An async function that sends a follow-up message to continue the conversation.
 ### Quick Actions
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 
 function QuickActions() {
   const sendFollowUpMessage = useSendFollowUpMessage();
@@ -76,7 +76,7 @@ function QuickActions() {
 ### Search Results with Follow-up
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 
 type SearchResult = {
   id: string;
@@ -110,7 +110,7 @@ function SearchResults({ results }: { results: SearchResult[] }) {
 ### Interactive Tutorial
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 import { useState } from "react";
 
 const tutorialSteps = [
@@ -161,7 +161,7 @@ function Tutorial() {
 ### Feedback View
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 import { useState } from "react";
 
 function FeedbackView() {
@@ -198,7 +198,7 @@ function FeedbackView() {
 ### Context-Aware Suggestions
 
 ```tsx
-import { useSendFollowUpMessage, useToolInfo } from "skybridge/web";
+import { useSendFollowUpMessage, useToolInfo } from "enpilink/web";
 
 function ContextSuggestions() {
   const sendFollowUpMessage = useSendFollowUpMessage();

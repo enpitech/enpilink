@@ -6,15 +6,7 @@ import {
 } from "@alpic-ai/ui/components/popover";
 import { Separator } from "@alpic-ai/ui/components/separator";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Check,
-  ClipboardCheck,
-  Copy,
-  Loader2Icon,
-  MessagesSquareIcon,
-  RocketIcon,
-  UnplugIcon,
-} from "lucide-react";
+import { Check, Copy, Loader2Icon, RocketIcon, UnplugIcon } from "lucide-react";
 import {
   cloneElement,
   type MouseEventHandler,
@@ -43,7 +35,7 @@ function useDeployCommand(): string {
   const { data } = useQuery({
     queryKey: ["devtools-project"],
     queryFn: async () => {
-      const res = await fetch("/__skybridge/devtools/project");
+      const res = await fetch("/__enpilink/devtools/project");
       if (!res.ok) {
         return { packageManager: "npm" as PackageManager };
       }
@@ -143,111 +135,6 @@ function HoverPopover({
   );
 }
 
-function TunnelLinkButton({
-  label,
-  icon,
-  buildUrl,
-  description,
-}: {
-  label: string;
-  icon: ReactNode;
-  buildUrl: (tunnelUrl: string) => string;
-  description: string;
-}) {
-  const state = useTunnelStore((s) => s.state);
-  const start = useTunnelStore((s) => s.start);
-  const [pendingOpen, setPendingOpen] = useState(false);
-  const url = state.status === "connected" ? buildUrl(state.url) : null;
-
-  useEffect(() => {
-    if (pendingOpen && state.status === "connected") {
-      window.open(buildUrl(state.url), "_blank", "noreferrer,noopener");
-      setPendingOpen(false);
-    } else if (
-      pendingOpen &&
-      (state.status === "error" || state.status === "idle")
-    ) {
-      setPendingOpen(false);
-    }
-  }, [pendingOpen, state, buildUrl]);
-
-  const onClick = () => {
-    if (url) {
-      window.open(url, "_blank", "noreferrer,noopener");
-      return;
-    }
-    setPendingOpen(true);
-    start();
-  };
-
-  const isLaunching = pendingOpen;
-  const isDisabled = !url && state.status === "starting";
-
-  return (
-    <HoverPopover
-      className="w-72"
-      trigger={
-        <Button
-          variant="secondary"
-          aria-disabled={isDisabled}
-          className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
-          icon={
-            isLaunching ? (
-              <Loader2Icon className="size-3.5 animate-spin" />
-            ) : (
-              icon
-            )
-          }
-          onClick={isDisabled ? undefined : onClick}
-        >
-          {label}
-        </Button>
-      }
-    >
-      {url ? (
-        <p
-          className={cn(
-            "text-sm text-muted-foreground text-center mx-auto",
-            DESCRIPTION_MAX_W,
-          )}
-        >
-          {description}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground text-center">
-          {isLaunching
-            ? `Starting the tunnel, ${label} will open shortly…`
-            : `Click to start the tunnel and open ${label}.`}
-        </p>
-      )}
-    </HoverPopover>
-  );
-}
-
-export function PlaygroundButton() {
-  return (
-    <TunnelLinkButton
-      label="Playground"
-      icon={<MessagesSquareIcon className="size-3.5" />}
-      buildUrl={(tunnelUrl) => `${tunnelUrl}/try`}
-      description="Chat with your MCP server with a real LLM and share it"
-    />
-  );
-}
-
-export function AuditButton() {
-  return (
-    <TunnelLinkButton
-      label="Audit"
-      icon={<ClipboardCheck className="size-3.5" />}
-      buildUrl={(tunnelUrl) =>
-        `https://app.alpic.ai/beacon?url=${encodeURIComponent(`${tunnelUrl}/mcp`)}`
-      }
-      description="Audit your MCP server's tools, prompts, and resources"
-    />
-  );
-}
-
 export function DeployButton() {
   const command = useDeployCommand();
   const { copied, copy } = useCopyToClipboard();
@@ -273,7 +160,7 @@ export function DeployButton() {
             DESCRIPTION_MAX_W,
           )}
         >
-          Run this command to deploy your project to the Alpic platform
+          Run this command to build your project for deployment to your host
         </p>
         <button
           type="button"

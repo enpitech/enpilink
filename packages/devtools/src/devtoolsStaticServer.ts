@@ -39,7 +39,7 @@ export const devtoolsStaticServer = async (): Promise<Router> => {
   const distDir = path.dirname(fileURLToPath(import.meta.url));
 
   router.use(cors());
-  router.get("/__skybridge/devtools/project", (_req, res) => {
+  router.get("/__enpilink/devtools/project", (_req, res) => {
     res.json({ packageManager: detectPackageManager() });
   });
   router.use(express.static(distDir));

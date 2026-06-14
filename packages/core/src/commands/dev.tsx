@@ -14,7 +14,7 @@ import { scanAndWriteViewsDts } from "../web/plugin/scan-views.js";
 
 export default class Dev extends Command {
   static override description = "Start development server";
-  static override examples = ["skybridge"];
+  static override examples = ["enpilink"];
   static override flags = {
     port: Flags.integer({
       char: "p",
@@ -22,12 +22,12 @@ export default class Dev extends Command {
       min: 1,
     }),
     tunnel: Flags.boolean({
-      description: "Open an Alpic tunnel for remote testing",
+      description: "Open a public tunnel for remote testing",
       default: false,
     }),
     open: Flags.boolean({
       description: "Open DevTools in the browser when the server is ready",
-      default: process.env.SKYBRIDGE_OPEN !== "false",
+      default: process.env.ENPILINK_OPEN !== "false",
       allowNo: true,
     }),
     verbose: Flags.boolean({
@@ -40,9 +40,9 @@ export default class Dev extends Command {
   public async run(): Promise<void> {
     const { flags } = await this.parse(Dev);
 
-    // Generate .skybridge/views.d.ts before render() spawns `tsc --noEmit
+    // Generate .enpilink/views.d.ts before render() spawns `tsc --noEmit
     // --watch`. Vite's plugin config hook writes the same file when nodemon
-    // boots the server, but tsc starts in parallel — if .skybridge/ doesn't
+    // boots the server, but tsc starts in parallel — if .enpilink/ doesn't
     // exist at tsc startup, its watcher never picks up the late-created file
     // and the dev UI reports phantom TS errors forever.
     const root = process.cwd();
@@ -108,7 +108,7 @@ export default class Dev extends Command {
           {tunnelState.status === "idle" && (
             <Box>
               <Text>🌍{"  "}</Text>
-              <Text>Get a public URL and LLM Playground access with </Text>
+              <Text>Get a public URL for remote testing with </Text>
               <Text color="cyan" bold>
                 --tunnel
               </Text>
@@ -128,13 +128,6 @@ export default class Dev extends Command {
                 <Text>Exposed on </Text>
                 <Text color="green">{`${tunnelState.url}/mcp`}</Text>
               </Box>
-              <Box>
-                <Text color="#20a832">→{"  "}</Text>
-                <Text color="white" bold>
-                  Test with an LLM on Playground:{" "}
-                </Text>
-                <Text color="green">{`${tunnelState.url}/try`}</Text>
-              </Box>
             </Box>
           )}
           {tunnelState.status === "error" && (
@@ -147,7 +140,7 @@ export default class Dev extends Command {
               </Box>
               <Box>
                 <Text color="#20a832">→{"  "}</Text>
-                <Text color="red">{`Try manually: npx alpic tunnel --port ${port}`}</Text>
+                <Text color="red">{`Try again with: enpilink dev --tunnel -p ${port}`}</Text>
               </Box>
             </Box>
           )}
@@ -156,7 +149,7 @@ export default class Dev extends Command {
             <Text>🛟{"  "}</Text>
             <Text>Need help? Reach us on </Text>
             <Text color="white" underline>
-              https://discord.alpic.ai
+              https://enpitech.dev
             </Text>
           </Box>
 
@@ -210,13 +203,13 @@ export default class Dev extends Command {
     };
 
     // Note: `exitOnCtrlC: false` because we own SIGINT below to guarantee
-    // alpic gets killed before we exit. If anything ever calls `useInput` or
+    // the tunnel subprocess gets killed before we exit. If anything ever calls `useInput` or
     // puts stdin into raw mode, also wire an explicit `\x03` keypress to the
     // shutdown function — Ink will otherwise swallow Ctrl-C without ever
     // delivering SIGINT.
     const ink = render(<App />, { exitOnCtrlC: false, patchConsole: true });
 
-    // Synchronous-first shutdown: kill the alpic subprocess up front so we
+    // Synchronous-first shutdown: kill the tunnel subprocess up front so we
     // can't leave it orphaned even if another SIGINT listener (e.g. nodemon's)
     // exits the process before our async cleanup completes.
     const shutdown = (code: number) => () => {

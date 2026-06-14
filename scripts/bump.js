@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Update skybridge, @skybridge/devtools, and alpic versions
+ * Update enpilink, @enpilink/devtools, and enpitech versions
  * in template and example apps
  *
  * Usage:
  *   node scripts/bump.js          # Uses latest published versions
- *   node scripts/bump.js 0.30.0   # Uses specific skybridge version
+ *   node scripts/bump.js 0.30.0   # Uses specific enpilink version
  */
 import { execSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
@@ -62,20 +62,20 @@ function getVersion(packageName, expectedVersion, timeoutMs = 10_000) {
 }
 
 const explicitVersion = process.argv[2];
-const skybridgeVersion = getVersion("skybridge", explicitVersion);
-const devtoolsVersion = getVersion("@skybridge/devtools", explicitVersion);
-const alpicVersion = getVersion("alpic");
+const enpilinkVersion = getVersion("enpilink", explicitVersion);
+const devtoolsVersion = getVersion("@enpilink/devtools", explicitVersion);
+const enpitechVersion = getVersion("enpitech");
 
-const skybridgeRange = `^${skybridgeVersion}`;
+const enpilinkRange = `^${enpilinkVersion}`;
 const devtoolsRange = devtoolsVersion ? `^${devtoolsVersion}` : null;
-const alpicRange = alpicVersion ? `^${alpicVersion}` : null;
+const enpitechRange = enpitechVersion ? `^${enpitechVersion}` : null;
 
-console.log(`skybridge:          ${skybridgeRange}`);
+console.log(`enpilink:          ${enpilinkRange}`);
 if (devtoolsRange) {
-  console.log(`@skybridge/devtools: ${devtoolsRange}`);
+  console.log(`@enpilink/devtools: ${devtoolsRange}`);
 }
-if (alpicRange) {
-  console.log(`alpic:               ${alpicRange}`);
+if (enpitechRange) {
+  console.log(`enpitech:               ${enpitechRange}`);
 }
 
 // Find all example package.json files dynamically
@@ -90,19 +90,19 @@ for (const dirEntry of readdirSync(join(rootDir, "examples"), {
 }
 
 const targets = [
-  "packages/create-skybridge/templates/demo/package.json",
-  "packages/create-skybridge/templates/blank/package.json",
+  "packages/create-enpilink/templates/demo/package.json",
+  "packages/create-enpilink/templates/blank/package.json",
   ...exampleTargets,
 ];
 
-// Update @skybridge/devtools peer dependency in core package
+// Update @enpilink/devtools peer dependency in core package
 if (devtoolsRange) {
   const corePackagePath = join(rootDir, "packages/core/package.json");
   if (existsSync(corePackagePath)) {
     const corePkg = JSON.parse(readFileSync(corePackagePath, "utf8"));
-    if (corePkg.peerDependencies?.["@skybridge/devtools"]) {
+    if (corePkg.peerDependencies?.["@enpilink/devtools"]) {
       console.log("Updating: packages/core/package.json (peerDependencies)");
-      corePkg.peerDependencies["@skybridge/devtools"] = devtoolsRange;
+      corePkg.peerDependencies["@enpilink/devtools"] = devtoolsRange;
       writeFileSync(corePackagePath, JSON.stringify(corePkg, null, 2) + "\n");
     }
   }
@@ -121,22 +121,22 @@ for (const target of targets) {
   const pkg = JSON.parse(readFileSync(file, "utf8"));
 
   if (
-    pkg.dependencies?.skybridge &&
-    !pkg.dependencies.skybridge.startsWith("workspace:")
+    pkg.dependencies?.enpilink &&
+    !pkg.dependencies.enpilink.startsWith("workspace:")
   ) {
-    pkg.dependencies.skybridge = skybridgeRange;
+    pkg.dependencies.enpilink = enpilinkRange;
   }
 
   if (
     devtoolsRange &&
-    pkg.devDependencies?.["@skybridge/devtools"] &&
-    !pkg.devDependencies["@skybridge/devtools"].startsWith("workspace:")
+    pkg.devDependencies?.["@enpilink/devtools"] &&
+    !pkg.devDependencies["@enpilink/devtools"].startsWith("workspace:")
   ) {
-    pkg.devDependencies["@skybridge/devtools"] = devtoolsRange;
+    pkg.devDependencies["@enpilink/devtools"] = devtoolsRange;
   }
 
-  if (alpicRange && pkg.devDependencies?.alpic) {
-    pkg.devDependencies.alpic = alpicRange;
+  if (enpitechRange && pkg.devDependencies?.enpitech) {
+    pkg.devDependencies.enpitech = enpitechRange;
   }
 
   writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");

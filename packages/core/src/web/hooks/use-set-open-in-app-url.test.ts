@@ -12,7 +12,7 @@ describe("useSetOpenInAppUrl", () => {
       vi.stubGlobal("openai", {
         setOpenInAppUrl: setOpenInAppUrlMock,
       });
-      vi.stubGlobal("skybridge", {
+      vi.stubGlobal("enpilink", {
         hostType: "apps-sdk",
         serverUrl: "https://example.com",
       });

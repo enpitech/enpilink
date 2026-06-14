@@ -15,7 +15,7 @@ describe("useRequestSize", () => {
     beforeEach(() => {
       AppsSdkAdaptor.resetInstance();
       vi.stubGlobal("openai", {});
-      vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+      vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
       consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     });
 
@@ -39,7 +39,7 @@ describe("useRequestSize", () => {
     let postMessageMock: ReturnType<typeof getMcpAppHostPostMessageMock>;
 
     beforeEach(() => {
-      vi.stubGlobal("skybridge", { hostType: "mcp-app" });
+      vi.stubGlobal("enpilink", { hostType: "mcp-app" });
       vi.stubGlobal("ResizeObserver", MockResizeObserver);
       postMessageMock = getMcpAppHostPostMessageMock();
       vi.stubGlobal("parent", { postMessage: postMessageMock });

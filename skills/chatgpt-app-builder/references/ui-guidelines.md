@@ -55,7 +55,7 @@ Use `useDisplayMode` to read current mode and request changes.
 - Host may reject the request
 
 ```tsx
-import { useDisplayMode } from "skybridge/web";
+import { useDisplayMode } from "enpilink/web";
 
 function ExpandableView() {
   const [displayMode, setDisplayMode] = useDisplayMode();
@@ -90,7 +90,7 @@ Overlay rendered outside the view iframe, on top of the current display mode.
 - Host injects close controls
 
 ```tsx
-import { useRequestModal } from "skybridge/web";
+import { useRequestModal } from "enpilink/web";
 
 function SettingsView() {
   const { isOpen, open, params } = useRequestModal();
@@ -124,7 +124,7 @@ Use `useLayout` to read host environment constraints.
 - `safeArea.insets`: Padding to avoid device notches, composer overlay, and navigation bars
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function Container({ children }) {
   const { maxHeight, safeArea } = useLayout();
@@ -143,7 +143,7 @@ function Container({ children }) {
 Match the host color scheme using `theme` from `useLayout`.
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function Container({ children }) {
   const { theme } = useLayout();
@@ -164,7 +164,7 @@ Use `useUser` to read user context.
 - `capabilities.touch`: `true` if device supports touch
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function ProductCard({ product }) {
   const { userAgent } = useUser();
@@ -186,7 +186,7 @@ function ProductCard({ product }) {
 Use `locale` from `useUser` to adapt content to user's language.
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function LocalizedGreeting() {
   const { locale } = useUser();

@@ -1,16 +1,13 @@
-import { intentMiddleware } from "@alpic-ai/insights";
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
 const server = new McpServer(
   {
-    name: "alpic-openai-app",
+    name: "enpilink-manifest-ui",
     version: "0.0.1",
   },
   { capabilities: {} },
-)
-  .mcpMiddleware(intentMiddleware())
-  .registerTool(
+).registerTool(
     {
       name: "hello-world",
       description: "A hero widget with customizable title and subtitle.",

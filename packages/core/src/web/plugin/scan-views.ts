@@ -62,7 +62,7 @@ export function assertUniqueViewNames(views: DiscoveredView[]): void {
   for (const [name, paths] of nameMap) {
     if (paths.length > 1) {
       throw new Error(
-        `skybridge: duplicate view name "${name}" resolved from:\n  - ${paths.join("\n  - ")}\nRename one of the files to avoid the conflict.`,
+        `enpilink: duplicate view name "${name}" resolved from:\n  - ${paths.join("\n  - ")}\nRename one of the files to avoid the conflict.`,
       );
     }
   }
@@ -79,7 +79,7 @@ export function generateViewsDts(views: DiscoveredView[]): string {
   return [
     "export {};",
     "",
-    'declare module "skybridge/server" {',
+    'declare module "enpilink/server" {',
     "  interface ViewNameRegistry {",
     entries,
     "  }",
@@ -92,7 +92,7 @@ export function writeViewsDts(
   projectRoot: string,
   views: DiscoveredView[],
 ): void {
-  const dir = join(projectRoot, ".skybridge");
+  const dir = join(projectRoot, ".enpilink");
   mkdirSync(dir, { recursive: true });
 
   const filePath = join(dir, "views.d.ts");

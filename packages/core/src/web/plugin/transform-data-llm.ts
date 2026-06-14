@@ -1,6 +1,6 @@
 import type { PluginObj, TransformOptions, types } from "@babel/core";
 
-const LLM_IMPORT_SOURCE = "skybridge/web";
+const LLM_IMPORT_SOURCE = "enpilink/web";
 
 interface State {
   hasDataLLMImport?: boolean;

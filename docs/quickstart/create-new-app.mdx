@@ -12,7 +12,7 @@ The easiest way to bootstrap a project is using our [🧠 Skill](/devtools/skill
 </Tip>
 
 <Tip>
-**Don't know if you should start with a ChatGPT or MCP App?** It doesn't matter! With Skybridge, you build your App once, and it runs seamlessly with both runtimes.
+**Don't know if you should start with a ChatGPT or MCP App?** It doesn't matter! With enpilink, you build your App once, and it runs seamlessly with both runtimes.
 </Tip>
 
 ## Scaffold your project
@@ -22,19 +22,19 @@ Set up your app with a single command:
 
 <CodeGroup>
 ```bash npm
-npm create skybridge@latest my-app
+npm create enpilink@latest my-app
 ```
 ```bash pnpm
-pnpm create skybridge my-app
+pnpm create enpilink my-app
 ```
 ```bash yarn
-yarn create skybridge my-app
+yarn create enpilink my-app
 ```
 ```bash bun
-bun create skybridge my-app
+bun create enpilink my-app
 ```
 ```bash deno
-deno init --npm skybridge my-app
+deno init --npm enpilink my-app
 ```
 </CodeGroup>
 
@@ -76,11 +76,11 @@ deno task dev
 ```
 </CodeGroup>
 
-This runs the `skybridge` command, which starts a development server with the following features:
+This runs the `enpilink` command, which starts a development server with the following features:
 
 ### What it does
 
-The `skybridge` command:
+The `enpilink` command:
 - **Starts an Express server** on port 3000 that packages:
   - An MCP endpoint on `/mcp` - the App Backend
   - A React application on Vite HMR dev server - the App Frontend
@@ -88,7 +88,7 @@ The `skybridge` command:
 
 ### Development workflow
 
-When you run `skybridge`:
+When you run `enpilink`:
 1. The server starts and displays the welcome screen in your terminal
 2. You can access **DevTools** at `http://localhost:3000/` to test your app locally
 3. The **MCP server** is available at `http://localhost:3000/mcp`
@@ -117,7 +117,7 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-Skybridge downloads and runs [Alpic tunnel](https://docs.alpic.ai/cli/tunnel) automatically, then prints a public `/mcp` URL and an LLM Playground `/try` URL. Add `--verbose` to stream tunnel logs.
+enpilink opens a public tunnel automatically and prints a public `/mcp` URL you can paste into Claude, ChatGPT, or any MCP client. Add `--verbose` to stream tunnel logs.
 
 ## Next steps
 

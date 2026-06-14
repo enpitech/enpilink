@@ -4,17 +4,11 @@ import { LogIn, LogOut } from "lucide-react";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { logout, signIn, useServerInfo } from "@/lib/mcp/index.js";
 import { StatusBadge } from "./status-badge.js";
-import {
-  AuditButton,
-  DeployButton,
-  PlaygroundButton,
-  TunnelButton,
-} from "./toolbar-actions.js";
+import { DeployButton, TunnelButton } from "./toolbar-actions.js";
 
 const EXTERNAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
-  { label: "discord", href: "https://discord.gg/awV4gu74wK" },
-  { label: "docs", href: "https://docs.skybridge.tech/" },
-  { label: "github", href: "https://github.com/alpic-ai/skybridge" },
+  { label: "docs", href: "https://docs.enpitech.dev/" },
+  { label: "github", href: "https://github.com/enpitech/enpilink" },
 ];
 
 function Chip({ children }: { children: React.ReactNode }) {
@@ -27,11 +21,11 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 function BrandChip() {
   const serverInfo = useServerInfo();
-  const name = serverInfo?.name ?? "skybridge";
+  const name = serverInfo?.name ?? "enpilink";
   const version = serverInfo?.version;
   return (
     <Chip>
-      <img src="/skybridge.svg" alt="" aria-hidden className="size-3.5" />
+      <img src="/enpilink.svg" alt="" aria-hidden className="size-3.5" />
       <span>{name}</span>
       <Separator orientation="vertical" className="h-4 self-center!" />
       {version && (
@@ -62,8 +56,6 @@ export const Header = () => {
 
       <div className="flex items-center gap-2">
         <TunnelButton />
-        <PlaygroundButton />
-        <AuditButton />
         <DeployButton />
       </div>
       <div className="flex items-center gap-3">

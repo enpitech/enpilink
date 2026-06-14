@@ -1,20 +1,20 @@
 ---
 title: "CLI Reference"
-description: "Complete reference for Skybridge CLI commands"
+description: "Complete reference for enpilink CLI commands"
 ---
 
-Skybridge provides two CLI tools: the main `skybridge` CLI for development and production workflows, and `create-skybridge` for bootstrapping new projects.
+enpilink provides two CLI tools: the main `enpilink` CLI for development and production workflows, and `create-enpilink` for bootstrapping new projects.
 
-## Skybridge CLI
+## enpilink CLI
 
-The main CLI is available as both `skybridge` and `sb` commands after installing `skybridge` in your project.
+The main CLI is available as both `enpilink` and `sb` commands after installing `enpilink` in your project.
 
-### skybridge dev
+### enpilink dev
 
 Start the development server with hot module reloading and DevTools.
 
 ```bash
-skybridge dev
+enpilink dev
 ```
 
 **What it does:**
@@ -29,34 +29,34 @@ skybridge dev
 | Flag | Description |
 |------|-------------|
 | `-p, --port <number>` | Port to run the server on. Defaults to `3000`, or the next available port if `3000` is in use. |
-| `--tunnel` | Open an Alpic tunnel for remote testing. |
+| `--tunnel` | Open an enpitech tunnel for remote testing. |
 | `--no-open` | Don't open DevTools in the browser when the server is ready. |
 | `-v, --verbose` | Show tunnel logs. |
 
 You can also set the port via the `PORT` environment variable:
 
 ```bash
-PORT=8080 skybridge dev
+PORT=8080 enpilink dev
 ```
 
-If you'd rather never have DevTools opened automatically, export `SKYBRIDGE_OPEN=false` at the shell level (e.g. in your `~/.zshrc`, `~/.bashrc`, or shell profile). It's equivalent to passing `--no-open` on every run, but lets you opt out once globally instead of per-invocation:
+If you'd rather never have DevTools opened automatically, export `ENPILINK_OPEN=false` at the shell level (e.g. in your `~/.zshrc`, `~/.bashrc`, or shell profile). It's equivalent to passing `--no-open` on every run, but lets you opt out once globally instead of per-invocation:
 
 ```bash
 # one-off
-SKYBRIDGE_OPEN=false skybridge dev
+ENPILINK_OPEN=false enpilink dev
 
 # persistent (add to your shell profile)
-export SKYBRIDGE_OPEN=false
+export ENPILINK_OPEN=false
 ```
 
 ---
 
-### skybridge build
+### enpilink build
 
 Build your views and MCP server for production deployment.
 
 ```bash
-skybridge build
+enpilink build
 ```
 
 **What it does:**
@@ -69,16 +69,16 @@ The output is placed in the `dist/` directory, ready for production deployment.
 
 ---
 
-### skybridge start
+### enpilink start
 
 Start the production server.
 
 ```bash
-skybridge start
+enpilink start
 ```
 
 **Requirements:**
-- Must run `skybridge build` first
+- Must run `enpilink build` first
 - Requires `dist/index.js` to exist
 
 **What it does:**
@@ -89,28 +89,28 @@ skybridge start
 
 ---
 
-## create-skybridge
+## create-enpilink
 
-A standalone CLI for bootstrapping new Skybridge projects.
+A standalone CLI for bootstrapping new enpilink projects.
 
 ```bash
-npm create skybridge@latest [directory]
+npm create enpilink@latest [directory]
 ```
 
 Or with other package managers:
 
 <CodeGroup>
 ```bash npm
-npm create skybridge@latest
+npm create enpilink@latest
 ```
 ```bash pnpm
-pnpm create skybridge@latest
+pnpm create enpilink@latest
 ```
 ```bash yarn
-yarn create skybridge
+yarn create enpilink
 ```
 ```bash bun
-bun create skybridge
+bun create enpilink
 ```
 </CodeGroup>
 
@@ -133,19 +133,19 @@ bun create skybridge
 **Create a new project interactively:**
 
 ```bash
-npm create skybridge@latest
+npm create enpilink@latest
 ```
 
 **Create a project in a specific directory:**
 
 ```bash
-npm create skybridge@latest my-app
+npm create enpilink@latest my-app
 ```
 
 **Create in current directory, overwrite existing files, and start immediately:**
 
 ```bash
-npm create skybridge@latest . --overwrite --immediate
+npm create enpilink@latest . --overwrite --immediate
 ```
 
 ### What it creates
@@ -163,13 +163,13 @@ The scaffolder copies a starter template that includes:
 
 ## Package Manager Scripts
 
-When you create a new Skybridge project, the `package.json` includes these scripts:
+When you create a new enpilink project, the `package.json` includes these scripts:
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `dev` | `skybridge dev` | Start development server |
-| `build` | `skybridge build` | Build for production |
-| `start` | `skybridge start` | Start production server |
+| `dev` | `enpilink dev` | Start development server |
+| `build` | `enpilink build` | Build for production |
+| `start` | `enpilink start` | Start production server |
 
 Run them with your package manager:
 

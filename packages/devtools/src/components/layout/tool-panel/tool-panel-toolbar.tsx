@@ -25,7 +25,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import type { RequestDisplayMode } from "skybridge/web";
+import type { RequestDisplayMode } from "enpilink/web";
 
 import { useInspectorPreferencesStore } from "@/lib/inspector-preferences-store.js";
 import { cn } from "@/lib/utils.js";
@@ -219,7 +219,7 @@ export const ToolPanelToolbar = ({
     <form
       ref={formRef}
       toolname="devtools_set_view_options"
-      tooldescription="Set the Skybridge devtools view preview options. Any subset of fields can be changed: display mode, theme, locale, and device type."
+      tooldescription="Set the enpilink devtools view preview options. Any subset of fields can be changed: display mode, theme, locale, and device type."
       toolautosubmit=""
       onSubmit={(event) => {
         event.preventDefault();

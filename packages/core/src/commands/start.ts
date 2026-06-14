@@ -6,7 +6,7 @@ import { runCommand } from "../cli/run-command.js";
 
 export default class Start extends Command {
   static override description = "Start production server";
-  static override examples = ["skybridge start"];
+  static override examples = ["enpilink start"];
   static override flags = {
     port: Flags.integer({
       char: "p",
@@ -36,13 +36,13 @@ export default class Start extends Command {
       console.error("❌ Error: No build output found");
       console.error("");
       console.error("Please build your project first:");
-      console.error("  skybridge build");
+      console.error("  enpilink build");
       console.error("");
       process.exit(1);
     }
 
     console.log(
-      `\x1b[36m\x1b[1m⛰ Skybridge\x1b[0m \x1b[36mv${this.config.version}\x1b[0m`,
+      `\x1b[36m\x1b[1m⛰ enpilink\x1b[0m \x1b[36mv${this.config.version}\x1b[0m`,
     );
     if (fallback) {
       console.log(

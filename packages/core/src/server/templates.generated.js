@@ -10,18 +10,18 @@ export const developmentTemplate = Handlebars.template({"compiler":[8,">= 4.3.0"
         return undefined
     };
 
-  return "<script type=\"module\">window.skybridge = { hostType: \""
-    + alias4(((helper = (helper = lookupProperty(helpers,"hostType") || (depth0 != null ? lookupProperty(depth0,"hostType") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hostType","hash":{},"data":data,"loc":{"start":{"line":1,"column":54},"end":{"line":1,"column":66}}}) : helper)))
+  return "<script type=\"module\">window.enpilink = { hostType: \""
+    + alias4(((helper = (helper = lookupProperty(helpers,"hostType") || (depth0 != null ? lookupProperty(depth0,"hostType") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hostType","hash":{},"data":data,"loc":{"start":{"line":1,"column":53},"end":{"line":1,"column":65}}}) : helper)))
     + "\", serverUrl: \""
-    + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":1,"column":81},"end":{"line":1,"column":94}}}) : helper)))
+    + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":1,"column":80},"end":{"line":1,"column":93}}}) : helper)))
     + "\" };</script>\n<script type=\"module\">\n  import { injectIntoGlobalHook } from \""
     + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":3,"column":40},"end":{"line":3,"column":53}}}) : helper)))
     + "/assets/@react-refresh\";\n  injectIntoGlobalHook(window); window.$RefreshReg$ = () => {};\n  window.$RefreshSig$ = () => (type) => type;\n  window.__vite_plugin_react_preamble_installed__ = true;\n</script>\n<script type=\"module\" src=\""
     + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":8,"column":27},"end":{"line":8,"column":40}}}) : helper)))
     + "/@vite/client\"></script>\n<div id=\"root\"></div>\n<script type=\"module\" id=\"dev-view-entry\">\n  import('"
     + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":11,"column":10},"end":{"line":11,"column":23}}}) : helper)))
-    + "/_skybridge/view/"
-    + alias4(((helper = (helper = lookupProperty(helpers,"viewName") || (depth0 != null ? lookupProperty(depth0,"viewName") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"viewName","hash":{},"data":data,"loc":{"start":{"line":11,"column":40},"end":{"line":11,"column":52}}}) : helper)))
+    + "/_enpilink/view/"
+    + alias4(((helper = (helper = lookupProperty(helpers,"viewName") || (depth0 != null ? lookupProperty(depth0,"viewName") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"viewName","hash":{},"data":data,"loc":{"start":{"line":11,"column":39},"end":{"line":11,"column":51}}}) : helper)))
     + "');\n</script>";
 },"useData":true});
 /** @type {HandlebarsTemplateDelegate} */
@@ -33,10 +33,10 @@ export const productionTemplate = Handlebars.template({"compiler":[8,">= 4.3.0"]
         return undefined
     };
 
-  return "<script type=\"module\">window.skybridge = { hostType: \""
-    + alias4(((helper = (helper = lookupProperty(helpers,"hostType") || (depth0 != null ? lookupProperty(depth0,"hostType") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hostType","hash":{},"data":data,"loc":{"start":{"line":1,"column":54},"end":{"line":1,"column":66}}}) : helper)))
+  return "<script type=\"module\">window.enpilink = { hostType: \""
+    + alias4(((helper = (helper = lookupProperty(helpers,"hostType") || (depth0 != null ? lookupProperty(depth0,"hostType") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hostType","hash":{},"data":data,"loc":{"start":{"line":1,"column":53},"end":{"line":1,"column":65}}}) : helper)))
     + "\", serverUrl: \""
-    + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":1,"column":81},"end":{"line":1,"column":94}}}) : helper)))
+    + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":1,"column":80},"end":{"line":1,"column":93}}}) : helper)))
     + "\" };</script>\n<div id=\"root\"></div>\n<script type=\"module\">\n  import('"
     + alias4(((helper = (helper = lookupProperty(helpers,"serverUrl") || (depth0 != null ? lookupProperty(depth0,"serverUrl") : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"serverUrl","hash":{},"data":data,"loc":{"start":{"line":4,"column":10},"end":{"line":4,"column":23}}}) : helper)))
     + "/assets/"

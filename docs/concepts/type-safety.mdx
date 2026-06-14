@@ -42,7 +42,7 @@ Export your server's type and use `generateHelpers`:
 
 ```typescript
 // src/server.ts
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
 const server = new McpServer({ name: "my-app", version: "1.0" }, {})
@@ -84,7 +84,7 @@ export type AppType = typeof server;
 ```typescript
 // src/helpers.ts
 import type { AppType } from "./server";
-import { generateHelpers } from "skybridge/web";
+import { generateHelpers } from "enpilink/web";
 
 export const { useCallTool, useToolInfo } = generateHelpers<AppType>();
 ```
@@ -163,7 +163,7 @@ function generateHelpers<ServerType>() {
 
 ## Type Utilities
 
-Skybridge exports utilities for extracting types:
+enpilink exports utilities for extracting types:
 
 ```typescript
 import type {
@@ -171,7 +171,7 @@ import type {
   ToolNames,
   ToolInput,
   ToolOutput,
-} from "skybridge/server";
+} from "enpilink/server";
 import type { AppType } from "./server";
 
 // Get all tool names as a union
@@ -198,7 +198,7 @@ inputSchema: {
 }
 ```
 
-Skybridge infers:
+enpilink infers:
 ```typescript
 type Input = {
   city: string;
@@ -235,11 +235,11 @@ type Input = {
 
 ### "Property does not exist on type"
 
-Make sure you're importing from your generated helpers file, not directly from `skybridge/web`:
+Make sure you're importing from your generated helpers file, not directly from `enpilink/web`:
 
 ```typescript
 // Wrong
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 // Right
 import { useCallTool } from "../helpers";

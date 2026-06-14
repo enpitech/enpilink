@@ -6,7 +6,7 @@ import {
 import { StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
-import type { AppsSdkContext, CallToolArgs } from "skybridge/web";
+import type { AppsSdkContext, CallToolArgs } from "enpilink/web";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { env } from "@/lib/env.js";
 import { getInspectorPreferences } from "@/lib/inspector-preferences-store.js";

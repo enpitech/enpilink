@@ -15,7 +15,7 @@ export type RequestCloseFn = () => Promise<void>;
  * <button onClick={() => close()}>Done</button>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-request-close
+ * @see https://docs.enpitech.dev/api-reference/use-request-close
  */
 export function useRequestClose(): RequestCloseFn {
   const adaptor = getAdaptor();

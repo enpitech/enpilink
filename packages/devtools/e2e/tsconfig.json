@@ -17,6 +17,6 @@
     "playwright.config.ts",
     "tests/**/*",
     "fixtures/**/*",
-    "fixtures/web/.skybridge/**/*.d.ts"
+    "fixtures/web/.enpilink/**/*.d.ts"
   ]
 }

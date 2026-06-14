@@ -21,7 +21,7 @@ describe("useCallTool - onSuccess callback", () => {
       callTool: vi.fn(),
     };
     vi.stubGlobal("openai", OpenaiMock);
-    vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+    vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
   });
 
   afterEach(() => {
@@ -209,7 +209,7 @@ describe("useCallTool - TypeScript typing", () => {
       callTool: vi.fn(),
     };
     vi.stubGlobal("openai", OpenaiMock);
-    vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+    vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
   });
 
   afterEach(() => {

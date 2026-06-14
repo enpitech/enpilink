@@ -1,16 +1,16 @@
 # Agents Guide
 
-## What is Skybridge
+## What is enpilink
 
-Skybridge is a **fullstack TypeScript framework** for building ChatGPT Apps and MCP Apps — interactive React views that render inside AI conversations.
+enpilink is a **fullstack TypeScript framework** for building ChatGPT Apps and MCP Apps — interactive React views that render inside AI conversations.
 
 The core loop: an MCP server exposes tools. When the host (ChatGPT, Claude, VSCode…) calls a tool, the server returns structured data **and** a reference to a React view. The host renders that view in an iframe. The view can read tool output, call other tools, send follow-up messages, and sync UI state back to the model.
 
-Skybridge wraps two host runtimes behind one API:
+enpilink wraps two host runtimes behind one API:
 - **Apps SDK** — ChatGPT's proprietary `window.openai` runtime
 - **MCP Apps** — the open `ext-apps` spec (JSON-RPC postMessage)
 
-Developers write one server (backend) and view(s) (frontend). Skybridge detects the runtime at load time.
+Developers write one server (backend) and view(s) (frontend). enpilink detects the runtime at load time.
 
 For deep understanding, read `docs/home.mdx`, `docs/fundamentals/`, and `docs/concepts/`.
 
@@ -18,16 +18,16 @@ For deep understanding, read `docs/home.mdx`, `docs/fundamentals/`, and `docs/co
 
 ```
 packages/
-  core/             # npm: `skybridge` — the framework
+  core/             # npm: `enpilink` — the framework
     src/server/     #   MCP server (extends @modelcontextprotocol/sdk), view registration, Express
     src/web/        #   React hooks, runtime adaptors, data-llm, Vite plugin, createStore
     src/cli/        #   CLI entry (oclif)
     src/commands/   #   dev / build / start commands
-  devtools/         # npm: @skybridge/devtools — local emulator UI
-  create-skybridge/ # npm create skybridge — project scaffolder
+  devtools/         # npm: @enpilink/devtools — local emulator UI
+  create-enpilink/ # npm create enpilink — project scaffolder
  
 examples/           # Showcase apps — good for understanding patterns
-docs/               # Mintlify site (docs.skybridge.tech)
+docs/               # Mintlify site (docs.enpitech.dev)
 skills/             # Coding agents skills for guided app building
 ```
 
@@ -51,9 +51,9 @@ pnpm build          # compile all packages
 Per-package:
 
 ```bash
-pnpm --filter skybridge test:unit
-pnpm --filter skybridge test:format
-pnpm --filter skybridge build
+pnpm --filter enpilink test:unit
+pnpm --filter enpilink test:format
+pnpm --filter enpilink build
 ```
 
 Always run `pnpm test && pnpm build` from root before pushing.
@@ -73,7 +73,7 @@ Run `pnpm format` to auto-fix.
 ## Cross-cutting concerns
 
 When the public API of `packages/core/` changes (exports from `src/server/index.ts`, `src/web/index.ts`, and CLI commands in `src/commands/`):
-1. Update `skills/` references (skybridge)
+1. Update `skills/` references (enpilink)
 2. Update `docs/` — especially `api-reference/` and `guides/`
 
 PR reviewers must enforce these updates are included when a PR touches the public API.

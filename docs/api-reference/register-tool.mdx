@@ -177,7 +177,7 @@ type ToolHandler = (
 }>;
 ```
 
-`content` can be a plain string, a single `ContentBlock`, or an array of `ContentBlock`s. See the different [content helpers](#content-helpers) that Skybridge provides.
+`content` can be a plain string, a single `ContentBlock`, or an array of `ContentBlock`s. See the different [content helpers](#content-helpers) that enpilink provides.
 
 The `extra` parameter exposes:
 - `extra.authInfo` — populated by auth middleware (e.g. `authInfo.clientId`, `authInfo.extra.email`)
@@ -187,7 +187,7 @@ The `extra` parameter exposes:
 
 ### Client hints on `_meta`
 
-ChatGPT may inject context about the current conversation in tool calls. Skybridge types these fields on `extra._meta` so you can use them in the handler:
+ChatGPT may inject context about the current conversation in tool calls. enpilink types these fields on `extra._meta` so you can use them in the handler:
 
 ```typescript
 type ClientHintsMeta = {
@@ -259,7 +259,7 @@ Three fields, three audiences:
 See [Data Flow: Response Fields](/concepts/data-flow#response-fields-explained).
 
 <Info>
-**viewUUID**: Skybridge automatically injects a unique `viewUUID` into `_meta` for every tool with view call. This enables `useViewState` and `createStore` to persist state across re-renders in MCP Apps via `localStorage`. Any `_meta` you return is preserved alongside the injected `viewUUID`.
+**viewUUID**: enpilink automatically injects a unique `viewUUID` into `_meta` for every tool with view call. This enables `useViewState` and `createStore` to persist state across re-renders in MCP Apps via `localStorage`. Any `_meta` you return is preserved alongside the injected `viewUUID`.
 </Info>
 
 ## Examples
@@ -269,7 +269,7 @@ See [Data Flow: Response Fields](/concepts/data-flow#response-fields-explained).
 File `src/views/greeting.tsx` exports the React component. `view.component` matches its file name.
 
 ```typescript
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
 const server = new McpServer({ name: "my-app", version: "0.0.1" }, {})
@@ -366,10 +366,10 @@ server.registerTool(
 
 ## Content helpers
 
-`skybridge/server` exports helpers for building `ContentBlock`s:
+`enpilink/server` exports helpers for building `ContentBlock`s:
 
 ```typescript
-import { audio, embeddedResource, image, resourceLink, text } from "skybridge/server";
+import { audio, embeddedResource, image, resourceLink, text } from "enpilink/server";
 
 return {
   content: [
@@ -431,7 +431,7 @@ Views run in a sandboxed iframe with strict Content Security Policy. If your vie
 - **Redirect to external sites** → add to `redirectDomains`
 
 <Note>
-Skybridge automatically includes your server's domain in the CSP. You only need to configure additional external domains.
+enpilink automatically includes your server's domain in the CSP. You only need to configure additional external domains.
 </Note>
 
 ### Configuration

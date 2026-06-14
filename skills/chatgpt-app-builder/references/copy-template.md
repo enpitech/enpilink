@@ -1,6 +1,6 @@
 # Start From Template
 
-Scaffold a project by setting up the Skybridge template starter. Skybridge is a TypeScript framework for building MCP servers with type-safe APIs and React views.
+Scaffold a project by setting up the enpilink template starter. enpilink is a TypeScript framework for building MCP servers with type-safe APIs and React views.
 
 ## Workflow
 
@@ -8,10 +8,10 @@ Scaffold a project by setting up the Skybridge template starter. Skybridge is a 
 
 2. Run (do not `rm` beforehand—create handles conflicts):
 ```bash
-{pm} create skybridge@latest {target-dir}
+{pm} create enpilink@latest {target-dir}
 
 # deno
-deno init --npm skybridge {target-dir}
+deno init --npm enpilink {target-dir}
 ```
 
 3. [Start the dev server](run-locally.md). Read logs to assess readiness/health; fix any errors (TypeScript, etc.) before proceeding.

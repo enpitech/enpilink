@@ -130,7 +130,7 @@ export class McpAppAdaptor implements Adaptor {
     const app = await McpAppBridge.getInstance().getApp();
     if (!app.getHostCapabilities()?.downloadFile) {
       console.error(
-        "[skybridge] download: host does not support ui/download-file",
+        "[enpilink] download: host does not support ui/download-file",
       );
       return { isError: true };
     }
@@ -140,7 +140,7 @@ export class McpAppAdaptor implements Adaptor {
   public openExternal(href: string, options?: OpenExternalOptions): void {
     if (options?.redirectUrl === false) {
       console.warn(
-        "[skybridge] redirectUrl option is not supported by the MCP ui/open-link protocol and will be ignored.",
+        "[enpilink] redirectUrl option is not supported by the MCP ui/open-link protocol and will be ignored.",
       );
     }
 

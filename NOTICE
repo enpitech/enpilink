@@ -1,0 +1,16 @@
+enpilink
+========
+
+enpilink is an enpitech-branded, account-free fork of Skybridge.
+
+Forked from alpic-ai/skybridge (https://github.com/alpic-ai/skybridge),
+licensed under the MIT License. The original copyright notice is retained in
+the LICENSE file.
+
+  Copyright (c) 2025 Alpic — original Skybridge framework (MIT)
+  Copyright (c) 2026 enpitech — enpilink fork and modifications
+
+enpilink removes the Alpic/Skybridge cloud-account couplings (telemetry,
+metrics, hosted tunnel/playground/audit, and deploy integrations) and rebrands
+the project to enpitech. It otherwise preserves the upstream architecture and
+API surface.

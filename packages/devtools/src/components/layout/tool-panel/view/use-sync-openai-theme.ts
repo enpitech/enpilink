@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import type { AppsSdkContext, Theme } from "skybridge/web";
+import type { AppsSdkContext, Theme } from "enpilink/web";
 
 type UseSyncOpenaiThemeParams = {
   iframeRef: RefObject<HTMLIFrameElement | null>;

@@ -21,7 +21,7 @@ export type LayoutState = {
  * const paddingTop = safeArea.insets.top;
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-layout
+ * @see https://docs.enpitech.dev/api-reference/use-layout
  */
 export function useLayout(): LayoutState {
   const theme = useHostContext("theme");

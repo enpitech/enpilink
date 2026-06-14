@@ -73,7 +73,7 @@ Create a bridge file that connects your server types to your views:
 ```ts
 // src/helpers.ts
 import type { AppType } from "./server"; // type-only import
-import { generateHelpers } from "skybridge/web";
+import { generateHelpers } from "enpilink/web";
 
 export const { useCallTool, useToolInfo } = generateHelpers<AppType>();
 ```

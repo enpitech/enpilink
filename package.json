@@ -1,22 +1,22 @@
 {
-  "name": "@skybridge/monorepo",
+  "name": "@enpilink/monorepo",
   "version": "0.0.0",
-  "description": "Skybridge is a framework for building ChatGPT and MCP Apps",
+  "description": "enpilink is a framework for building ChatGPT and MCP Apps",
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter \"./packages/*\" build",
+    "build": "pnpm -F enpilink build && pnpm --filter \"./packages/*\" --filter \"!enpilink\" build",
     "test": "pnpm -r --if-present test",
     "format": "pnpm -r --if-present format",
     "test:unit": "pnpm -r --if-present test:unit",
     "test:format": "pnpm -r --if-present test:format",
-    "docs:dev": "pnpm --filter @skybridge/docs dev",
+    "docs:dev": "pnpm --filter @enpilink/docs dev",
     "bump": "node scripts/bump.js && pnpm i"
   },
   "keywords": [
     "chatgpt",
     "app",
     "ai",
-    "skybridge"
+    "enpilink"
   ],
   "author": "Frédéric Barthelet",
   "license": "ISC",
@@ -28,7 +28,7 @@
   },
   "pnpm": {
     "overrides": {
-      "skybridge": "workspace:*",
+      "enpilink": "workspace:*",
       "@mintlify/prebuild>js-yaml": "^4.1.1",
       "@mintlify/previewing>js-yaml": "^4.1.1",
       "@mintlify/scraping>js-yaml": "^4.1.1",
@@ -51,6 +51,6 @@
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=24.14.1"
+    "node": ">=22"
   }
 }

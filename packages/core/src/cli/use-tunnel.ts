@@ -62,7 +62,7 @@ export function useTunnel(
     };
 
     const consumeSse = async () => {
-      const res = await fetch(`${baseUrl}/__skybridge/tunnel/events`, {
+      const res = await fetch(`${baseUrl}/__enpilink/tunnel/events`, {
         signal: controller.signal,
         headers: { Accept: "text/event-stream" },
       });
@@ -111,7 +111,7 @@ export function useTunnel(
       // DELETE /tunnel won't be auto-undone.
       while (!cancelled) {
         try {
-          const res = await fetch(`${baseUrl}/__skybridge/tunnel`, {
+          const res = await fetch(`${baseUrl}/__enpilink/tunnel`, {
             method: "POST",
             signal: controller.signal,
           });

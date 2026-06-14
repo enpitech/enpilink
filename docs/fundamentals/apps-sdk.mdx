@@ -4,7 +4,7 @@ sidebarTitle: Apps SDK
 description: "Deep dive into ChatGPT's runtime: MCP Apps compatibility, the window.openai API, and ChatGPT-only features."
 ---
 
-The [OpenAI Apps SDK](https://developers.openai.com/apps-sdk/) is the ChatGPT runtime layer for ChatGPT Apps, [announced in October 2025](https://alpic.ai/blog/inside-openai-s-apps-sdk-how-to-build-interactive-chatgpt-apps-with-mcp). ChatGPT supports the MCP Apps UI model, and also provides `window.openai` for compatibility and ChatGPT-specific extensions.
+The [OpenAI Apps SDK](https://developers.openai.com/apps-sdk/) is the ChatGPT runtime layer for ChatGPT Apps, [announced in October 2025](https://enpitech.dev/blog/inside-openai-s-apps-sdk-how-to-build-interactive-chatgpt-apps-with-mcp). ChatGPT supports the MCP Apps UI model, and also provides `window.openai` for compatibility and ChatGPT-specific extensions.
 
 ## View Rendering Flow
 
@@ -39,13 +39,13 @@ Views run inside an iframe and have access to a special [`window.openai`](https:
 | `openExternal()` | Open external URLs safely |
 | `setOpenInAppUrl()` | Set URL for the "Open in &lt;App&gt;" button in fullscreen mode |
 
-This API is powerful but low-level and imperative—which is where Skybridge comes in.
+This API is powerful but low-level and imperative—which is where enpilink comes in.
 
-## Skybridge Hook Mapping
+## enpilink Hook Mapping
 
-Skybridge wraps the raw `window.openai` API with React hooks:
+enpilink wraps the raw `window.openai` API with React hooks:
 
-| Raw API | Skybridge Hook | Purpose |
+| Raw API | enpilink Hook | Purpose |
 |---------|----------------|---------|
 | `window.openai.toolInput`, `toolOutput`, `toolResponseMetadata` | [`useToolInfo()`](/api-reference/use-tool-info) | Access tool input, output, and `_meta` |
 | `window.openai.widgetState` and `window.openai.setWidgetState` | [`useViewState()`](/api-reference/use-view-state) | Persistent view state |
@@ -60,7 +60,7 @@ Skybridge wraps the raw `window.openai` API with React hooks:
 | `window.openai.setOpenInAppUrl()` | [`useSetOpenInAppUrl()`](/api-reference/use-set-open-in-app-url) | "Open in App" button URL in fullscreen |
 | `window.openai.requestClose()` | [`useRequestClose()`](/api-reference/use-request-close) | Close the view from the UI (e.g. user dismisses) |
 
-## Skybridge Apps SDK Exclusive Features
+## enpilink Apps SDK Exclusive Features
 
 These features are **only available in ChatGPT** and not supported in MCP Apps:
 
@@ -69,7 +69,7 @@ These features are **only available in ChatGPT** and not supported in MCP Apps:
 Upload and download files with host-managed storage:
 
 ```tsx
-import { useFiles } from "skybridge/web";
+import { useFiles } from "enpilink/web";
 
 function View() {
   const { upload, getDownloadUrl } = useFiles();
@@ -89,7 +89,7 @@ function View() {
 Set a URL for the "Open in App" button that appears in fullscreen mode:
 
 ```tsx
-import { useSetOpenInAppUrl } from "skybridge/web";
+import { useSetOpenInAppUrl } from "enpilink/web";
 
 function View() {
   const { setOpenInAppUrl } = useSetOpenInAppUrl();
@@ -113,6 +113,6 @@ ChatGPT has aggressive caching. Use [DevTools](/devtools) for fast iteration, th
 ## Related
 
 - [MCP Apps](/fundamentals/mcp-apps) - The open alternative runtime
-- [Write Once, Run Everywhere](/concepts/write-once-run-everywhere) - How Skybridge handles both runtimes
+- [Write Once, Run Everywhere](/concepts/write-once-run-everywhere) - How enpilink handles both runtimes
 - [useSetOpenInAppUrl](/api-reference/use-set-open-in-app-url) - Open in App URL API reference
 - [useFiles](/api-reference/use-files) - File operations API reference

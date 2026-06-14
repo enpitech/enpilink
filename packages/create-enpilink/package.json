@@ -1,0 +1,37 @@
+{
+  "name": "create-enpilink",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "author": "enpitech",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enpitech/enpilink.git"
+  },
+  "bin": {
+    "create-enpilink": "index.js"
+  },
+  "files": [
+    "index.js",
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "pnpm run test:unit && pnpm run test:format",
+    "test:unit": "vitest run",
+    "format": "biome check --write --error-on-warnings",
+    "test:format": "biome ci",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "cross-spawn": "^7.0.6",
+    "mri": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}

@@ -3,7 +3,7 @@ name: chatgpt-app-builder
 description: |
   Guide developers through creating and updating ChatGPT apps.
   Covers the full lifecycle: brainstorming ideas against UX guidelines, bootstrapping projects, implementing tools/views, debugging, running dev servers, deploying and connecting apps to ChatGPT.
-  Use when a user wants to create or update a ChatGPT app / MCP server for ChatGPT, or use the Skybridge framework.
+  Use when a user wants to create or update a ChatGPT app / MCP server for ChatGPT, or use the enpilink framework.
 ---
 
 # Creating Apps For LLMs
@@ -39,7 +39,7 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 
 ## Deploy
 
-- **Ship to production** → [deploy.md](references/deploy.md): when ready to deploy via Alpic
+- **Ship to production** → [deploy.md](references/deploy.md): when ready to deploy via enpitech
 - **Publish to ChatGPT Directory** → [publish.md](references/publish.md): when ready to submit for review
 
-Full API docs: [https://docs.skybridge.tech/api-reference.md](https://docs.skybridge.tech/api-reference.md)
+Full API docs: [https://docs.enpitech.dev/api-reference.md](https://docs.enpitech.dev/api-reference.md)

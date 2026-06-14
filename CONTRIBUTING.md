@@ -1,6 +1,6 @@
-# Contributing to Skybridge
+# Contributing to enpilink
 
-Thank you for your interest in contributing to Skybridge! Every contribution helps make this framework better for everyone building ChatGPT and MCP Apps.
+Thank you for your interest in contributing to enpilink! Every contribution helps make this framework better for everyone building ChatGPT and MCP Apps.
 
 New here? Please drop by our [Discord](https://discord.com/invite/gNAazGueab) and introduce yourself before opening your first PR. It helps us know who you are and lets us point you toward good first issues.
 
@@ -15,8 +15,8 @@ New here? Please drop by our [Discord](https://discord.com/invite/gNAazGueab) an
 
 ```bash
 # Clone the repository
-git clone https://github.com/alpic-ai/skybridge.git
-cd skybridge
+git clone https://github.com/enpitech/enpilink.git
+cd enpilink
 
 # Install dependencies
 pnpm install
@@ -35,7 +35,7 @@ pnpm install
 
 ### Reporting Bugs
 
-Open an [issue](https://github.com/alpic-ai/skybridge/issues) with:
+Open an [issue](https://github.com/enpitech/enpilink/issues) with:
 
 - A clear, descriptive title
 - Steps to reproduce the problem
@@ -44,7 +44,7 @@ Open an [issue](https://github.com/alpic-ai/skybridge/issues) with:
 
 ### Suggesting Features
 
-Start a [discussion](https://github.com/alpic-ai/skybridge/discussions) to share your idea. This helps gather community feedback before implementation.
+Start a [discussion](https://github.com/enpitech/enpilink/discussions) to share your idea. This helps gather community feedback before implementation.
 
 ### Submitting Pull Requests
 
@@ -65,7 +65,7 @@ Every PR is reviewed by Greptile. If the check does not return 5/5, address each
 
 When your PR changes the public API of `packages/core` (exports from `src/server/index.ts`, `src/web/index.ts`, or the CLI commands in `src/commands/`), it must also update:
 
-1. `skills/` references (notably `skybridge`)
+1. `skills/` references (notably `enpilink`)
 2. `docs/`, especially `api-reference/` and `guides/`
 
 Reviewers will block PRs that touch the public API without these updates.
@@ -87,7 +87,7 @@ If your PR affects the documentation, read [docs/DOCUMENTATION-MANIFESTO.md](doc
 
 ## Community
 
-- 💬 [GitHub Discussions](https://github.com/alpic-ai/skybridge/discussions)
+- 💬 [GitHub Discussions](https://github.com/enpitech/enpilink/discussions)
 - 🗣️ [Discord](https://discord.com/invite/gNAazGueab)
 
 ## License

@@ -1,10 +1,10 @@
 ---
 title: Write Once, Run Everywhere
 sidebarTitle: Write Once, Run Everywhere
-description: "How Skybridge abstracts runtime differences so your apps work across all ChatGPT and MCP Apps hosts."
+description: "How enpilink abstracts runtime differences so your apps work across all ChatGPT and MCP Apps hosts."
 ---
 
-Skybridge is designed to be **runtime-agnostic**. Your view code works the same whether it runs in MCP Apps compatible clients (like Claude, Goose, VSCode) via the MCP ext-apps specification, or in ChatGPT via the Apps SDK.
+enpilink is designed to be **runtime-agnostic**. Your view code works the same whether it runs in MCP Apps compatible clients (like Claude, Goose, VSCode) via the MCP ext-apps specification, or in ChatGPT via the Apps SDK.
 
 ## The Problem
 
@@ -15,9 +15,9 @@ Different AI runtimes use different APIs to communicate with embedded views:
 
 Without abstraction, you'd need to write different code for each platform — or lock yourself into one ecosystem.
 
-## Skybridge's Solution
+## enpilink's Solution
 
-Skybridge introduces an **adaptor layer** that normalizes these differences:
+enpilink introduces an **adaptor layer** that normalizes these differences:
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#2563EB', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1e40af', 'lineColor': '#64748b', 'secondaryColor': '#3B82F6', 'tertiaryColor': '#dbeafe' }}}%%
@@ -26,14 +26,14 @@ flowchart TB
         Hooks["useToolInfo, useCallTool, etc."]
     end
 
-    Code --> Skybridge
+    Code --> enpilink
 
-    subgraph Skybridge["Skybridge Hooks"]
+    subgraph enpilink["enpilink Hooks"]
         Unified["Unified React Interface"]
     end
 
-    Skybridge --> AppsSdk
-    Skybridge --> McpApp
+    enpilink --> AppsSdk
+    enpilink --> McpApp
 
     subgraph AppsSdk["Apps SDK Adaptor"]
         OpenAI["window.openai"]
@@ -47,7 +47,7 @@ flowchart TB
     McpApp --> McpClients["Claude, Goose, VSCode..."]
 
     style Code fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
-    style Skybridge fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
+    style enpilink fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
     style AppsSdk fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
     style McpApp fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#334155
     style ChatGPT fill:#f1f5f9,stroke:#cbd5e1,stroke-width:2px,color:#475569
@@ -58,7 +58,7 @@ flowchart TB
     style JsonRpc fill:#2563EB,stroke:#1e40af,stroke-width:2px,color:#fff
 ```
 
-These include [useToolInfo](/api-reference/use-tool-info), [useCallTool](/api-reference/use-call-tool), and other [API hooks](/api-reference). Skybridge automatically detects which runtime is available and uses the appropriate adaptor.
+These include [useToolInfo](/api-reference/use-tool-info), [useCallTool](/api-reference/use-call-tool), and other [API hooks](/api-reference). enpilink automatically detects which runtime is available and uses the appropriate adaptor.
 
 ## Benefits
 

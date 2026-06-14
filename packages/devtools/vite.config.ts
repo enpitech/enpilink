@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/__skybridge": {
+      "/__enpilink": {
         target: new URL(
           process.env.VITE_MCP_SERVER_URL || "http://localhost:3000",
         ).origin,

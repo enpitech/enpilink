@@ -18,7 +18,7 @@ type TunnelStore = {
   connect: () => () => void;
 };
 
-const TUNNEL_PATH = "/__skybridge/tunnel";
+const TUNNEL_PATH = "/__enpilink/tunnel";
 
 export const useTunnelStore = create<TunnelStore>()((set, get) => ({
   state: { status: "idle" },

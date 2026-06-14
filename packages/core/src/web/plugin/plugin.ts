@@ -10,11 +10,11 @@ import {
 import { transform as dataLlmTransform } from "./transform-data-llm.js";
 import { hasDefaultExport } from "./validate-view.js";
 
-const VIRTUAL_PREFIX = "/_skybridge/view/";
-const VIRTUAL_MODULE_PREFIX = "\0skybridge:view:";
+const VIRTUAL_PREFIX = "/_enpilink/view/";
+const VIRTUAL_MODULE_PREFIX = "\0enpilink:view:";
 
-/** Options for the {@link skybridge} Vite plugin. */
-export interface SkybridgePluginOptions {
+/** Options for the {@link enpilink} Vite plugin. */
+export interface EnpilinkPluginOptions {
   /** Directory scanned for view modules. Defaults to `"src/views"`. */
   viewsDir?: string;
 }
@@ -22,7 +22,7 @@ export interface SkybridgePluginOptions {
 function buildVirtualEntry(viewFilePath: string): string {
   const normalized = viewFilePath.replace(/\\/g, "/");
   return [
-    `import { mountView } from "skybridge/web";`,
+    `import { mountView } from "enpilink/web";`,
     `import Component from "${normalized}";`,
     `import { createElement } from "react";`,
     `mountView(createElement(Component));`,
@@ -37,13 +37,13 @@ function getViewEntryPattern(viewsDir: string): RegExp {
 }
 
 /**
- * Vite plugin that wires a Skybridge project's view files into Vite.
+ * Vite plugin that wires a enpilink project's view files into Vite.
  *
  * For each `.tsx` / `.jsx` file in `viewsDir` with a default export, the
  * plugin:
  * - exposes a virtual entry that calls {@link mountView} with the view's
  *   default export,
- * - generates `.skybridge/views.d.ts` to augment {@link ViewNameRegistry} so
+ * - generates `.enpilink/views.d.ts` to augment {@link ViewNameRegistry} so
  *   {@link ViewName} narrows to the actual view names,
  * - rewrites `<DataLLM>` JSX so the host can extract its content,
  * - warns in dev if a view file is missing a default export.
@@ -55,14 +55,14 @@ function getViewEntryPattern(viewsDir: string): RegExp {
  * // vite.config.ts
  * import { defineConfig } from "vite";
  * import react from "@vitejs/plugin-react";
- * import { skybridge } from "skybridge/vite";
+ * import { enpilink } from "enpilink/vite";
  *
  * export default defineConfig({
- *   plugins: [react(), skybridge({ viewsDir: "src/views" })],
+ *   plugins: [react(), enpilink({ viewsDir: "src/views" })],
  * });
  * ```
  */
-export function skybridge(options?: SkybridgePluginOptions): Plugin {
+export function enpilink(options?: EnpilinkPluginOptions): Plugin {
   const rawViewsDir = options?.viewsDir ?? "src/views";
   let resolvedViewsDir: string;
   let projectRoot: string;
@@ -70,9 +70,9 @@ export function skybridge(options?: SkybridgePluginOptions): Plugin {
   let viewEntryPattern: RegExp;
 
   return {
-    name: "skybridge",
+    name: "enpilink",
     enforce: "pre",
-    // Read by `skybridge build` to resolve viewsDir before `tsc -b` runs.
+    // Read by `enpilink build` to resolve viewsDir before `tsc -b` runs.
     api: { viewsDir: rawViewsDir },
 
     config(config) {
@@ -95,7 +95,7 @@ export function skybridge(options?: SkybridgePluginOptions): Plugin {
         base: "/assets",
         // Fixes "Invalid hook call" on createStore by forcing a single
         // copy of React. Under pnpm's isolated node_modules, zustand
-        // inside `skybridge` resolves React from skybridge's own
+        // inside `enpilink` resolves React from enpilink's own
         // dependencies while the host app loads its own copy
         resolve: {
           dedupe: ["react", "react-dom"],
@@ -122,12 +122,12 @@ export function skybridge(options?: SkybridgePluginOptions): Plugin {
             `${resolvedViewsDir}/*/index.{tsx,jsx}`,
           ],
           include: ["react", "react-dom/client", "react/jsx-runtime"],
-          exclude: ["skybridge/web"],
+          exclude: ["enpilink/web"],
         },
         experimental: {
           renderBuiltUrl: (filename) => {
             return {
-              runtime: `window.skybridge.serverUrl + "/assets/${filename}"`,
+              runtime: `window.enpilink.serverUrl + "/assets/${filename}"`,
             };
           },
         },
@@ -180,14 +180,14 @@ export function skybridge(options?: SkybridgePluginOptions): Plugin {
           for (const filePath of nextInvalid) {
             if (!knownInvalid.has(filePath)) {
               server.config.logger.warn(
-                `[skybridge] view file "${relative(projectRoot, filePath)}" is missing a default export — it won't be served until fixed.`,
+                `[enpilink] view file "${relative(projectRoot, filePath)}" is missing a default export — it won't be served until fixed.`,
               );
             }
           }
           for (const filePath of knownInvalid) {
             if (!nextInvalid.has(filePath)) {
               server.config.logger.info(
-                `[skybridge] view file "${relative(projectRoot, filePath)}" resolved.`,
+                `[enpilink] view file "${relative(projectRoot, filePath)}" resolved.`,
               );
             }
           }
@@ -203,7 +203,7 @@ export function skybridge(options?: SkybridgePluginOptions): Plugin {
           // the user fixes the conflict.
           const message = err instanceof Error ? err.message : String(err);
           server.config.logger.error(
-            `[skybridge] view rescan failed: ${message}`,
+            `[enpilink] view rescan failed: ${message}`,
           );
         }
       };

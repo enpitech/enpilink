@@ -59,7 +59,7 @@ Without `data-llm`, the model doesn't know which flight the user selected. With 
 
 ## How it works
 
-The `data-llm` attribute is syntactic sugar that gets transformed at build time by Skybridge's Babel plugin:
+The `data-llm` attribute is syntactic sugar that gets transformed at build time by enpilink's Babel plugin:
 
 **What you write:**
 ```tsx
@@ -70,7 +70,7 @@ The `data-llm` attribute is syntactic sugar that gets transformed at build time 
 
 **What gets compiled:**
 ```tsx
-import { DataLLM } from "skybridge/web";
+import { DataLLM } from "enpilink/web";
 
 <DataLLM content="User is viewing Flight AF123">
   <div>

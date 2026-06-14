@@ -10,7 +10,7 @@ export function createMockMcpServer(): {
 } {
   const server = new McpServer(
     {
-      name: "alpic-openai-app",
+      name: "enpitech-openai-app",
       version: "0.0.1",
     },
     { capabilities: {} },

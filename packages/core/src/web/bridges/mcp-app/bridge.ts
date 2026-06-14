@@ -100,7 +100,7 @@ export class McpAppBridge implements Bridge<McpAppContext> {
   public static getInstance(
     options?: Partial<{ appInfo: Implementation }>,
   ): McpAppBridge {
-    if (window.skybridge.hostType !== "mcp-app") {
+    if (window.enpilink.hostType !== "mcp-app") {
       throw new Error("MCP App Bridge can only be used in the mcp-app runtime");
     }
     if (McpAppBridge.instance && options) {
@@ -110,7 +110,7 @@ export class McpAppBridge implements Bridge<McpAppContext> {
     }
     if (!McpAppBridge.instance) {
       const defaultOptions = {
-        appInfo: { name: "skybridge-app", version: "0.0.1" },
+        appInfo: { name: "enpilink-app", version: "0.0.1" },
       };
       McpAppBridge.instance = new McpAppBridge({
         ...defaultOptions,

@@ -1,11 +1,11 @@
 ---
-title: Use skybridge/web
-description: "Add React hooks and utilities to your App views with skybridge/web standalone package."
+title: Use enpilink/web
+description: "Add React hooks and utilities to your App views with enpilink/web standalone package."
 ---
 
-# Use skybridge/web
+# Use enpilink/web
 
-This guide shows you how to use `skybridge/web` without `skybridge/server` to add React hooks and utilities to your views.
+This guide shows you how to use `enpilink/web` without `enpilink/server` to add React hooks and utilities to your views.
 
 ## Prerequisites
 
@@ -15,15 +15,15 @@ You should already have:
 
 ## Install
 
-Add Skybridge to your project:
+Add enpilink to your project:
 
 ```bash
-pnpm add skybridge
+pnpm add enpilink
 ```
 
 ## Package overview
 
-`skybridge/web` provides React hooks and utilities for building advanced Apps:
+`enpilink/web` provides React hooks and utilities for building advanced Apps:
 
 ### State Management
 - **[`useToolInfo`](/api-reference/use-tool-info)**: Get initial tool input, output and metadata
@@ -43,17 +43,17 @@ pnpm add skybridge
 
 ### Others
 - **[`useAppsSdkContext`](/api-reference/use-apps-sdk-context)**: Low-level hook to subscribe to `window.openai` state values
-- **[`generateHelpers`](/api-reference/generate-helpers)**: Generate typed helpers for your views (requires `skybridge/server`)
+- **[`generateHelpers`](/api-reference/generate-helpers)**: Generate typed helpers for your views (requires `enpilink/server`)
 
 Each hook is documented in the API Reference section in the sidebar.
 
 ## Basic example
 
-Here's a simple view using Skybridge hooks:
+Here's a simple view using enpilink hooks:
 
 ```tsx
 // src/views/my-view.tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 export default function MyView() {
   const toolInfo = useToolInfo();
@@ -77,10 +77,10 @@ export default function MyView() {
 
 ## Type safety without server
 
-If you're not using `skybridge/server`, you won't get automatic type inference. You can still add types manually:
+If you're not using `enpilink/server`, you won't get automatic type inference. You can still add types manually:
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 interface MyToolInput {
   query: string;

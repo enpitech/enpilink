@@ -1,11 +1,11 @@
 import "@/index.css";
 
 import { Github } from "lucide-react";
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 import { Hero } from "../components/ui/hero.js";
 import { useToolInfo } from "../helpers.js";
 
-const DEFAULT_TITLE = "Skybridge";
+const DEFAULT_TITLE = "enpilink";
 const DEFAULT_SUBTITLE = "Build ChatGPT & MCP Apps. The Modern TypeScript Way.";
 
 function HelloWorld() {
@@ -20,8 +20,8 @@ function HelloWorld() {
     <Hero
       data={{
         logo1: {
-          text: "Alpic",
-          alt: "Alpic Logo",
+          text: "enpitech",
+          alt: "enpitech Logo",
           url: "https://avatars.githubusercontent.com/u/206831205?s=200&v=4",
         },
         title,
@@ -33,9 +33,9 @@ function HelloWorld() {
         },
       }}
       actions={{
-        onPrimaryClick: () => openExternal("https://docs.skybridge.tech"),
+        onPrimaryClick: () => openExternal("https://docs.enpitech.dev"),
         onSecondaryClick: () =>
-          openExternal("https://github.com/alpic-ai/skybridge"),
+          openExternal("https://github.com/enpitech/enpilink"),
       }}
     />
   );

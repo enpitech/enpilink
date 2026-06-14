@@ -13,7 +13,7 @@ Ensure all external domains are declared in the tool's `view.csp`. See [csp.md](
 ### ChatGPT
 Guide user to submit the app at [platform.openai.com](https://platform.openai.com) → Apps.
 
-OpenAI verifies app ownership via `/.well-known/openai-apps-challenge`. Guide user to Alpic **Distribution** tab → **OpenAI Apps Verification Token** → paste the token from OpenAI.
+OpenAI verifies app ownership via `/.well-known/openai-apps-challenge`. Guide user to enpitech **Distribution** tab → **OpenAI Apps Verification Token** → paste the token from OpenAI.
 
 ### Claude
 Guide user to submit the app on the [Anthropic Connectors Directory FAQ](https://support.claude.com/en/articles/11596036-anthropic-connectors-directory-faq).

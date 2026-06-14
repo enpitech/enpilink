@@ -65,7 +65,7 @@ export async function createApp({
   // Read `process.env.NODE_ENV` inline: wrangler/esbuild only substitute the literal expression,
   // so a local const would defeat dead-code elimination of the dev-only imports below.
   if (process.env.NODE_ENV !== "production") {
-    const { devtoolsStaticServer } = await import("@skybridge/devtools");
+    const { devtoolsStaticServer } = await import("@enpilink/devtools");
     app.use(await devtoolsStaticServer());
     const { viewsDevServer } = await import("./viewsDevServer.js");
     app.use(await viewsDevServer(httpServer));
@@ -120,7 +120,7 @@ const mcpMiddleware = (server: McpServer): express.RequestHandler => {
     try {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
-        // Respond with a single JSON body instead of SSE. Skybridge's stateless
+        // Respond with a single JSON body instead of SSE. enpilink's stateless
         // transport never streams server-initiated messages, so SSE adds no
         // capability — and on workerd specifically, `cloudflare:node`'s http
         // bridge silently drops chunked writes that happen after the request

@@ -109,7 +109,7 @@ function deriveStatus(
  * return <Results items={output.results} />;
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-tool-info
+ * @see https://docs.enpitech.dev/api-reference/use-tool-info
  */
 export function useToolInfo<
   TS extends Partial<ToolSignature> = Record<string, never>,

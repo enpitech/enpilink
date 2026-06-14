@@ -32,13 +32,13 @@ Interactions inside the rendered view itself are not WebMCP tools, use regular D
 
 Ask user if they want to test in ChatGPT/Claude or just use local devtools.
 
-If yes, expose the local server via Alpic tunnel:
+If yes, expose the local server via enpitech tunnel:
 
 ```bash
-alpic tunnel --port 3000
+enpitech tunnel --port 3000
 ```
 
-Extract the forwarding URL from Alpic tunnel output (e.g., `https://cool-marmot-fondue-420.alpic.dev`).
+Extract the forwarding URL from enpitech tunnel output (e.g., `https://cool-marmot-fondue-420.enpitech.dev`).
 
 ### Connect to ChatGPT
 Provide the user with these instructions to create the app in ChatGPT:

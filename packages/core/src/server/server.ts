@@ -98,14 +98,14 @@ export interface ViewCsp {
 }
 
 /**
- * Registry of view component names. The Skybridge Vite plugin augments this
- * interface in the generated `.skybridge/views.d.ts` with one key per view
+ * Registry of view component names. The enpilink Vite plugin augments this
+ * interface in the generated `.enpilink/views.d.ts` with one key per view
  * file, which narrows {@link ViewName} from `string` to the concrete union.
  */
 // Must be exported: TS module augmentation only merges with exported
-// declarations. Without `export`, `.skybridge/views.d.ts` augmentation
+// declarations. Without `export`, `.enpilink/views.d.ts` augmentation
 // would create a separate interface and `ViewName` would stay `string`.
-// biome-ignore lint/suspicious/noEmptyInterface: register pattern — augmented by `.skybridge/views.d.ts` to narrow ViewName
+// biome-ignore lint/suspicious/noEmptyInterface: register pattern — augmented by `.enpilink/views.d.ts` to narrow ViewName
 export interface ViewNameRegistry {}
 
 /** Union of valid view component names. Narrowed by {@link ViewNameRegistry}. */
@@ -113,7 +113,7 @@ export type ViewName = keyof ViewNameRegistry & string;
 
 /**
  * Pass under `view` in a tool's `registerTool` config to render the tool's
- * result through a Skybridge view instead of a plain text response.
+ * result through a enpilink view instead of a plain text response.
  */
 export interface ViewConfig {
   /** Filename of the view module (without extension) — matches a file in your `viewsDir`. */
@@ -161,7 +161,7 @@ export type ToolMeta = KnownToolMeta & Record<string, unknown>;
 
 /**
  * Convenient return type for tool handlers — a plain string, a single
- * {@link ContentBlock}, or an array. Skybridge normalizes it to the MCP
+ * {@link ContentBlock}, or an array. enpilink normalizes it to the MCP
  * `content: ContentBlock[]` shape before responding.
  */
 export type HandlerContent = string | ContentBlock | ContentBlock[];
@@ -216,7 +216,7 @@ type OpenaiResourceMeta = {
 };
 
 /**
- * MCP Apps CSP extended with upcoming / Skybridge-specific fields.
+ * MCP Apps CSP extended with upcoming / enpilink-specific fields.
  * @see https://github.com/modelcontextprotocol/ext-apps/pull/158
  */
 type ExtendedMcpUiResourceCsp = McpUiResourceMeta["csp"] & {
@@ -259,7 +259,7 @@ type ViewResourceConfig<T extends ResourceMeta = ResourceMeta> = {
  * Consumers infer tool types via the structural `$types` property rather than
  * the `McpServer` class generic, because class-generic inference breaks when
  * `McpServer` comes from different package installations (e.g. a consumer
- * with its own `skybridge` dep vs. the in-tree workspace version).
+ * with its own `enpilink` dep vs. the in-tree workspace version).
  *
  * Inspired by tRPC's `_def` pattern and Hono's type markers.
  */
@@ -403,7 +403,7 @@ const McpServerBaseOmitted = McpServerBase as unknown as new (
 ) => McpServerBaseOmitted;
 
 /**
- * The Skybridge server. Extends the MCP SDK's `McpServer` with a typed tool
+ * The enpilink server. Extends the MCP SDK's `McpServer` with a typed tool
  * registry, view resources, an embedded Express app, and protocol-level
  * middleware. Construct it with the same `Implementation` info you would pass
  * to the SDK, chain {@link McpServer.registerTool} calls to declare tools,
@@ -429,7 +429,7 @@ const McpServerBaseOmitted = McpServerBase as unknown as new (
  * export type AppType = typeof server;
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/mcp-server
+ * @see https://docs.enpitech.dev/api-reference/mcp-server
  */
 // Side channel populated by `dist/__entry.js` before user code is imported.
 // Set at module scope rather than passed through the constructor because the
@@ -464,7 +464,7 @@ export class McpServer<
    * after `run()`, dev-mode middleware, the `/mcp` route, and the default
    * error handler are appended in that order.
    *
-   * Note: Alpic Cloud only routes traffic to `/mcp` — custom routes work
+   * Note: enpitech Cloud only routes traffic to `/mcp` — custom routes work
    * locally and on self-hosted deployments.
    */
   readonly express: Express;
@@ -502,7 +502,7 @@ export class McpServer<
    * pass handlers directly or a path-prefixed handler list. Register before
    * {@link McpServer.run}; ordering matches Express.
    *
-   * Note: Alpic Cloud only routes traffic to `/mcp`. Custom paths work
+   * Note: enpitech Cloud only routes traffic to `/mcp`. Custom paths work
    * locally and on self-hosted deployments.
    */
   use(...handlers: RequestHandler[]): this;
@@ -699,7 +699,7 @@ export class McpServer<
 
   /**
    * Connect to an MCP transport (override of the SDK's `connect`). Use this
-   * when you're embedding Skybridge in a host that already manages its own
+   * when you're embedding enpilink in a host that already manages its own
    * transport (e.g. stdio for desktop apps); for HTTP, prefer {@link McpServer.run}
    * which sets the transport up for you. Locks in any middleware registered
    * via {@link McpServer.mcpMiddleware} — further calls to that method will
@@ -716,7 +716,7 @@ export class McpServer<
    * Per-request stateless connect. The SDK's `Protocol` only allows one
    * transport per instance, so we can't reuse this `McpServer` across
    * concurrent requests. The SDK's idiomatic fix is a `() => McpServer`
-   * factory, but that would break Skybridge's singleton API — so instead
+   * factory, but that would break enpilink's singleton API — so instead
    * we build a fresh underlying `Server` per request and share the main
    * server's handler maps by reference. The cast is unavoidable: there's
    * no public API to inject handler maps. `getHandlerMaps` validates the
@@ -822,7 +822,7 @@ export class McpServer<
     const existingTool = this.claimedViews.get(component);
     if (existingTool) {
       throw new Error(
-        `skybridge: view "${component}" is already used by tool "${existingTool}". Tool "${toolName}" cannot also reference it — each view backs exactly one tool.`,
+        `enpilink: view "${component}" is already used by tool "${existingTool}". Tool "${toolName}" cannot also reference it — each view backs exactly one tool.`,
       );
     }
     this.claimedViews.set(component, toolName);
@@ -872,7 +872,7 @@ export class McpServer<
     if (isClaude) {
       const pathname = extra?.requestInfo?.url?.pathname ?? "";
       const rawUrl =
-        header("x-alpic-forwarded-url") ?? `${serverUrl}${pathname}`;
+        header("x-enpitech-forwarded-url") ?? `${serverUrl}${pathname}`;
       // Strip a lone trailing slash so the hash matches the connector URL
       // as registered with Claude (which has no trailing slash on bare origins).
       const url = rawUrl.endsWith("/") ? rawUrl.slice(0, -1) : rawUrl;
@@ -903,7 +903,7 @@ export class McpServer<
       const viewResource: ViewResourceConfig<OpenaiResourceMeta> = {
         hostType: "apps-sdk",
         uri: `ui://views/apps-sdk/${view.component}.html${versionParam}`,
-        mimeType: "text/html+skybridge",
+        mimeType: "text/html+enpilink",
         buildContentMeta: (
           { resourceDomains, connectDomains, domain },
           overrides,
@@ -1137,7 +1137,7 @@ export class McpServer<
   /**
    * Inject the Vite manifest as a value rather than letting `readManifest()`
    * load it from disk. Required for runtimes without a usable filesystem
-   * (Cloudflare Workers, etc.) — the user's `skybridge build` emits the
+   * (Cloudflare Workers, etc.) — the user's `enpilink build` emits the
    * manifest as a JS module which the entry imports and passes here.
    */
   setViteManifest(manifest: Record<string, { file: string }>): this {
@@ -1184,7 +1184,7 @@ export class McpServer<
    * }));
    * ```
    *
-   * @see https://docs.skybridge.tech/api-reference/register-tool
+   * @see https://docs.enpitech.dev/api-reference/register-tool
    */
   registerTool<
     TName extends string,

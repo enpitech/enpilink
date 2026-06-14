@@ -13,34 +13,34 @@
   },
   {
     "query": "My view looks jarring when ChatGPT is in dark mode. How do I make the colors match?",
-    "expected_behavior": "Uses useLayout hook from skybridge/web. Destructures theme ('light' | 'dark'). Shows conditional styling based on theme value."
+    "expected_behavior": "Uses useLayout hook from enpilink/web. Destructures theme ('light' | 'dark'). Shows conditional styling based on theme value."
   },
   {
     "query": "I want to show dates and numbers formatted for the user's language. Like if they're French, dates should be DD/MM/YYYY.",
-    "expected_behavior": "Uses useUser hook from skybridge/web. Destructures locale. Shows using locale with Intl.DateTimeFormat or similar for formatting. Extracts language code with locale.split('-')[0] if needed."
+    "expected_behavior": "Uses useUser hook from enpilink/web. Destructures locale. Shows using locale with Intl.DateTimeFormat or similar for formatting. Extracts language code with locale.split('-')[0] if needed."
   },
   {
     "query": "My view has a complex grid that doesn't work well on phones. Can I show a simpler list view on mobile?",
-    "expected_behavior": "Uses useUser hook from skybridge/web. Destructures userAgent. Checks userAgent.device.type ('mobile' | 'tablet' | 'desktop' | 'unknown'). Shows conditional rendering or className based on device type."
+    "expected_behavior": "Uses useUser hook from enpilink/web. Destructures userAgent. Checks userAgent.device.type ('mobile' | 'tablet' | 'desktop' | 'unknown'). Shows conditional rendering or className based on device type."
   },
   {
     "query": "I have hover tooltips that don't work on tablets. How do I handle touch devices differently?",
-    "expected_behavior": "Uses useUser hook from skybridge/web. Destructures userAgent. Checks userAgent.capabilities.hover (false for touch-only) or userAgent.capabilities.touch. Shows alternative interaction pattern for touch devices."
+    "expected_behavior": "Uses useUser hook from enpilink/web. Destructures userAgent. Checks userAgent.capabilities.hover (false for touch-only) or userAgent.capabilities.touch. Shows alternative interaction pattern for touch devices."
   },
   {
     "query": "My fullscreen view content is getting cut off at the bottom on phones with notches.",
-    "expected_behavior": "Uses useLayout hook from skybridge/web. Destructures safeArea.insets (top, right, bottom, left). Applies insets as padding to avoid device notches, composer overlay, and navigation bars."
+    "expected_behavior": "Uses useLayout hook from enpilink/web. Destructures safeArea.insets (top, right, bottom, left). Applies insets as padding to avoid device notches, composer overlay, and navigation bars."
   },
   {
     "query": "My view content is too tall and causes awkward scrolling in the chat. How do I constrain its height?",
-    "expected_behavior": "Uses useLayout hook from skybridge/web. Destructures maxHeight. Applies maxHeight to container style. Content should auto-fit without nested scrolling in inline mode."
+    "expected_behavior": "Uses useLayout hook from enpilink/web. Destructures maxHeight. Applies maxHeight to container style. Content should auto-fit without nested scrolling in inline mode."
   },
   {
     "query": "I need a confirmation dialog before deleting items. User clicks delete, sees 'Are you sure?', then confirms or cancels.",
-    "expected_behavior": "Uses useRequestModal hook from skybridge/web. Destructures isOpen, open, params. Calls open() with params on delete click. Renders confirmation UI when isOpen is true. Modal is an overlay on top of current display mode, not a mode switch."
+    "expected_behavior": "Uses useRequestModal hook from enpilink/web. Destructures isOpen, open, params. Calls open() with params on delete click. Renders confirmation UI when isOpen is true. Modal is an overlay on top of current display mode, not a mode switch."
   },
   {
     "query": "I want users to enter a custom name before saving, but I don't want to clutter the main view with a form.",
-    "expected_behavior": "Uses useRequestModal hook from skybridge/web. Opens modal with form content. Modal renders outside view iframe, not constrained by view boundaries. Triggered by user interaction only."
+    "expected_behavior": "Uses useRequestModal hook from enpilink/web. Opens modal with form content. Modal renders outside view iframe, not constrained by view boundaries. Triggered by user interaction only."
   }
 ]

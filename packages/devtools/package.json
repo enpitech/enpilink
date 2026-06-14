@@ -1,10 +1,10 @@
 {
-  "name": "@skybridge/devtools",
+  "name": "@enpilink/devtools",
   "version": "1.0.0",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alpic-ai/skybridge.git"
+    "url": "https://github.com/enpitech/enpilink.git"
   },
   "files": [
     "dist"
@@ -73,7 +73,7 @@
     "react-syntax-highlighter": "^16.1.1",
     "shadcn": "^4.1.1",
     "shiki": "^4.0.2",
-    "skybridge": "workspace:*",
+    "enpilink": "workspace:*",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
     "tailwindcss-animate": "^1.0.7",

@@ -18,7 +18,7 @@ How to get data into your view and fetch more when the user interacts.
 When the host calls your view's tool, the server returns `structuredContent`. Access it with `useToolInfo`:
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 type FlightData = {
   flights: Array<{ id: string; name: string; price: number }>;
@@ -65,7 +65,7 @@ When the user clicks something and you need more data:
 </Note>
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 export function FlightView() {
   const { callTool, isPending, data, isError, error } = useCallTool("get_flight_details");
@@ -137,8 +137,8 @@ const handleCheck = async (date: string) => {
 Use `generateHelpers` for autocomplete and type inference. See [generateHelpers](/api-reference/generate-helpers) for setup.
 
 ```tsx
-// Import from your typed helpers file, not skybridge/web
-import { useCallTool } from "../skybridge";
+// Import from your typed helpers file, not enpilink/web
+import { useCallTool } from "../enpilink";
 
 const { callTool, data } = useCallTool("search-hotels");
 //                                       ^ autocomplete for tool names

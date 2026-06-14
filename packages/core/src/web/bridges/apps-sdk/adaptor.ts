@@ -87,7 +87,7 @@ export class AppsSdkAdaptor implements Adaptor {
   };
 
   public requestSize = async (_size: RequestSizeOptions): Promise<void> => {
-    console.warn("[skybridge] requestSize: not supported on Apps SDK");
+    console.warn("[enpilink] requestSize: not supported on Apps SDK");
   };
 
   public sendFollowUpMessage = (
@@ -103,7 +103,7 @@ export class AppsSdkAdaptor implements Adaptor {
   public download = async (
     _params: DownloadParams,
   ): Promise<DownloadResult> => {
-    console.error("[skybridge] download: not supported on Apps SDK");
+    console.error("[enpilink] download: not supported on Apps SDK");
     return { isError: true };
   };
 
@@ -174,7 +174,7 @@ export class AppsSdkAdaptor implements Adaptor {
 
   public registerViewTool = (): (() => void) => {
     console.warn(
-      "[skybridge] registerViewTool: view tools are not supported on the Apps SDK runtime",
+      "[enpilink] registerViewTool: view tools are not supported on the Apps SDK runtime",
     );
     return () => {};
   };

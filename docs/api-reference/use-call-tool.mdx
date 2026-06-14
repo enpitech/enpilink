@@ -10,7 +10,7 @@ Make sure your tool `_meta["openai/widgetAccessible"]` property is set to `true`
 ## Basic usage
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 import { useState } from "react";
 
 function BookTableView() {
@@ -183,7 +183,7 @@ error: unknown | undefined;
 Handle success, error, and settled states with callbacks:
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 function SubmitForm() {
   const { callTool, isPending } = useCallTool<{ email: string }>("subscribe");
@@ -221,7 +221,7 @@ function SubmitForm() {
 You can pass side effect options as the first argument to the `callTool` function if it doesn't require any arguments.
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 function RefreshButton() {
   const { callTool, isPending } = useCallTool("refresh");
@@ -248,7 +248,7 @@ function RefreshButton() {
 Use `callToolAsync` for async/await syntax:
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 function AsyncExample() {
   const { callToolAsync, isPending, isError, error } = useCallTool<
@@ -281,7 +281,7 @@ function AsyncExample() {
 Leverage TypeScript to get full type safety on the response:
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 type WeatherArgs = {
   city: string;

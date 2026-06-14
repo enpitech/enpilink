@@ -2,7 +2,7 @@
 
 exports[`data-llm plugin > should handle complex JSX with multiple data-llm attributes 1`] = `
 {
-  "code": "import { DataLLM } from "skybridge/web";
+  "code": "import { DataLLM } from "enpilink/web";
 function Component() {
   return <div>
             <DataLLM content="Section 1"><section>

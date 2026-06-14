@@ -1,12 +1,12 @@
 ---
 title: Data Flow
-description: "Learn how data moves between the host, your MCP server, and views in Skybridge applications."
+description: "Learn how data moves between the host, your MCP server, and views in enpilink applications."
 ---
 
 
 **Problem:** Apps involve three actors (the host, your server, your view) communicating in complex patterns. Understanding this flow is essential.
 
-**Solution:** Skybridge provides clear abstractions for each communication pattern.
+**Solution:** enpilink provides clear abstractions for each communication pattern.
 
 ## The Three Actors
 
@@ -104,7 +104,7 @@ server.registerTool(
 
 **View:**
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 export function FlightView() {
   const toolInfo = useToolInfo<{ flights: Flight[] }>();
@@ -136,7 +136,7 @@ export function FlightView() {
 Views can trigger additional tool calls in response to user actions:
 
 ```tsx
-import { useCallTool } from "skybridge/web";
+import { useCallTool } from "enpilink/web";
 
 export function FlightView() {
   const { callTool, isPending, data } = useCallTool("get_flight_details");
@@ -172,7 +172,7 @@ Your view needs to communicate its state back to the model. Use the **`data-llm`
 Views can send messages back into the conversation:
 
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 
 export function FlightView() {
   const sendMessage = useSendFollowUpMessage();

@@ -4,7 +4,7 @@ Trigger an LLM completion from user interaction with `useSendFollowUpMessage`.
 
 **Example:**
 ```tsx
-import { useSendFollowUpMessage } from "skybridge/web";
+import { useSendFollowUpMessage } from "enpilink/web";
 
 export function FindBestFlightButton() {
   const sendMessage = useSendFollowUpMessage();

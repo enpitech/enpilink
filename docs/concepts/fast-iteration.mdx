@@ -1,12 +1,12 @@
 ---
 title: Fast Iteration
-description: "Develop Apps locally with Skybridge's DevTools and Vite HMR for instant feedback without tunneling."
+description: "Develop Apps locally with enpilink's DevTools and Vite HMR for instant feedback without tunneling."
 ---
 
 
 **Problem:** Testing views in remote MCP Clients (e.g. ChatGPT, Claude, etc.) is slow. It requires HTTP tunneling, manual refreshes, and provides limited debugging feedback.
 
-**Solution:** Skybridge includes DevTools and a Vite HMR plugin that let you develop views entirely on your machine with instant feedback.
+**Solution:** enpilink includes DevTools and a Vite HMR plugin that let you develop views entirely on your machine with instant feedback.
 
 ## The Challenge
 
@@ -23,9 +23,9 @@ When building Apps the traditional way, your development loop looks like:
 
 This can take 30-60 seconds per iteration. With complex views, that adds up fast.
 
-## The Skybridge Approach
+## The enpilink Approach
 
-With Skybridge, the loop becomes:
+With enpilink, the loop becomes:
 
 1. Make a code change
 2. See it instantly in your browser
@@ -34,7 +34,7 @@ That's it. DevTools mocks the Apps SDK (ChatGPT) environment, and Vite's HMR upd
 
 ## DevTools
 
-When you run `pnpm dev`, Skybridge starts:
+When you run `pnpm dev`, enpilink starts:
 - Your MCP server at `http://localhost:3000/mcp`
 - DevTools UI at `http://localhost:3000/`
 
@@ -55,20 +55,20 @@ DevTools uses the **Apps SDK runtime** (mocked `window.openai`). MCP Apps view r
 For comprehensive documentation on all DevTools features, including view inspection, MCP client logs, and custom integration, see the [DevTools Guide](/devtools).
 </Info>
 
-<img src="/images/devtools-landing.png" alt="Skybridge DevTools" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
+<img src="/images/devtools-landing.png" alt="enpilink DevTools" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
 
 ## HMR with Vite Plugin
 
-Skybridge includes a Vite plugin that enables Hot Module Replacement for views:
+enpilink includes a Vite plugin that enables Hot Module Replacement for views:
 
 ```typescript
 // vite.config.ts
-import { skybridge } from "skybridge/vite";
+import { enpilink } from "enpilink/vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  plugins: [react(), skybridge()],
+  plugins: [react(), enpilink()],
 });
 ```
 
@@ -81,14 +81,14 @@ The plugin:
 <Info>
 **Starter template required**
 
-These features require the Skybridge starter template structure (`pnpm create skybridge`). If you're adding Skybridge to an existing app, you'll need to configure the Vite plugin manually.
+These features require the enpilink starter template structure (`pnpm create enpilink`). If you're adding enpilink to an existing app, you'll need to configure the Vite plugin manually.
 </Info>
 
 When you save a file, only the changed component re-renders. Form inputs, scroll position, and local state are preserved.
 
 ## Automatic Environment Detection
 
-Your view code works identically in ChatGPT, MCP Apps clients like Claude, and local DevTools. Skybridge detects the environment and uses the appropriate communication layer:
+Your view code works identically in ChatGPT, MCP Apps clients like Claude, and local DevTools. enpilink detects the environment and uses the appropriate communication layer:
 
 | Environment | Communication |
 |-------------|---------------|

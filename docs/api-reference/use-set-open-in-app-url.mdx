@@ -15,7 +15,7 @@ The `useSetOpenInAppUrl` hook returns a function to set the URL that will be ope
 ## Basic usage
 
 ```tsx
-import { useSetOpenInAppUrl } from "skybridge/web";
+import { useSetOpenInAppUrl } from "enpilink/web";
 
 function SetAppUrl() {
   const setOpenInAppUrl = useSetOpenInAppUrl();
@@ -63,7 +63,7 @@ The function may throw errors in the following cases:
 ### Setting URL with Form Input
 
 ```tsx
-import { useSetOpenInAppUrl } from "skybridge/web";
+import { useSetOpenInAppUrl } from "enpilink/web";
 import { useState } from "react";
 
 function UrlSetter() {
@@ -104,7 +104,7 @@ function UrlSetter() {
 ### Dynamic URL Based on State
 
 ```tsx
-import { useSetOpenInAppUrl, useDisplayMode } from "skybridge/web";
+import { useSetOpenInAppUrl, useDisplayMode } from "enpilink/web";
 import { useEffect } from "react";
 
 function ProductDetail({ productId }: { productId: string }) {

@@ -9,7 +9,7 @@ export type AccordionTriggerProps = ComponentProps<
   action?: ReactNode;
 };
 
-// AccordionTrigger diverges from alpic-ai/ui implementation
+// AccordionTrigger diverges from @alpic-ai/ui implementation
 // Chevron icon is placed on the left side and is pointing to the right
 // `action` renders as a sibling of the trigger to avoid nested <button> elements
 export function AccordionTrigger({

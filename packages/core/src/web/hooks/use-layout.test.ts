@@ -24,7 +24,7 @@ describe("useLayout", () => {
         safeArea: { insets: { top: 0, bottom: 0, left: 0, right: 0 } },
       };
       vi.stubGlobal("openai", OpenaiMock);
-      vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+      vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
     });
 
     afterEach(() => {
@@ -69,7 +69,7 @@ describe("useLayout", () => {
 
   describe("mcp-app host type", () => {
     beforeEach(() => {
-      vi.stubGlobal("skybridge", { hostType: "mcp-app" });
+      vi.stubGlobal("enpilink", { hostType: "mcp-app" });
       vi.stubGlobal("ResizeObserver", MockResizeObserver);
     });
 

@@ -9,7 +9,7 @@ Views run in sandboxed iframes where `<a download>` and `URL.createObjectURL` ar
 ## Inline text (CSV, JSON, markdown)
 
 ```tsx
-import { useDownload } from "skybridge/web";
+import { useDownload } from "enpilink/web";
 
 function ExportButton({ rows }: { rows: Row[] }) {
   const { download } = useDownload();

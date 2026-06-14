@@ -8,7 +8,7 @@ The `useLayout` hook returns layout and visual environment information. These va
 ## Basic usage
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function ThemedView() {
   const { theme, maxHeight, safeArea } = useLayout();
@@ -65,7 +65,7 @@ type SafeArea = {
 ### Conditional Styling
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function ThemedCard() {
   const { theme } = useLayout();
@@ -91,7 +91,7 @@ function ThemedCard() {
 ### CSS Class-Based Theming
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function View() {
   const { theme } = useLayout();
@@ -137,7 +137,7 @@ function View() {
 ### CSS Variables Theme Provider
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 import { useEffect } from "react";
 
 const lightTheme = {
@@ -176,7 +176,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 ### Theme-Aware Chart
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 type DataPoint = {
   label: string;
@@ -218,7 +218,7 @@ function BarChart({ data }: { data: DataPoint[] }) {
 ### Safe Area Handling
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function FullScreenView({ children }: { children: React.ReactNode }) {
   const { safeArea, maxHeight } = useLayout();
@@ -242,7 +242,7 @@ function FullScreenView({ children }: { children: React.ReactNode }) {
 ### Theme-Sensitive Images
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function Logo() {
   const { theme } = useLayout();

@@ -25,12 +25,12 @@ import {
 } from "./utils.js";
 
 const mockManifest = {
-  "skybridge:view:my-view": {
+  "enpilink:view:my-view": {
     file: "assets/my-view-abc123.js",
     name: "my-view",
     isEntry: true,
   },
-  "skybridge:view:folder-view": {
+  "enpilink:view:folder-view": {
     file: "assets/folder-view-def456.js",
     name: "folder-view",
     isEntry: true,
@@ -131,7 +131,7 @@ describe("McpServer.registerTool (unified API)", () => {
       contents: [
         {
           uri: "ui://views/apps-sdk/my-view.html",
-          mimeType: "text/html+skybridge",
+          mimeType: "text/html+enpilink",
           text: expect.stringContaining('<div id="root"></div>'),
           _meta: {
             "openai/widgetCSP": {
@@ -150,7 +150,7 @@ describe("McpServer.registerTool (unified API)", () => {
     );
     expect(result.contents[0]?.text).toContain(`${serverUrl}/@vite/client`);
     expect(result.contents[0]?.text).toContain(
-      `${serverUrl}/_skybridge/view/my-view`,
+      `${serverUrl}/_enpilink/view/my-view`,
     );
   });
 
@@ -194,7 +194,7 @@ describe("McpServer.registerTool (unified API)", () => {
       contents: [
         {
           uri: versionedUri,
-          mimeType: "text/html+skybridge",
+          mimeType: "text/html+enpilink",
           text: expect.stringContaining('<div id="root"></div>'),
           _meta: {
             "openai/widgetCSP": {
@@ -218,7 +218,7 @@ describe("McpServer.registerTool (unified API)", () => {
     expect(result.contents[0]?.text).toContain(`${serverUrl}/assets/style.css`);
   });
 
-  it("should prefer x-alpic-forwarded-url when hashing Claude view domains", async () => {
+  it("should prefer x-enpitech-forwarded-url when hashing Claude view domains", async () => {
     setTestEnv({ NODE_ENV: "production" });
 
     server.registerTool(
@@ -245,7 +245,7 @@ describe("McpServer.registerTool (unified API)", () => {
     expect(extAppsResourceCallback).toBeDefined();
 
     const forwardedUrl =
-      "https://everything-3a2c1264.staging.alpic.live/mcp?foo=bar";
+      "https://everything-3a2c1264.staging.enpitech.live/mcp?foo=bar";
     const expectedDomain = `${crypto
       .createHash("sha256")
       .update(forwardedUrl)
@@ -259,7 +259,7 @@ describe("McpServer.registerTool (unified API)", () => {
       createMockExtra("localhost:3000", {
         headers: {
           "user-agent": "Claude-User",
-          "x-alpic-forwarded-url": forwardedUrl,
+          "x-enpitech-forwarded-url": forwardedUrl,
         },
         url: "http://localhost:3000/mcp",
       }) as unknown as RequestHandlerExtra<ServerRequest, ServerNotification>,
@@ -317,7 +317,7 @@ describe("McpServer.registerTool (unified API)", () => {
       contents: [
         {
           uri: "ui://views/apps-sdk/my-view.html",
-          mimeType: "text/html+skybridge",
+          mimeType: "text/html+enpilink",
           text: expect.stringContaining('<div id="root"></div>'),
           _meta: {
             "openai/widgetCSP": {
@@ -332,7 +332,7 @@ describe("McpServer.registerTool (unified API)", () => {
       ],
     });
     expect(appsSdkResult.contents[0]?.text).toContain(
-      'window.skybridge = { hostType: "apps-sdk", serverUrl: "http://localhost:3000" };',
+      'window.enpilink = { hostType: "apps-sdk", serverUrl: "http://localhost:3000" };',
     );
 
     const extAppsResourceCallback = mockRegisterResource.mock
@@ -379,7 +379,7 @@ describe("McpServer.registerTool (unified API)", () => {
       ],
     });
     expect(extAppsResult.contents[0]?.text).toContain(
-      'window.skybridge = { hostType: "mcp-app", serverUrl: "http://localhost:3000" };',
+      'window.enpilink = { hostType: "mcp-app", serverUrl: "http://localhost:3000" };',
     );
   });
 
@@ -670,9 +670,7 @@ describe("McpServer.registerTool (unified API)", () => {
         },
         vi.fn(),
       );
-    }).toThrow(
-      'skybridge: view "magic-8-ball" is already used by tool "shake"',
-    );
+    }).toThrow('enpilink: view "magic-8-ball" is already used by tool "shake"');
   });
 
   it("should normalize string content to ContentBlock array", async () => {
@@ -895,10 +893,10 @@ describe("resources/list view _meta injection", () => {
         view: {
           component: "my-view" as ViewName,
           description: "Onboarding deck",
-          domain: "skybridge.tech",
+          domain: "enpilink.tech",
           csp: {
             resourceDomains: ["https://fonts.googleapis.com"],
-            redirectDomains: ["https://docs.skybridge.tech"],
+            redirectDomains: ["https://docs.enpitech.dev"],
           },
         },
       },
@@ -932,7 +930,7 @@ describe("resources/list view _meta injection", () => {
     );
     expect(
       (appsSdk?._meta as Record<string, unknown>)?.["openai/widgetDomain"],
-    ).toBe("skybridge.tech");
+    ).toBe("enpilink.tech");
 
     const extUi = (
       extApps?._meta as {
@@ -946,6 +944,6 @@ describe("resources/list view _meta injection", () => {
     expect(extUi?.csp?.resourceDomains).toContain(
       "https://fonts.googleapis.com",
     );
-    expect(extUi?.domain).toBe("skybridge.tech");
+    expect(extUi?.domain).toBe("enpilink.tech");
   });
 });

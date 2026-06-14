@@ -11,7 +11,7 @@ export function isCssRequest(id: string): boolean {
 }
 
 /**
- * Transforms asset import paths to resolve at runtime via `window.skybridge.serverUrl`,
+ * Transforms asset import paths to resolve at runtime via `window.enpilink.serverUrl`,
  * so they work both locally and behind tunnels.
  */
 export function assetBaseUrlTransform(code: string): string {
@@ -19,14 +19,14 @@ export function assetBaseUrlTransform(code: string): string {
     /(?<!\bfrom\s)(?<!https?:\/\/)(["'`])(\/[^"'`]+\.(svg|png|jpeg|jpg|gif|webp|mp3|mp4|woff|woff2|ttf|eot))\1/g;
 
   code = code.replace(assetStringPattern, (_match, _quote, assetPath) => {
-    return `(window.skybridge?.serverUrl ?? "") + "${assetPath}"`;
+    return `(window.enpilink?.serverUrl ?? "") + "${assetPath}"`;
   });
 
   return code;
 }
 
 /**
- * Vite plugin that transforms asset import paths to resolve at runtime via `window.skybridge.serverUrl`.
+ * Vite plugin that transforms asset import paths to resolve at runtime via `window.enpilink.serverUrl`.
  */
 export function assetBaseUrlTransformPlugin(): Plugin {
   return {

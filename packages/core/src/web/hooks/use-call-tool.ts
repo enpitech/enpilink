@@ -133,12 +133,12 @@ type ToolResponseSignature = Pick<
  * ```tsx
  * const { callTool, isPending, data } = useCallTool<{ query: string }>("search");
  *
- * <button onClick={() => callTool({ query: "skybridge" }, {
+ * <button onClick={() => callTool({ query: "enpilink" }, {
  *   onSuccess: (res) => console.log(res.structuredContent),
  * })} />
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-call-tool
+ * @see https://docs.enpitech.dev/api-reference/use-call-tool
  */
 export const useCallTool = <
   ToolArgs extends CallToolArgs = null,

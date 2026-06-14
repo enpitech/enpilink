@@ -26,7 +26,7 @@ describe("useDownload", () => {
   describe("apps-sdk host", () => {
     beforeEach(() => {
       vi.stubGlobal("openai", {});
-      vi.stubGlobal("skybridge", { hostType: "apps-sdk" });
+      vi.stubGlobal("enpilink", { hostType: "apps-sdk" });
     });
 
     afterEach(() => {
@@ -50,7 +50,7 @@ describe("useDownload", () => {
 
   describe("mcp-app host without downloadFile capability", () => {
     beforeEach(() => {
-      vi.stubGlobal("skybridge", { hostType: "mcp-app" });
+      vi.stubGlobal("enpilink", { hostType: "mcp-app" });
       vi.stubGlobal("ResizeObserver", MockResizeObserver);
       vi.stubGlobal("parent", { postMessage: getMcpAppHostPostMessageMock() });
     });
@@ -78,7 +78,7 @@ describe("useDownload", () => {
     let postMessageMock: ReturnType<typeof getMcpAppHostPostMessageMock>;
 
     beforeEach(() => {
-      vi.stubGlobal("skybridge", { hostType: "mcp-app" });
+      vi.stubGlobal("enpilink", { hostType: "mcp-app" });
       vi.stubGlobal("ResizeObserver", MockResizeObserver);
       postMessageMock = getMcpAppHostPostMessageMock(
         {},

@@ -5,7 +5,7 @@ tag: "ChatGPT"
 ---
 
 
-The `useAppsSdkContext` hook is a low-level hook that subscribes to global state values exposed by the OpenAI host. This hook powers many of the other Skybridge hooks and can be used directly when you need access to specific global values.
+The `useAppsSdkContext` hook is a low-level hook that subscribes to global state values exposed by the OpenAI host. This hook powers many of the other enpilink hooks and can be used directly when you need access to specific global values.
 
 <Tip>
 For most use cases, prefer using the specialized hooks like `useLayout`, `useUser`, `useDisplayMode`, etc., as they provide a more convenient API.
@@ -14,7 +14,7 @@ For most use cases, prefer using the specialized hooks like `useLayout`, `useUse
 ## Basic usage
 
 ```tsx
-import { useAppsSdkContext } from "skybridge/web";
+import { useAppsSdkContext } from "enpilink/web";
 
 function ThemeDisplay() {
   const theme = useAppsSdkContext("theme");
@@ -62,7 +62,7 @@ The current value of the specified global, or `undefined` if not available.
 ### Reading Safe Area Insets
 
 ```tsx
-import { useAppsSdkContext } from "skybridge/web";
+import { useAppsSdkContext } from "enpilink/web";
 
 function SafeAreaAwareView() {
   const safeArea = useAppsSdkContext("safeArea");
@@ -89,7 +89,7 @@ function SafeAreaAwareView() {
 ### Respecting Max Height
 
 ```tsx
-import { useAppsSdkContext } from "skybridge/web";
+import { useAppsSdkContext } from "enpilink/web";
 
 function ScrollableContent() {
   const maxHeight = useAppsSdkContext("maxHeight");
@@ -110,7 +110,7 @@ function ScrollableContent() {
 ### Accessing Tool Input
 
 ```tsx
-import { useAppsSdkContext } from "skybridge/web";
+import { useAppsSdkContext } from "enpilink/web";
 
 function ToolInputDisplay() {
   const toolInput = useAppsSdkContext("toolInput");
@@ -127,7 +127,7 @@ function ToolInputDisplay() {
 ### Multiple Globals
 
 ```tsx
-import { useAppsSdkContext } from "skybridge/web";
+import { useAppsSdkContext } from "enpilink/web";
 
 function EnvironmentInfo() {
   const theme = useAppsSdkContext("theme");

@@ -22,5 +22,5 @@ export async function resolveViewsDir(
     }
   };
   walk(loaded?.config.plugins ?? []);
-  return plugins.find((p) => p.name === "skybridge")?.api?.viewsDir;
+  return plugins.find((p) => p.name === "enpilink")?.api?.viewsDir;
 }

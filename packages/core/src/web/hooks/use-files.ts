@@ -30,7 +30,7 @@ import { getAdaptor } from "../bridges/index.js";
  * });
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-files
+ * @see https://docs.enpitech.dev/api-reference/use-files
  */
 export function useFiles() {
   const adaptor = getAdaptor();

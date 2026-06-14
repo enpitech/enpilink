@@ -17,7 +17,7 @@ Mount OAuth metadata so MCP clients can discover the authorization server:
 ```typescript
 // src/server.ts
 import { mcpAuthMetadataRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 
 const server = new McpServer(
   { name: "my-app", version: "0.0.1" },
@@ -32,7 +32,7 @@ const server = new McpServer(
       grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
     },
-    // SERVER_URL: this server's public URL (localhost:3000, Alpic tunnel, or prod)
+    // SERVER_URL: this server's public URL (localhost:3000, enpitech tunnel, or prod)
     resourceServerUrl: new URL(process.env.SERVER_URL),
   }),
 );

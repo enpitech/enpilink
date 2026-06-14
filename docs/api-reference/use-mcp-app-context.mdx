@@ -4,7 +4,7 @@ description: "Low-level hook for subscribing to MCP App host context values dire
 tag: "MCP Apps"
 ---
 
-The `useMcpAppContext` hook is a low-level hook that subscribes to context values from the MCP Apps host. This hook powers many of the other Skybridge hooks when running in MCP Apps clients and can be used directly when you need access to specific context values.
+The `useMcpAppContext` hook is a low-level hook that subscribes to context values from the MCP Apps host. This hook powers many of the other enpilink hooks when running in MCP Apps clients and can be used directly when you need access to specific context values.
 
 <Tip>
 For most use cases, prefer using the specialized hooks like `useLayout`, `useUser`, `useToolInfo`, etc., as they provide a more convenient API that works across both runtimes.
@@ -13,7 +13,7 @@ For most use cases, prefer using the specialized hooks like `useLayout`, `useUse
 ## Basic usage
 
 ```tsx
-import { useMcpAppContext } from "skybridge/web";
+import { useMcpAppContext } from "enpilink/web";
 
 function ThemeDisplay() {
   const theme = useMcpAppContext("theme");
@@ -77,7 +77,7 @@ The current value of the specified context key, or `undefined` if not yet availa
 ### Reading Theme
 
 ```tsx
-import { useMcpAppContext } from "skybridge/web";
+import { useMcpAppContext } from "enpilink/web";
 
 function ThemedView() {
   const theme = useMcpAppContext("theme");
@@ -96,7 +96,7 @@ function ThemedView() {
 ### Accessing Tool Input
 
 ```tsx
-import { useMcpAppContext } from "skybridge/web";
+import { useMcpAppContext } from "enpilink/web";
 
 function ToolInputDisplay() {
   const toolInput = useMcpAppContext("toolInput");
@@ -117,7 +117,7 @@ function ToolInputDisplay() {
 ### Checking Tool Result
 
 ```tsx
-import { useMcpAppContext } from "skybridge/web";
+import { useMcpAppContext } from "enpilink/web";
 
 function ToolResultDisplay() {
   const toolResult = useMcpAppContext("toolResult");
@@ -143,7 +143,7 @@ function ToolResultDisplay() {
 ### Multiple Context Values
 
 ```tsx
-import { useMcpAppContext } from "skybridge/web";
+import { useMcpAppContext } from "enpilink/web";
 
 function EnvironmentInfo() {
   const theme = useMcpAppContext("theme");

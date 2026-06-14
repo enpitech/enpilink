@@ -1,10 +1,10 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
-import { skybridge } from "skybridge/vite";
+import { enpilink } from "enpilink/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [skybridge(), react()],
+  plugins: [enpilink(), react()],
   root: __dirname,
   resolve: {
     alias: {

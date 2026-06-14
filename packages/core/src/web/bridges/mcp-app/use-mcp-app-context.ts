@@ -18,7 +18,7 @@ type McpAppInitializationOptions = {
  * `options.appInfo` is honored only on the first call that creates the
  * underlying bridge; subsequent calls reuse the singleton.
  *
- * @see https://docs.skybridge.tech/api-reference/use-mcp-app-context
+ * @see https://docs.enpitech.dev/api-reference/use-mcp-app-context
  */
 export function useMcpAppContext<K extends keyof McpAppContext>(
   key: K,

@@ -17,7 +17,7 @@ import { z } from "zod";
  * });
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/file-ref
+ * @see https://docs.enpitech.dev/api-reference/file-ref
  */
 export const FileRef = z.object({
   file_id: z.string(),

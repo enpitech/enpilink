@@ -1,7 +1,7 @@
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { CallToolArgs, CallToolResponse } from "skybridge/web";
+import type { CallToolArgs, CallToolResponse } from "enpilink/web";
 
 export class McpClient {
   private client: Client | null = null;

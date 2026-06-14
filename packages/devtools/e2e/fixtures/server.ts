@@ -5,7 +5,7 @@ import {
   McpServer,
   optionalBearerAuth,
   requireBearerAuth,
-} from "skybridge/server";
+} from "enpilink/server";
 import { z } from "zod";
 import { createMockAuthServer } from "./mock-auth-server.js";
 import { SEED_CLIENT_ID, SEED_TOKEN } from "./seed-auth.js";

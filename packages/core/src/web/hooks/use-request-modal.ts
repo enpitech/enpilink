@@ -21,7 +21,7 @@ import {
  * <button onClick={() => open({ params: { id: 42 } })}>Show details</button>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-request-modal
+ * @see https://docs.enpitech.dev/api-reference/use-request-modal
  */
 export function useRequestModal() {
   const adaptor = getAdaptor();

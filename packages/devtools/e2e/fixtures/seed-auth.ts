@@ -3,8 +3,8 @@ import type { Page } from "@playwright/test";
 export const SEED_TOKEN = "e2e-auth-valid-token";
 export const SEED_CLIENT_ID = "e2e-auth-client";
 
-const TOKENS_KEY = "skybridge-devtools-oauth:tokens";
-const CLIENT_INFO_KEY = "skybridge-devtools-oauth:client-info";
+const TOKENS_KEY = "enpilink-devtools-oauth:tokens";
+const CLIENT_INFO_KEY = "enpilink-devtools-oauth:client-info";
 
 export async function seedAuthInLocalStorage(
   page: Page,

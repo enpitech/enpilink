@@ -21,7 +21,7 @@
   },
   {
     "query": "What hook do I use to trigger an LLM response from a button click?",
-    "expected_behavior": "Must read prompt-llm.md. Answer: useSendFollowUpMessage from skybridge/web."
+    "expected_behavior": "Must read prompt-llm.md. Answer: useSendFollowUpMessage from enpilink/web."
   },
   {
     "query": "How do I set the 'Open in App' button URL in fullscreen mode?",

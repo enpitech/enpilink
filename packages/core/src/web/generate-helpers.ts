@@ -32,10 +32,10 @@ type TypedToolInfoReturn<TInput, TOutput, TResponseMetadata> = ToolState<
 >;
 
 /**
- * Creates typed versions of skybridge hooks with full type inference
+ * Creates typed versions of enpilink hooks with full type inference
  * for tool names, inputs, and outputs.
  *
- * This is the recommended way to use skybridge hooks in your views.
+ * This is the recommended way to use enpilink hooks in your views.
  * Set this up once in a dedicated file and export the typed hooks for use across your app.
  *
  * @typeParam ServerType - The type of your McpServer instance (use `typeof server`).
@@ -62,7 +62,7 @@ type TypedToolInfoReturn<TInput, TOutput, TResponseMetadata> = ToolState<
  * ```typescript
  * // src/helpers.ts (one-time setup)
  * import type { AppType } from "./server";
- * import { generateHelpers } from "skybridge/web";
+ * import { generateHelpers } from "enpilink/web";
  *
  * export const { useCallTool, useToolInfo } = generateHelpers<AppType>();
  * ```
@@ -85,7 +85,7 @@ type TypedToolInfoReturn<TInput, TOutput, TResponseMetadata> = ToolState<
  * }
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/generate-helpers
+ * @see https://docs.enpitech.dev/api-reference/generate-helpers
  */
 export function generateHelpers<ServerType = never>() {
   type Tools = InferTools<ServerType>;

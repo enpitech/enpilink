@@ -1,4 +1,4 @@
-import type { AppsSdkContext } from "skybridge/web";
+import type { AppsSdkContext } from "enpilink/web";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -41,7 +41,7 @@ export const useInspectorPreferencesStore = create<InspectorPreferencesStore>()(
         set({ [key]: value } as Partial<InspectorPreferences>),
     }),
     {
-      name: "skybridge-devtools-inspector-preferences",
+      name: "enpilink-devtools-inspector-preferences",
       version: 1,
     },
   ),

@@ -1,6 +1,6 @@
 ---
 title: useToolInfo
-description: "React hook for accessing tool input, output, metadata, and execution status in Skybridge views."
+description: "React hook for accessing tool input, output, metadata, and execution status in enpilink views."
 ---
 
 The `useToolInfo` hook provides access to the tool's input arguments, output, and response metadata. It also tracks whether the tool execution is still pending or has completed successfully.
@@ -8,7 +8,7 @@ The `useToolInfo` hook provides access to the tool's input arguments, output, an
 ## Basic usage
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 function WeatherView() {
   const { input, output, isPending, isSuccess } = useToolInfo<{
@@ -126,7 +126,7 @@ Additional metadata from the tool response. Only available when `status` is `"su
 ### Loading State
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 function DataView() {
   const { input, isPending, isSuccess, output } = useToolInfo<{
@@ -158,7 +158,7 @@ function DataView() {
 ### With Response Metadata
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 function ApiResultView() {
   const { input, output, responseMetadata, isSuccess } = useToolInfo<{
@@ -191,7 +191,7 @@ function ApiResultView() {
 ### Conditional Rendering Based on Input
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 type ChartType = "bar" | "line" | "pie";
 
@@ -221,7 +221,7 @@ function ChartView() {
 ### Progressive Enhancement
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 function ProductView() {
   const { input, output, isPending, isSuccess } = useToolInfo<{
@@ -267,7 +267,7 @@ function ProductView() {
 ### Error Handling Pattern
 
 ```tsx
-import { useToolInfo } from "skybridge/web";
+import { useToolInfo } from "enpilink/web";
 
 function SafeView() {
   const { input, output, isSuccess } = useToolInfo<{

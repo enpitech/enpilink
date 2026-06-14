@@ -41,10 +41,10 @@ async function listenWithHandler() {
 }
 
 describe("createTunnelHandler", () => {
-  it("POST /__skybridge/tunnel starts the tunnel and returns the current state", async () => {
+  it("POST /__enpilink/tunnel starts the tunnel and returns the current state", async () => {
     const { port, child } = await listenWithHandler();
 
-    const res = await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    const res = await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
     expect(res.status).toBe(200);
@@ -55,14 +55,14 @@ describe("createTunnelHandler", () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
-  it("POST /__skybridge/tunnel is idempotent — second call does not respawn", async () => {
+  it("POST /__enpilink/tunnel is idempotent — second call does not respawn", async () => {
     const { port, manager } = await listenWithHandler();
     const startSpy = vi.spyOn(manager, "start");
 
-    await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
-    await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
 
@@ -70,13 +70,13 @@ describe("createTunnelHandler", () => {
     // Manager.start() is internally idempotent (verified in tunnel.test.ts).
   });
 
-  it("DELETE /__skybridge/tunnel stops the tunnel", async () => {
+  it("DELETE /__enpilink/tunnel stops the tunnel", async () => {
     const { port, child } = await listenWithHandler();
-    await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
 
-    const res = await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    const res = await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "DELETE",
     });
     expect(res.status).toBe(200);
@@ -84,9 +84,9 @@ describe("createTunnelHandler", () => {
     expect(child.kill).toHaveBeenCalled();
   });
 
-  it("GET /__skybridge/tunnel/events streams the current state on connect", async () => {
+  it("GET /__enpilink/tunnel/events streams the current state on connect", async () => {
     const { port, child } = await listenWithHandler();
-    await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
     child.stdout.emit(
@@ -97,7 +97,7 @@ describe("createTunnelHandler", () => {
     );
 
     const res = await fetch(
-      `http://localhost:${port}/__skybridge/tunnel/events`,
+      `http://localhost:${port}/__enpilink/tunnel/events`,
     );
     expect(res.headers.get("content-type")).toMatch(/text\/event-stream/);
     expect(res.body).toBeTruthy();
@@ -113,16 +113,16 @@ describe("createTunnelHandler", () => {
     await reader.cancel();
   });
 
-  it("GET /__skybridge/tunnel/events sends the current error state on connect", async () => {
+  it("GET /__enpilink/tunnel/events sends the current error state on connect", async () => {
     const { port, child } = await listenWithHandler();
-    await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+    await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
     child.stderr.emit("data", Buffer.from("boom: tunnel auth failed\n"));
     child.emit("close", 1);
 
     const res = await fetch(
-      `http://localhost:${port}/__skybridge/tunnel/events`,
+      `http://localhost:${port}/__enpilink/tunnel/events`,
     );
     expect(res.headers.get("content-type")).toMatch(/text\/event-stream/);
     expect(res.body).toBeTruthy();

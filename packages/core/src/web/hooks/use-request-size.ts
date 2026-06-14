@@ -19,7 +19,7 @@ export type RequestSizeFn = (size: RequestSizeOptions) => Promise<void>;
  * useEffect(() => { requestSize({ height: rootRef.current!.scrollHeight }); }, [content]);
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-request-size
+ * @see https://docs.enpitech.dev/api-reference/use-request-size
  */
 export function useRequestSize(): RequestSizeFn {
   const adaptor = getAdaptor();

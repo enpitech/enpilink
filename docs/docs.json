@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "Skybridge",
+  "name": "enpilink",
   "theme": "mint",
   "colors": {
     "primary": "#002FFF",
@@ -8,15 +8,15 @@
     "dark": "#002FFF"
   },
   "favicon": {
-    "light": "/images/SkybridgeFaviconmidnight.svg",
-    "dark": "/images/SkybridgeFaviconwhite.svg"
+    "light": "/images/enpilinkFaviconmidnight.svg",
+    "dark": "/images/enpilinkFaviconwhite.svg"
   },
   "logo": {
-    "light": "/images/Skybridgemidnight.svg",
-    "dark": "/images/Skybridgewhite(1).svg"
+    "light": "/images/enpilinkmidnight.svg",
+    "dark": "/images/enpilinkwhite(1).svg"
   },
   "search": {
-    "prompt": "Search Skybridge docs..."
+    "prompt": "Search enpilink docs..."
   },
   "navigation": {
     "tabs": [
@@ -205,19 +205,19 @@
     },
     {
       "source": "/examples/awaze",
-      "destination": "https://skybridge.tech/showcase"
+      "destination": "https://enpilink.tech/showcase"
     },
     {
       "source": "/examples/cottages",
-      "destination": "https://skybridge.tech/showcase"
+      "destination": "https://enpilink.tech/showcase"
     },
     {
       "source": "/examples/evaneos",
-      "destination": "https://skybridge.tech/showcase"
+      "destination": "https://enpilink.tech/showcase"
     },
     {
       "source": "/examples/lumo",
-      "destination": "https://skybridge.tech/showcase"
+      "destination": "https://enpilink.tech/showcase"
     }
   ],
   "navbar": {
@@ -230,23 +230,15 @@
     ],
     "primary": {
       "type": "github",
-      "href": "https://github.com/alpic-ai/skybridge"
+      "href": "https://github.com/enpitech/enpilink"
     }
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/alpic-ai/skybridge"
+      "github": "https://github.com/enpitech/enpilink"
     }
   },
-  "integrations": {
-    "ga4": {
-      "measurementId": "G-0W0ZMXTSDZ"
-    },
-    "posthog": {
-      "apiKey": "phc_REDACTED"
-    }
-  },
-  "description": "The #1 full stack open-source TS framework for building ChatGPT and MCP Apps",
+  "description": "The open, account-free full-stack TS framework for building ChatGPT and MCP Apps",
   "background": {
     "color": {
       "dark": "#051413"
@@ -265,7 +257,7 @@
   "seo": {
     "indexing": "navigable",
     "metatags": {
-      "og:site_name": "Skybridge Documentation",
+      "og:site_name": "enpilink Documentation",
       "og:type": "website"
     }
   },

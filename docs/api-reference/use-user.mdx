@@ -8,7 +8,7 @@ The `useUser` hook returns session-stable user information. These values are set
 ## Basic usage
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function UserInfo() {
   const { locale, userAgent } = useUser();
@@ -72,7 +72,7 @@ Whether the device supports touch interactions.
 ### Localized Greeting
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function LocalizedGreeting() {
   const { locale } = useUser();
@@ -95,7 +95,7 @@ function LocalizedGreeting() {
 ### Date Formatting
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function LocalizedDate({ date }: { date: Date }) {
   const { locale } = useUser();
@@ -112,7 +112,7 @@ function LocalizedDate({ date }: { date: Date }) {
 ### Number and Currency Formatting
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function PriceDisplay({ amount, currency }: { amount: number; currency: string }) {
   const { locale } = useUser();
@@ -129,7 +129,7 @@ function PriceDisplay({ amount, currency }: { amount: number; currency: string }
 ### Responsive Component
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function ResponsiveLayout({ children }: { children: React.ReactNode }) {
   const { userAgent } = useUser();
@@ -148,7 +148,7 @@ function ResponsiveLayout({ children }: { children: React.ReactNode }) {
 ### Touch-Friendly Controls
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function Slider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const { userAgent } = useUser();

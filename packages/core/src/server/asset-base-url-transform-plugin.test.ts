@@ -6,22 +6,22 @@ import {
 } from "./asset-base-url-transform-plugin.js";
 
 describe("assetBaseUrlTransform", () => {
-  it("should transform asset paths to use window.skybridge.serverUrl", () => {
+  it("should transform asset paths to use window.enpilink.serverUrl", () => {
     const cases = [
       {
         desc: "single-quoted",
         code: `const image = '/assets/logo.png';`,
-        expected: `const image = (window.skybridge?.serverUrl ?? "") + "/assets/logo.png";`,
+        expected: `const image = (window.enpilink?.serverUrl ?? "") + "/assets/logo.png";`,
       },
       {
         desc: "double-quoted",
         code: `const image = "/assets/logo.png";`,
-        expected: `const image = (window.skybridge?.serverUrl ?? "") + "/assets/logo.png";`,
+        expected: `const image = (window.enpilink?.serverUrl ?? "") + "/assets/logo.png";`,
       },
       {
         desc: "backtick-quoted",
         code: "const image = `/assets/logo.png`;",
-        expected: `const image = (window.skybridge?.serverUrl ?? "") + "/assets/logo.png";`,
+        expected: `const image = (window.enpilink?.serverUrl ?? "") + "/assets/logo.png";`,
       },
     ];
 
@@ -40,13 +40,13 @@ describe("assetBaseUrlTransform", () => {
     const result = assetBaseUrlTransform(code);
 
     expect(result).toContain(
-      `(window.skybridge?.serverUrl ?? "") + "/assets/logo.png"`,
+      `(window.enpilink?.serverUrl ?? "") + "/assets/logo.png"`,
     );
     expect(result).toContain(
-      `(window.skybridge?.serverUrl ?? "") + "/assets/icon.svg"`,
+      `(window.enpilink?.serverUrl ?? "") + "/assets/icon.svg"`,
     );
     expect(result).toContain(
-      `(window.skybridge?.serverUrl ?? "") + "/assets/font.woff2"`,
+      `(window.enpilink?.serverUrl ?? "") + "/assets/font.woff2"`,
     );
   });
 
@@ -59,7 +59,7 @@ describe("assetBaseUrlTransform", () => {
     const result = assetBaseUrlTransform(code);
 
     expect(result).toContain(
-      `(window.skybridge?.serverUrl ?? "") + "/assets/logo.png"`,
+      `(window.enpilink?.serverUrl ?? "") + "/assets/logo.png"`,
     );
     expect(result).toContain("http://example.com/image.png");
     expect(result).toContain("https://example.com/image.png");
@@ -103,7 +103,7 @@ describe("assetBaseUrlTransform", () => {
     expect(result).toContain(`from "/assets/sprite.svg"`);
     // Value-position rewritten
     expect(result).toContain(
-      `const logo = (window.skybridge?.serverUrl ?? "") + "/assets/logo.png";`,
+      `const logo = (window.enpilink?.serverUrl ?? "") + "/assets/logo.png";`,
     );
   });
 });
@@ -158,7 +158,7 @@ describe("assetBaseUrlTransformPlugin", () => {
       `const logo = "/assets/logo.png";`,
     );
     expect(result?.code).toContain(
-      `(window.skybridge?.serverUrl ?? "") + "/assets/logo.png"`,
+      `(window.enpilink?.serverUrl ?? "") + "/assets/logo.png"`,
     );
   });
 

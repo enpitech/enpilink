@@ -22,7 +22,7 @@ export type OpenExternalFn = (
  * <button onClick={() => openExternal("https://example.com")}>Open docs</button>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-open-external
+ * @see https://docs.enpitech.dev/api-reference/use-open-external
  */
 export function useOpenExternal(): OpenExternalFn {
   const adaptor = getAdaptor();

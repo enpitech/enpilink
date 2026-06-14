@@ -19,7 +19,7 @@ import {
  * <button onClick={() => send("Summarize the last 5 results")}>Summarize</button>
  * ```
  *
- * @see https://docs.skybridge.tech/api-reference/use-send-follow-up-message
+ * @see https://docs.enpitech.dev/api-reference/use-send-follow-up-message
  */
 export function useSendFollowUpMessage() {
   const adaptor = getAdaptor();

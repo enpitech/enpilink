@@ -87,7 +87,7 @@ export const useSavedInputsStore = create<SavedInputsState>()(
         }),
     }),
     {
-      name: "skybridge-devtools-saved-inputs",
+      name: "enpilink-devtools-saved-inputs",
       version: 1,
       partialize: (state) => ({ inputs: state.inputs }),
     },

@@ -1,0 +1,5 @@
+{
+  "extends": "enpilink/tsconfig",
+
+  "include": ["src", ".enpilink/**/*.d.ts"]
+}

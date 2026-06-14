@@ -7,12 +7,12 @@ import {
 } from "node:fs";
 import path from "node:path";
 
-// Primes the manifest in skybridge's module scope, then dynamically imports
+// Primes the manifest in enpilink's module scope, then dynamically imports
 // `./server.js` so user code runs *after* the side channel is set. The
 // dynamic import is load-bearing: a static `export { default } from ...` is
 // hoisted with the rest of the static graph and would evaluate `server.js`
 // before `__setBuildManifest` runs.
-export const ENTRY_WRAPPER_CONTENT = `import { __setBuildManifest } from "skybridge/server";
+export const ENTRY_WRAPPER_CONTENT = `import { __setBuildManifest } from "enpilink/server";
 import manifest from "./vite-manifest.js";
 
 __setBuildManifest(manifest);
@@ -88,7 +88,7 @@ export async function emitVercelBuildOutput(root: string): Promise<void> {
     define: { "process.env.NODE_ENV": '"production"' },
     // Dev-only deps reachable from re-exports; safe to leave unresolved since
     // the code paths that touch them are eliminated by the NODE_ENV define.
-    external: ["vite", "@skybridge/devtools"],
+    external: ["vite", "@enpilink/devtools"],
     banner: {
       // ESM bundles miss CJS interop globals that some deps reach for.
       js: "import{createRequire}from'node:module';const require=createRequire(import.meta.url);",

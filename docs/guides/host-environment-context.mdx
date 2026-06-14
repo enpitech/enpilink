@@ -25,7 +25,7 @@ How to make your view adapt to the host's theme, locale, display mode, and devic
 Match the host's light/dark theme:
 
 ```tsx
-import { useLayout } from "skybridge/web";
+import { useLayout } from "enpilink/web";
 
 function ThemedView() {
   const { theme } = useLayout();
@@ -114,7 +114,7 @@ The locale value comes from OpenAI's host environment, not directly from the use
 </Note>
 
 ```tsx
-import { useUser } from "skybridge/web";
+import { useUser } from "enpilink/web";
 
 function LocalizedView() {
   const { locale, userAgent } = useUser();
@@ -166,7 +166,7 @@ Views can render in different display modes:
 | `modal` | Modal overlay |
 
 ```tsx
-import { useDisplayMode } from "skybridge/web";
+import { useDisplayMode } from "enpilink/web";
 
 function AdaptiveView() {
   const { displayMode, setDisplayMode } = useDisplayMode();
@@ -208,7 +208,7 @@ const { setDisplayMode } = useDisplayMode();
 Modal Display Mode is not accessible via useDisplayMode, it can only be opened via useRequestModal.
 
 ```tsx
-import { useRequestModal } from "skybridge/web";
+import { useRequestModal } from "enpilink/web";
 
 function ProductCard({ product }) {
   const { open } = useRequestModal();
@@ -240,7 +240,7 @@ function ProductCard({ product }) {
 Open URLs outside the view:
 
 ```tsx
-import { useOpenExternal } from "skybridge/web";
+import { useOpenExternal } from "enpilink/web";
 
 function LinkView() {
   const openExternal = useOpenExternal();

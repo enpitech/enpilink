@@ -8,14 +8,14 @@ afterEach(async () => {
 });
 
 describe("startTunnelControlServer", () => {
-  it("listens on a random loopback port and serves /__skybridge/tunnel/events", async () => {
+  it("listens on a random loopback port and serves /__enpilink/tunnel/events", async () => {
     const control = await startTunnelControlServer(() => 3000);
     openControl = control;
 
     expect(control.port).toBeGreaterThan(0);
 
     const res = await fetch(
-      `http://127.0.0.1:${control.port}/__skybridge/tunnel/events`,
+      `http://127.0.0.1:${control.port}/__enpilink/tunnel/events`,
     );
     expect(res.headers.get("content-type")).toMatch(/text\/event-stream/);
 
@@ -42,7 +42,7 @@ describe("startTunnelControlServer", () => {
     const control = await startTunnelControlServer(() => 3000);
     await control.close();
     await expect(
-      fetch(`http://127.0.0.1:${control.port}/__skybridge/tunnel/events`),
+      fetch(`http://127.0.0.1:${control.port}/__enpilink/tunnel/events`),
     ).rejects.toThrow();
   });
 });

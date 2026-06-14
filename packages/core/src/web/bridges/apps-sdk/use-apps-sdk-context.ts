@@ -11,7 +11,7 @@ import type { AppsSdkContext } from "./types.js";
  *
  * Throws if called outside the Apps SDK runtime.
  *
- * @see https://docs.skybridge.tech/api-reference/use-apps-sdk-context
+ * @see https://docs.enpitech.dev/api-reference/use-apps-sdk-context
  */
 export function useAppsSdkContext<K extends keyof AppsSdkContext>(
   key: K,

@@ -3,7 +3,7 @@ import type { ErrorRequestHandler, RequestHandler } from "express";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { McpServer } from "./server.js";
 
-vi.mock("@skybridge/devtools", () => ({
+vi.mock("@enpilink/devtools", () => ({
   devtoolsStaticServer: () =>
     ((_req: unknown, _res: unknown, next: () => void) =>
       next()) as RequestHandler,
@@ -513,7 +513,7 @@ describe("createApp Vercel mode", () => {
 });
 
 describe("createApp tunnel routes", () => {
-  it("proxies POST /__skybridge/tunnel to the cli control server in dev mode", async () => {
+  it("proxies POST /__enpilink/tunnel to the cli control server in dev mode", async () => {
     // Stand up a fake control listener that returns a known JSON body.
     const control = http.createServer((_req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -539,7 +539,7 @@ describe("createApp tunnel routes", () => {
       const { port, server } = await listen(app);
       openServer = server;
 
-      const res = await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
       expect(res.status).toBe(200);
@@ -554,7 +554,7 @@ describe("createApp tunnel routes", () => {
     }
   });
 
-  it("does not expose /__skybridge/tunnel in production mode", async () => {
+  it("does not expose /__enpilink/tunnel in production mode", async () => {
     const prevEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
@@ -567,7 +567,7 @@ describe("createApp tunnel routes", () => {
       const { port, server } = await listen(app);
       openServer = server;
 
-      const res = await fetch(`http://localhost:${port}/__skybridge/tunnel`, {
+      const res = await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
       expect(res.status).toBe(404);

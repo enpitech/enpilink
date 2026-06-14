@@ -19,7 +19,7 @@ let rootInstance: Root | null = null;
  * @example
  * ```tsx
  * // src/views/search.tsx
- * import { mountView } from "skybridge/web";
+ * import { mountView } from "enpilink/web";
  * import { App } from "./App";
  *
  * mountView(<App />);
@@ -39,7 +39,7 @@ export const mountView = (component: React.ReactNode) => {
     installOpenAILoggingProxy();
   }
 
-  const hostType = window.skybridge?.hostType;
+  const hostType = window.enpilink?.hostType;
 
   (async () => {
     let app = component;

@@ -1,6 +1,6 @@
 ---
 title: DevTools
-description: "Test your app views locally with Skybridge's browser-based DevTools and debugging tools."
+description: "Test your app views locally with enpilink's browser-based DevTools and debugging tools."
 ---
 
 DevTools is designed to help you test your apps locally in a short feedback loop fashion. It lets you develop and debug views without needing to deploy or use external services.
@@ -13,7 +13,7 @@ DevTools currently renders views using the **Apps SDK runtime** (mocked `window.
 
 When you run `pnpm dev`, DevTools is automatically available at `http://localhost:3000/`.
 
-<img src="/images/devtools-landing.png" alt="Skybridge DevTools Overview" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
+<img src="/images/devtools-landing.png" alt="enpilink DevTools Overview" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
 
 ## Automatic Tool Discovery
 
@@ -60,7 +60,7 @@ See all Apps SDK API calls made by your view in real-time. The logs panel displa
 This helps you understand how your view interacts with the MCP client and debug any issues.
 
 <Note>
-These logs show **Apps SDK** (`window.openai`) calls. In MCP Apps, views use the MCP ext-apps protocol instead. The Skybridge hooks abstract these differences, so your view code works in both runtimes.
+These logs show **Apps SDK** (`window.openai`) calls. In MCP Apps, views use the MCP ext-apps protocol instead. The enpilink hooks abstract these differences, so your view code works in both runtimes.
 </Note>
 
 <img src="/images/devtools-view.png" alt="DevTools View Inspection Panel" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
@@ -81,10 +81,10 @@ DevTools uses the **Apps SDK runtime** (mocked `window.openai`) but has some dif
 
 ## Custom Integration
 
-If you're not using the Skybridge starter template, add DevTools to your server:
+If you're not using the enpilink starter template, add DevTools to your server:
 
 ```typescript
-import { devtoolsStaticServer, viewsDevServer } from "skybridge/server";
+import { devtoolsStaticServer, viewsDevServer } from "enpilink/server";
 
 if (process.env.NODE_ENV !== "production") {
   app.use(await devtoolsStaticServer());

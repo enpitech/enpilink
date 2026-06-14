@@ -1,11 +1,11 @@
 ---
-title: Use skybridge/server
-description: "Add view registration and TypeScript type inference to your existing MCP server with skybridge/server."
+title: Use enpilink/server
+description: "Add view registration and TypeScript type inference to your existing MCP server with enpilink/server."
 ---
 
-# Use skybridge/server
+# Use enpilink/server
 
-This guide shows you how to add `skybridge/server` to an existing MCP server to enable view support with full TypeScript type inference.
+This guide shows you how to add `enpilink/server` to an existing MCP server to enable view support with full TypeScript type inference.
 
 ## Prerequisites
 
@@ -13,27 +13,27 @@ You should already have:
 - A working MCP server using the official [TypeScript MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - Node.js 24+
 
-## Install Skybridge
+## Install enpilink
 
 ```bash
-pnpm add skybridge
+pnpm add enpilink
 ```
 
 ## Update your server
 
-Replace your `McpServer` import with Skybridge's enhanced version:
+Replace your `McpServer` import with enpilink's enhanced version:
 
 ```typescript
 // Before
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // After
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 ```
 
-Keep your existing dependency to @modelcontextprotocol/sdk in your project, skybridge does not replaces it, but depends on it.
+Keep your existing dependency to @modelcontextprotocol/sdk in your project, enpilink does not replaces it, but depends on it.
 
-Your existing tools, resources, and prompts will continue to work as before. With `skybridge/server`, `registerTool` provides an optional `view` field so you can bind a tool to a React view in a single call.
+Your existing tools, resources, and prompts will continue to work as before. With `enpilink/server`, `registerTool` provides an optional `view` field so you can bind a tool to a React view in a single call.
 
 ## Project structure
 
@@ -43,7 +43,7 @@ your-project/
 │   ├── server.ts             # MCP server entry
 │   └── views/
 │       └── my-view.tsx     # View component
-├── vite.config.ts            # Vite + Skybridge plugin
+├── vite.config.ts            # Vite + enpilink plugin
 ├── tsconfig.json
 └── package.json
 ```
@@ -66,10 +66,10 @@ pnpm add -D vite typescript @types/react @types/react-dom
 ```typescript
 // vite.config.ts
 import { defineConfig } from "vite";
-import { skybridge } from "skybridge/vite";
+import { enpilink } from "enpilink/vite";
 
 export default defineConfig({
-  plugins: [skybridge()],
+  plugins: [enpilink()],
 });
 ```
 
@@ -77,7 +77,7 @@ Make sure `tsconfig.json` includes the generated types:
 
 ```json
 {
-  "include": ["src", ".skybridge/**/*.d.ts"]
+  "include": ["src", ".enpilink/**/*.d.ts"]
 }
 ```
 
@@ -89,7 +89,7 @@ Create `src/views/my-view.tsx` and `export default` a React component:
 export default function MyView() {
   return (
     <div>
-      <h2>Hello from Skybridge!</h2>
+      <h2>Hello from enpilink!</h2>
       <p>Your view is working!</p>
     </div>
   );
@@ -101,7 +101,7 @@ export default function MyView() {
 In your server code, register the view with `registerTool` and `view`:
 
 ```typescript
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
 const server = new McpServer({ name: "my-app", version: "1.0" }, {})
@@ -123,7 +123,7 @@ const server = new McpServer({ name: "my-app", version: "1.0" }, {})
 Update your server startup to serve the MCP endpoint. If you're using Express:
 
 ```typescript
-import { McpServer } from "skybridge/server";
+import { McpServer } from "enpilink/server";
 import { z } from "zod";
 import express from "express";
 

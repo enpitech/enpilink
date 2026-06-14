@@ -19,7 +19,7 @@ import validator from "@rjsf/validator-ajv8";
 import { useKeyPress } from "ahooks";
 import { Braces, ClipboardList, Loader2, Play, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CallToolResponse } from "skybridge/web";
+import type { CallToolResponse } from "enpilink/web";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { CopyButton } from "@/lib/copy.js";
 import {

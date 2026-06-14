@@ -26,7 +26,7 @@ What kind of state do you need?
 Persistent state that survives re-renders and display mode changes. Unlike React's `useState`, this state is stored by the host and restored when your view remounts.
 
 ```tsx
-import { useViewState } from "skybridge/web";
+import { useViewState } from "enpilink/web";
 
 function CounterView() {
   const [state, setState] = useViewState({ count: 0 });
@@ -88,7 +88,7 @@ const toggleItem = (id: string) => {
 A Zustand store that automatically syncs with the host's persistent state. Unlike `useViewState`, this provides actions, computed values, and middleware support for complex state management.
 
 ```tsx
-import { createStore } from "skybridge/web";
+import { createStore } from "enpilink/web";
 
 type CartItem = { id: string; name: string; price: number; quantity: number };
 
@@ -208,7 +208,7 @@ function ProductListView() {
 
 ## When State Persists
 
-View state persists across re-renders, re-mounts, and display mode changes. Skybridge handles the storage mechanism automatically.
+View state persists across re-renders, re-mounts, and display mode changes. enpilink handles the storage mechanism automatically.
 
 View state **resets** when:
 - A new conversation starts
