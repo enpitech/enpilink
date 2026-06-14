@@ -15,6 +15,7 @@ import {
   emitEntryWrapper,
   emitManifestModule,
   emitVercelBuildOutput,
+  rewriteServerAliases,
   VERCEL_CONFIG,
   VERCEL_VC_CONFIG,
 } from "./build-helpers.js";
@@ -56,6 +57,59 @@ describe("emitManifestModule", () => {
       .trim()
       .replace(/;$/, "");
     expect(JSON.parse(literal)).toEqual(manifest);
+  });
+});
+
+describe("rewriteServerAliases", () => {
+  it("rewrites `@/` path aliases to relative imports in dist server JS", async () => {
+    const root = mkTmp();
+    mkdirSync(path.join(root, "src", "data"), { recursive: true });
+    mkdirSync(path.join(root, "dist", "data"), { recursive: true });
+    writeFileSync(
+      path.join(root, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: {
+          outDir: "./dist",
+          rootDir: "./src",
+          paths: { "@/*": ["./src/*"] },
+        },
+        include: ["src"],
+      }),
+    );
+    // tsc-alias resolves aliases against the *output* tree, so the target must
+    // exist in dist/ (it normally does — tsc emits it).
+    writeFileSync(path.join(root, "dist", "data", "index.js"), "export {};\n");
+    writeFileSync(
+      path.join(root, "dist", "server.js"),
+      'import { TODAY } from "@/data/index.js";\nexport default TODAY;\n',
+    );
+
+    await rewriteServerAliases(root);
+
+    const out = readFileSync(path.join(root, "dist", "server.js"), "utf-8");
+    expect(out).not.toContain("@/data");
+    expect(out).toContain("./data/index.js");
+  });
+
+  it("is a no-op when the project declares no `paths`", async () => {
+    const root = mkTmp();
+    mkdirSync(path.join(root, "dist"), { recursive: true });
+    writeFileSync(
+      path.join(root, "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { outDir: "./dist" } }),
+    );
+    const original = 'import { x } from "./local.js";\n';
+    writeFileSync(path.join(root, "dist", "server.js"), original);
+
+    await expect(rewriteServerAliases(root)).resolves.toBeUndefined();
+    expect(readFileSync(path.join(root, "dist", "server.js"), "utf-8")).toBe(
+      original,
+    );
+  });
+
+  it("does nothing when there is no tsconfig.json", async () => {
+    const root = mkTmp();
+    await expect(rewriteServerAliases(root)).resolves.toBeUndefined();
   });
 });
 

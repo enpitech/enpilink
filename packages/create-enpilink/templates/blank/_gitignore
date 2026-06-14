@@ -3,5 +3,5 @@ dist/
 .env*
 .DS_store
 *.tsbuildinfo
-.skybridge/
+.enpilink/
 .vercel/

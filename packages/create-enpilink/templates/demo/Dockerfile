@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Dockerfile for a Skybridge MCP server.
+# Dockerfile for an enpilink MCP server.
 #
 # Detects npm, yarn, or pnpm from the lockfile in your project.
 # (For bun or deno, adapt the install/build/prune commands below.)
@@ -47,7 +47,7 @@ COPY --from=build --chown=node:node /app/package.json ./package.json
 
 EXPOSE 3000
 
-# Run the built server directly rather than via `npm start` / `skybridge start`.
+# Run the built server directly rather than via `npm start` / `enpilink start`.
 # Each wrapper adds a process layer that can swallow SIGTERM, which makes
 # graceful shutdowns time out on platforms like Cloud Run, Fly, and k8s.
 CMD ["node", "dist/__entry.js"]

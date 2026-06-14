@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "enpilink dev",
     "dev:tunnel": "enpilink dev --tunnel",
-    "build": "enpilink build && tsc-alias -p tsconfig.json",
+    "build": "enpilink build",
     "start": "enpilink start",
     "deploy": "enpilink build",
     "typecheck": "tsc --noEmit",
@@ -30,7 +30,6 @@
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "tsc-alias": "^1.8.17",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.4"

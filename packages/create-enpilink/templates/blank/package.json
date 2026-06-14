@@ -20,7 +20,7 @@
     "@enpilink/devtools": "workspace:*",
     "@types/node": "^24.12.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=22"

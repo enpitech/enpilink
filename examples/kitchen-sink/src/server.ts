@@ -11,8 +11,8 @@ import {
 import { verifyOtp } from "@/domain/auth.js";
 import {
   formatPrice,
-  quoteCart,
   queryCatalog,
+  quoteCart,
   summarizeOrders,
 } from "@/domain/catalog.js";
 import { deterministicId } from "@/domain/id.js";
@@ -127,7 +127,11 @@ const server = new McpServer(
       const products = queryCatalog({ category, inStockOnly, sort });
       return {
         structuredContent: {
-          query: { category: category ?? null, inStockOnly: !!inStockOnly, sort: sort ?? null },
+          query: {
+            category: category ?? null,
+            inStockOnly: !!inStockOnly,
+            sort: sort ?? null,
+          },
           count: products.length,
           products: products.map((p) => ({
             id: p.id,
@@ -260,7 +264,10 @@ const server = new McpServer(
           )
           .describe("The items to order."),
       },
-      view: { component: "checkout", description: "Northwind order confirmation" },
+      view: {
+        component: "checkout",
+        description: "Northwind order confirmation",
+      },
       _meta: WIDGET_ACCESSIBLE,
     },
     async ({ items }) => {
@@ -354,8 +361,7 @@ const server = new McpServer(
   .registerTool(
     {
       name: "sign_in",
-      description:
-        `Sign in to Northwind with a one-time code. The DEMO OTP is ${MOCK_OTP} (no real SMS). On the right code the view confirms with a success useNotify; a wrong code returns a clean retry (never crashes). Mode: any. Mock only.`,
+      description: `Sign in to Northwind with a one-time code. The DEMO OTP is ${MOCK_OTP} (no real SMS). On the right code the view confirms with a success useNotify; a wrong code returns a clean retry (never crashes). Mode: any. Mock only.`,
       inputSchema: {
         otp: z
           .string()
@@ -383,18 +389,78 @@ const server = new McpServer(
     },
     async () => {
       const rows = [
-        { feature: "tool", hook: "useCallTool", interaction: "tool", view: "catalog/cart" },
-        { feature: "prompt", hook: "useSendFollowUpMessage", interaction: "prompt", view: "home/cart" },
-        { feature: "notify", hook: "useNotify", interaction: "notify", view: "checkout/sign-in" },
-        { feature: "intent", hook: "useIntent", interaction: "intent", view: "catalog/product" },
-        { feature: "tool-info", hook: "useToolInfo", interaction: "-", view: "features" },
-        { feature: "view-state", hook: "useViewState", interaction: "-", view: "catalog" },
-        { feature: "display-mode", hook: "useDisplayMode", interaction: "-", view: "orders" },
-        { feature: "modal", hook: "useRequestModal", interaction: "-", view: "product" },
-        { feature: "resize", hook: "useRequestSize", interaction: "-", view: "product" },
-        { feature: "files", hook: "useFiles/useDownload", interaction: "-", view: "account" },
-        { feature: "user", hook: "useUser", interaction: "-", view: "home/account" },
-        { feature: "open-external", hook: "useOpenExternal", interaction: "-", view: "home/account" },
+        {
+          feature: "tool",
+          hook: "useCallTool",
+          interaction: "tool",
+          view: "catalog/cart",
+        },
+        {
+          feature: "prompt",
+          hook: "useSendFollowUpMessage",
+          interaction: "prompt",
+          view: "home/cart",
+        },
+        {
+          feature: "notify",
+          hook: "useNotify",
+          interaction: "notify",
+          view: "checkout/sign-in",
+        },
+        {
+          feature: "intent",
+          hook: "useIntent",
+          interaction: "intent",
+          view: "catalog/product",
+        },
+        {
+          feature: "tool-info",
+          hook: "useToolInfo",
+          interaction: "-",
+          view: "features",
+        },
+        {
+          feature: "view-state",
+          hook: "useViewState",
+          interaction: "-",
+          view: "catalog",
+        },
+        {
+          feature: "display-mode",
+          hook: "useDisplayMode",
+          interaction: "-",
+          view: "orders",
+        },
+        {
+          feature: "modal",
+          hook: "useRequestModal",
+          interaction: "-",
+          view: "product",
+        },
+        {
+          feature: "resize",
+          hook: "useRequestSize",
+          interaction: "-",
+          view: "product",
+        },
+        {
+          feature: "files",
+          hook: "useFiles/useDownload",
+          interaction: "-",
+          view: "account",
+        },
+        {
+          feature: "user",
+          hook: "useUser",
+          interaction: "-",
+          view: "home/account",
+        },
+        {
+          feature: "open-external",
+          hook: "useOpenExternal",
+          interaction: "-",
+          view: "home/account",
+        },
       ];
       return {
         structuredContent: { rows },

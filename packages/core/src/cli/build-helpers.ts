@@ -1,5 +1,6 @@
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -31,6 +32,30 @@ export function emitManifestModule(
 ): void {
   const manifest = readFileSync(manifestPath, "utf-8");
   writeFileSync(outPath, `export default ${manifest};\n`);
+}
+
+// Rewrites TypeScript path aliases (e.g. `@/data` → `./data`) in the emitted
+// server JS under `dist/`. `tsc` itself does NOT rewrite path aliases in the
+// output, so a server that imports via `@/…` would throw ERR_MODULE_NOT_FOUND
+// at `node dist/__entry.js`. We run tsc-alias programmatically against the
+// project's tsconfig so `enpilink build` produces a runnable server regardless
+// of whether the user uses path aliases — no `tsc-alias` in their own scripts.
+//
+// Safe to run unconditionally: tsc-alias uses TypeScript's own config parser
+// and is a no-op when the project declares no `paths`. We only require a
+// tsconfig.json to exist (it always does for an enpilink app).
+export async function rewriteServerAliases(root: string): Promise<void> {
+  const configFile = path.join(root, "tsconfig.json");
+  if (!existsSync(configFile)) {
+    return;
+  }
+  const { replaceTscAliasPaths } = await import("tsc-alias");
+  await replaceTscAliasPaths({
+    configFile,
+    // The server's compiled JS lives in `dist/` (tsc `outDir`); rewrite aliases
+    // to relative imports there.
+    outDir: path.join(root, "dist"),
+  });
 }
 
 export const VERCEL_FUNCTION_NAME = "mcp";

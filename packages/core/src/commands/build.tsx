@@ -7,6 +7,7 @@ import {
   emitEntryWrapper,
   emitManifestModule,
   emitVercelBuildOutput,
+  rewriteServerAliases,
 } from "../cli/build-helpers.js";
 import { Header } from "../cli/header.js";
 import { resolveViewsDir } from "../cli/resolve-views-dir.js";
@@ -26,6 +27,13 @@ export const commandSteps: CommandStep[] = [
     label: "Compiling server",
     run: () => rmSync("dist", { recursive: true, force: true }),
     command: "tsc -b --force",
+  },
+  {
+    // `tsc` does not rewrite `@/…` path aliases in emitted JS, so rewrite them
+    // to relative paths under `dist/` here — `node dist/__entry.js` then runs
+    // regardless of whether the server uses aliases. No-op without `paths`.
+    label: "Rewriting path aliases",
+    run: () => rewriteServerAliases(process.cwd()),
   },
   {
     label: "Building views",
