@@ -6,6 +6,7 @@ const tunnelStateSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("idle") }),
   z.object({ status: z.literal("starting"), message: z.string() }),
   z.object({ status: z.literal("connected"), url: z.string() }),
+  z.object({ status: z.literal("reconnecting"), message: z.string() }),
   z.object({ status: z.literal("error"), message: z.string() }),
 ]);
 

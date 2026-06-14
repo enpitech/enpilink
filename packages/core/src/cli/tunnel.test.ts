@@ -3,31 +3,21 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseStdoutLine, TunnelManager, type TunnelState } from "./tunnel.js";
 
-describe("parseStdoutLine", () => {
-  it("returns a connected event when the forwarding line is seen", () => {
+describe("parseStdoutLine (delegates to the default srv.us provider)", () => {
+  it("returns a connected event when a srv.us URL is seen", () => {
     const result = parseStdoutLine(
-      "Forwarding: https://abc.tunnel.example -> http://localhost:3000",
+      "https://qp556ma755ktlag5b2xyt334ae.srv.us/",
     );
     expect(result).toEqual({
       kind: "connected",
-      url: "https://abc.tunnel.example",
-    });
-  });
-
-  it("strips a trailing slash from the forwarded URL", () => {
-    const result = parseStdoutLine(
-      "Forwarding: https://abc.tunnel.example/ -> http://localhost:3000",
-    );
-    expect(result).toEqual({
-      kind: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://qp556ma755ktlag5b2xyt334ae.srv.us",
     });
   });
 
   it("returns a starting event for any other non-empty line", () => {
-    expect(parseStdoutLine("Opening tunnel...")).toEqual({
+    expect(parseStdoutLine("Warning: Permanently added 'srv.us'")).toEqual({
       kind: "starting",
-      message: "Opening tunnel...",
+      message: "Warning: Permanently added 'srv.us'",
     });
   });
 
@@ -78,17 +68,12 @@ describe("TunnelManager", () => {
 
     manager.start();
     child.stdout.emit("data", Buffer.from("Opening tunnel...\n"));
-    child.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
     expect(states).toEqual(["starting", "starting", "connected"]);
     expect(manager.getState()).toEqual({
       status: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://abc123.srv.us",
     });
   });
 
@@ -104,12 +89,7 @@ describe("TunnelManager", () => {
     );
 
     manager.start();
-    child.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
     child.stdout.emit("data", Buffer.from("GET /widgets/foo\n"));
     child.stderr.emit("data", Buffer.from("connection wobble\n"));
 
@@ -178,12 +158,7 @@ describe("TunnelManager", () => {
       spawn: () => child,
     });
     manager.start();
-    child.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
     let received: TunnelState | undefined;
     const unsubscribe = manager.subscribe((s) => {
@@ -191,7 +166,7 @@ describe("TunnelManager", () => {
     });
     expect(received).toEqual({
       status: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://abc123.srv.us",
     });
     unsubscribe();
   });
@@ -208,22 +183,17 @@ describe("TunnelManager", () => {
     manager.start();
     manager.stop();
     manager.start();
-    childB.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    childB.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
     expect(manager.getState()).toEqual({
       status: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://abc123.srv.us",
     });
 
     // Stale close from childA arrives only now — must not clobber state.
     childA.emit("close", null);
     expect(manager.getState()).toEqual({
       status: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://abc123.srv.us",
     });
   });
 
@@ -239,17 +209,96 @@ describe("TunnelManager", () => {
     manager.start();
     manager.stop();
     manager.start();
-    childB.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    childB.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
     childA.emit("error", new Error("late spawn failure"));
     expect(manager.getState()).toEqual({
       status: "connected",
-      url: "https://abc.tunnel.example",
+      url: "https://abc123.srv.us",
+    });
+  });
+
+  it("auto-reconnects when the ssh child exits unexpectedly while up", () => {
+    const childA = makeFakeChild();
+    const childB = makeFakeChild();
+    let spawnCount = 0;
+    const manager = new TunnelManager({
+      getPort: () => 3000,
+      spawn: () => (spawnCount++ === 0 ? childA : childB),
+    });
+    const states: TunnelState[] = [];
+    manager.on("state", (s: TunnelState) => states.push(s));
+
+    manager.start();
+    childA.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
+    expect(manager.getState().status).toBe("connected");
+    expect(spawnCount).toBe(1);
+
+    // ssh drops unexpectedly (e.g. killed / network blip).
+    childA.emit("close", null);
+    expect(manager.getState().status).toBe("reconnecting");
+
+    // Backoff elapses → respawn.
+    vi.advanceTimersByTime(1_000);
+    expect(spawnCount).toBe(2);
+
+    // New child connects → back to connected.
+    childB.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
+    expect(manager.getState()).toEqual({
+      status: "connected",
+      url: "https://abc123.srv.us",
+    });
+    expect(states.map((s) => s.status)).toContain("reconnecting");
+  });
+
+  it("stop() during reconnect halts the backoff and does not respawn", () => {
+    const children = [makeFakeChild(), makeFakeChild()];
+    let spawnCount = 0;
+    const manager = new TunnelManager({
+      getPort: () => 3000,
+      spawn: () => children[spawnCount++] ?? makeFakeChild(),
+    });
+
+    const first = children[0] as FakeChild;
+    manager.start();
+    first.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
+    first.emit("close", null);
+    expect(manager.getState().status).toBe("reconnecting");
+
+    manager.stop();
+    expect(manager.getState()).toEqual({ status: "idle" });
+
+    // Even after the backoff window, no respawn happened.
+    vi.advanceTimersByTime(60_000);
+    expect(spawnCount).toBe(1);
+  });
+
+  it("uses the provider's parseLine and ensure hook", async () => {
+    const child = makeFakeChild();
+    const ensure = vi.fn();
+    const manager = new TunnelManager({
+      getPort: () => 3000,
+      provider: {
+        name: "fake",
+        ensure,
+        spawn: () => child,
+        parseLine: (line) => {
+          const m = line.match(/READY (\S+)/);
+          return m?.[1] ? { kind: "connected", url: m[1] } : null;
+        },
+      },
+    });
+
+    manager.start();
+    // ensure() is awaited inside spawnChild; flush microtasks.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ensure).toHaveBeenCalledTimes(1);
+
+    child.stdout.emit("data", Buffer.from("READY https://x.example\n"));
+    expect(manager.getState()).toEqual({
+      status: "connected",
+      url: "https://x.example",
     });
   });
 });

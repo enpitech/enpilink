@@ -89,12 +89,7 @@ describe("createTunnelHandler", () => {
     await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
-    child.stdout.emit(
-      "data",
-      Buffer.from(
-        "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-      ),
-    );
+    child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
     const res = await fetch(
       `http://localhost:${port}/__enpilink/tunnel/events`,
@@ -108,17 +103,19 @@ describe("createTunnelHandler", () => {
 
     expect(chunk).toContain("event: state");
     expect(chunk).toContain('"status":"connected"');
-    expect(chunk).toContain('"url":"https://abc.tunnel.example"');
+    expect(chunk).toContain('"url":"https://abc123.srv.us"');
 
     await reader.cancel();
   });
 
-  it("GET /__enpilink/tunnel/events sends the current error state on connect", async () => {
+  it("GET /__enpilink/tunnel/events surfaces a drop as reconnecting state with the stderr detail", async () => {
     const { port, child } = await listenWithHandler();
     await fetch(`http://localhost:${port}/__enpilink/tunnel`, {
       method: "POST",
     });
     child.stderr.emit("data", Buffer.from("boom: tunnel auth failed\n"));
+    // While the tunnel should be up, an unexpected close triggers auto-reconnect
+    // (it does NOT terminate as a hard error).
     child.emit("close", 1);
 
     const res = await fetch(
@@ -132,7 +129,7 @@ describe("createTunnelHandler", () => {
     const chunk = new TextDecoder().decode(value);
 
     expect(chunk).toContain("event: state");
-    expect(chunk).toContain('"status":"error"');
+    expect(chunk).toContain('"status":"reconnecting"');
     expect(chunk).toContain("boom: tunnel auth failed");
 
     await reader.cancel();

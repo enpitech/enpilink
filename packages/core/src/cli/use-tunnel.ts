@@ -5,6 +5,7 @@ export type TunnelState =
   | { status: "idle" }
   | { status: "starting"; message: string }
   | { status: "connected"; url: string }
+  | { status: "reconnecting"; message: string }
   | { status: "error"; message: string };
 
 type TunnelActivity = {

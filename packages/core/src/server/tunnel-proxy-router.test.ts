@@ -148,12 +148,7 @@ describe("createTunnelProxyRouter", () => {
       await fetch(`http://127.0.0.1:${port}/__enpilink/tunnel`, {
         method: "POST",
       });
-      child.stdout.emit(
-        "data",
-        Buffer.from(
-          "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-        ),
-      );
+      child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
       const res = await fetch(
         `http://127.0.0.1:${port}/__enpilink/tunnel/events`,
@@ -173,7 +168,7 @@ describe("createTunnelProxyRouter", () => {
 
       expect(chunk).toContain("event: state");
       expect(chunk).toContain('"status":"connected"');
-      expect(chunk).toContain('"url":"https://abc.tunnel.example"');
+      expect(chunk).toContain('"url":"https://abc123.srv.us"');
 
       await reader.cancel();
     });
@@ -201,12 +196,7 @@ describe("createTunnelProxyRouter", () => {
       expect(decoder.decode(first.value)).toContain('"status":"starting"');
 
       // Now drive a state change on the manager and read the next frame.
-      child.stdout.emit(
-        "data",
-        Buffer.from(
-          "Forwarding: https://abc.tunnel.example -> http://localhost:3000\n",
-        ),
-      );
+      child.stdout.emit("data", Buffer.from("https://abc123.srv.us/\n"));
 
       let combined = "";
       // Reads may chunk arbitrarily, so accumulate until we see the connected
@@ -222,7 +212,7 @@ describe("createTunnelProxyRouter", () => {
         }
       }
       expect(combined).toContain('"status":"connected"');
-      expect(combined).toContain('"url":"https://abc.tunnel.example"');
+      expect(combined).toContain('"url":"https://abc123.srv.us"');
 
       await reader.cancel();
     });

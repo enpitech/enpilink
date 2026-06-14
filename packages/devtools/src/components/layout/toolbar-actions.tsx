@@ -50,6 +50,7 @@ function useDeployCommand(): string {
 const DOT_BY_STATUS = {
   idle: "bg-gray-400",
   starting: "bg-orange-500 animate-pulse",
+  reconnecting: "bg-orange-500 animate-pulse",
   connected: "bg-green-500",
   error: "bg-red-500",
 } as const;
@@ -197,7 +198,8 @@ export function TunnelButton() {
     <HoverPopover
       className={cn(
         "w-60 text-center",
-        state.status === "starting" && "animate-pulse w-60",
+        (state.status === "starting" || state.status === "reconnecting") &&
+          "animate-pulse w-60",
       )}
       trigger={
         <Button variant="secondary" onClick={onClick}>
@@ -226,7 +228,7 @@ export function TunnelButton() {
       {state.status === "error" && (
         <ErrorContent message={state.message} onRetry={start} />
       )}
-      {state.status === "starting" && (
+      {(state.status === "starting" || state.status === "reconnecting") && (
         <StartingContent message={state.message} />
       )}
       {state.status === "connected" && <ConnectedContent onStop={stop} />}

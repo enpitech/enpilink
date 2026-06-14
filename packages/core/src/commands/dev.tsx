@@ -22,7 +22,8 @@ export default class Dev extends Command {
       min: 1,
     }),
     tunnel: Flags.boolean({
-      description: "Open a public tunnel for remote testing",
+      description:
+        "Open a public srv.us tunnel (account-free) for remote testing",
       default: false,
     }),
     open: Flags.boolean({
@@ -121,12 +122,24 @@ export default class Dev extends Command {
               <Text color="yellow">{tunnelState.message}</Text>
             </Box>
           )}
+          {tunnelState.status === "reconnecting" && (
+            <Box>
+              <Text>🌍{"  "}</Text>
+              <Text color="yellow">{tunnelState.message}</Text>
+            </Box>
+          )}
           {tunnelState.status === "connected" && (
             <Box flexDirection="column" marginBottom={1}>
               <Box>
                 <Text>🌍{"  "}</Text>
                 <Text>Exposed on </Text>
                 <Text color="green">{`${tunnelState.url}/mcp`}</Text>
+              </Box>
+              <Box>
+                <Text>🔌{"  "}</Text>
+                <Text color="white">
+                  Connect in Claude → Settings → Connectors → Custom connector
+                </Text>
               </Box>
             </Box>
           )}

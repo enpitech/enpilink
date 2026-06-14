@@ -13,6 +13,7 @@
   },
   "files": [
     "dist",
+    "scripts/postinstall.mjs",
     "README.md",
     "tsconfig.base.json"
   ],
@@ -33,6 +34,7 @@
     }
   },
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "prepublishOnly": "shx cp ../../README.md ./README.md",
     "build": "shx rm -rf dist && pnpm run build:templates && tsc",
     "build:templates": "node scripts/precompile-templates.mjs",
