@@ -67,6 +67,40 @@ a no-op (or a log line) on hosts without support. See
 [`docs/guides/interaction-types.mdx`](docs/guides/interaction-types.mdx) for the
 full per-runtime matrix.
 
+## All view hooks
+
+Everything a view can do from inside the iframe — import from `enpilink/web`.
+Hooks never touch raw `postMessage`; the bridge picks the right runtime call.
+
+| Hook | What it does | Runtime |
+|---|---|---|
+| **Interaction** | | |
+| `useCallTool` | Call a server tool from the view; returns `{ callTool, callToolAsync, data, status, error }` with pending/success/error state. | both |
+| `useSendFollowUpMessage` | Send a text message to the model as a user follow-up turn (`prompt`). | both |
+| `useNotify` | Surface a notification/status to the host: `notify({ message, level?, title?, data? })`. | both — real `notifications/message` on MCP Apps, best-effort on Apps SDK |
+| `useIntent` | Express a high-level intent for the host to route: `sendIntent({ name, params? })`. | both — best-effort extension, may no-op |
+| **Navigation / links** | | |
+| `useOpenExternal` | Open a URL outside the iframe via the host (use instead of `window.open`). | both |
+| `useSetOpenInAppUrl` | Override the URL the host's fullscreen "Open in app" affordance points to. | Apps SDK only (throws on MCP Apps) |
+| `useRequestClose` | Ask the host to dismiss/close the view. | both |
+| **Layout / display** | | |
+| `useDisplayMode` | Read and request the display mode — `inline` / `pip` / `fullscreen`. | both |
+| `useRequestModal` | Open the view in a host modal overlay; returns `{ isOpen, params, open }`. | both |
+| `useRequestSize` | Ask the host to resize the iframe to fit your content. | both |
+| `useLayout` | Read the visual environment — max height, safe-area insets, theme. | both |
+| **Context / data** | | |
+| `useToolInfo` | Read the typed `input` / `output` / metadata of the tool call that rendered this view. | both |
+| `useViewState` | `[state, setState]` persisted on the host across remounts of the view. | both |
+| `useUser` | Session-stable user/environment info (device type, hover/touch capability). | both |
+| **Files** | | |
+| `useFiles` | Host file operations — `upload`, `getDownloadUrl`, `selectFiles` (native picker). | Apps SDK only (throws on MCP Apps) |
+| `useDownload` | Download an MCP `EmbeddedResource` / `ResourceLink`'s contents via the host. | both |
+| **Advanced** | | |
+| `useRegisterViewTool` | Let the view expose its own tool to the host/model (app-provided tool). | MCP Apps only (no-op on Apps SDK) |
+
+> "both" = works on MCP Apps (Claude, Goose, VS Code…) and the ChatGPT Apps SDK.
+> Apps-SDK-only hooks throw on MCP Apps; MCP-Apps-only hooks no-op on the Apps SDK.
+
 ---
 
 ## Quickstart
