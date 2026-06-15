@@ -65,7 +65,14 @@ export async function createApp({
   // Read `process.env.NODE_ENV` inline: wrangler/esbuild only substitute the literal expression,
   // so a local const would defeat dead-code elimination of the dev-only imports below.
   if (process.env.NODE_ENV !== "production") {
-    const { devtoolsStaticServer } = await import("@enpilink/devtools");
+    // Dev-only. A non-literal specifier + cast lets core type-check WITHOUT
+    // @enpilink/devtools being built first: core and devtools form a workspace
+    // cycle, and a clean checkout (e.g. CI) has no devtools `dist` yet. The whole
+    // block is dead-code-eliminated in production by the NODE_ENV guard above.
+    const devtoolsSpecifier = "@enpilink/devtools";
+    const { devtoolsStaticServer } = (await import(devtoolsSpecifier)) as {
+      devtoolsStaticServer: () => Promise<express.RequestHandler>;
+    };
     app.use(await devtoolsStaticServer());
     const { viewsDevServer } = await import("./viewsDevServer.js");
     app.use(await viewsDevServer(httpServer));
