@@ -55,12 +55,12 @@ so the same view runs in either host:
 Views talk back to the host through hooks (never raw `postMessage`). enpilink
 supports all four mcp-ui interaction types:
 
-| Type | Hook | Honest status |
+| Type | Hook | Behavior |
 |---|---|---|
-| `tool` | `useCallTool` | real on both runtimes (from upstream) |
-| `prompt` | `useSendFollowUpMessage` | real on both runtimes (from upstream) |
-| `notify` | `useNotify` | **enpilink addition** — real MCP `notifications/message` on MCP Apps; best-effort extension on the ChatGPT Apps SDK |
-| `intent` | `useIntent` | **enpilink addition** — no spec equivalent on either runtime; best-effort extension, may no-op on hosts that don't route it |
+| `tool` | `useCallTool` | real on both runtimes |
+| `prompt` | `useSendFollowUpMessage` | real on both runtimes |
+| `notify` | `useNotify` | real MCP `notifications/message` on MCP Apps; best-effort extension on the ChatGPT Apps SDK |
+| `intent` | `useIntent` | no spec equivalent on either runtime; best-effort extension, may no-op on hosts that don't route it |
 
 `notify` and `intent` are guarded and additive: they never throw and degrade to
 a no-op (or a log line) on hosts without support. See
