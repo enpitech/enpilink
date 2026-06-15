@@ -38,7 +38,7 @@ no vendor lock-in**:
 - **No telemetry** — zero analytics, no network calls, no embedded keys.
 - **Deploy anywhere** — `enpilink build` produces a standard Node server
   (`node dist/__entry.js`); self-host on any platform or container.
-- **All four mcp-ui interaction types** — `tool`, `prompt`, `notify`, and `intent`.
+- **All five mcp-ui interaction types** — `tool`, `prompt`, `link`, `intent`, and `notify`.
 
 ## MCP Apps compliance
 
@@ -50,17 +50,24 @@ so the same view runs in either host:
 - `ui://views/ext-apps/*` — MCP Apps (Claude, Goose, VS Code, …)
 - `ui://views/apps-sdk/*` — ChatGPT Apps SDK
 
-## The 4 mcp-ui interaction types
+## The mcp-ui interaction types
 
-Views talk back to the host through hooks (never raw `postMessage`). enpilink
-supports all four mcp-ui interaction types:
+An **interaction type** is one of the structured messages a view sends *back* to
+its host. The [mcp-ui](https://mcpui.dev) standard defines **five**, and enpilink
+supports all five (views send them through hooks, never raw `postMessage`):
 
 | Type | Hook | Behavior |
 |---|---|---|
 | `tool` | `useCallTool` | real on both runtimes |
 | `prompt` | `useSendFollowUpMessage` | real on both runtimes |
-| `notify` | `useNotify` | real MCP `notifications/message` on MCP Apps; best-effort extension on the ChatGPT Apps SDK |
+| `link` | `useOpenExternal` | real on both runtimes |
 | `intent` | `useIntent` | no spec equivalent on either runtime; best-effort extension, may no-op on hosts that don't route it |
+| `notify` | `useNotify` | real MCP `notifications/message` on MCP Apps; best-effort extension on the ChatGPT Apps SDK |
+
+> These five are the standard's **view→host actions**. They're a subset of the
+> full hook API below (the rest of the hooks *read* host context or *control*
+> your own view). New to all this? See [`PRESENTATION.md`](PRESENTATION.md) for a
+> plain-language, diagram-led tour.
 
 `notify` and `intent` are guarded and additive: they never throw and degrade to
 a no-op (or a log line) on hosts without support. See
@@ -104,6 +111,10 @@ Hooks never touch raw `postMessage`; the bridge picks the right runtime call.
 ---
 
 ## Documentation
+
+**New here?** Read [`PRESENTATION.md`](PRESENTATION.md) first — a plain-language,
+diagram-led tour of the whole platform (what it solves, the standards, the
+technology, and how interaction types relate to hooks). No prior knowledge needed.
 
 There's **no hosted docs site yet** — the full docs run locally with
 [Mintlify](https://mintlify.com):

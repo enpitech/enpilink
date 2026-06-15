@@ -1,24 +1,25 @@
 ---
 title: Interaction Types
-description: "The four view → host interaction types in enpilink — tool, prompt, notify, and intent — and exactly how each behaves per runtime."
+description: "The five view → host interaction types in enpilink — tool, prompt, link, intent, and notify — and exactly how each behaves per runtime."
 ---
 
-mcp-ui defines four ways a view can talk *back* to its host. Upstream skybridge
-first-classed two of them (`tool` and `prompt`); enpilink adds `notify` and
-`intent` so it supports **all four**. Views never call `postMessage` directly —
-every interaction routes through the framework's `Adaptor`, which has one
-implementation per runtime (MCP Apps and the ChatGPT Apps SDK).
+mcp-ui defines **five** ways a view can talk *back* to its host — `tool`,
+`prompt`, `link`, `intent`, and `notify`. enpilink supports **all five**. Views
+never call `postMessage` directly — every interaction routes through the
+framework's `Adaptor`, which has one implementation per runtime (MCP Apps and
+the ChatGPT Apps SDK).
 
 | Interaction | Hook | What it does |
 |---|---|---|
 | `tool` | [`useCallTool`](/api-reference/use-call-tool) | Call one of your MCP tools from the view and render the result. |
 | `prompt` | [`useSendFollowUpMessage`](/api-reference/use-send-follow-up-message) | Send a text/follow-up message to the model. |
-| `notify` | [`useNotify`](/api-reference/use-notify) | Surface a status/notification to the host. |
+| `link` | [`useOpenExternal`](/api-reference/use-open-external) | Open an external URL via the host. |
 | `intent` | [`useIntent`](/api-reference/use-intent) | Express a high-level intent for the host to route. |
+| `notify` | [`useNotify`](/api-reference/use-notify) | Surface a status/notification to the host. |
 
 ## Per-runtime support (be honest about this)
 
-`tool` and `prompt` are real, first-class interactions on both runtimes.
+`tool`, `prompt`, and `link` are real, first-class interactions on both runtimes.
 `notify` and `intent` are **best-effort**: a host that doesn't implement them
 degrades to a no-op (or a log line) — they never throw and never send anything
 a compliant host would reject.
@@ -27,6 +28,7 @@ a compliant host would reject.
 |---|---|---|---|
 | `tool` | ✅ real (`tools/call`) | ✅ real | ✅ executes for real |
 | `prompt` | ✅ real (`app.sendMessage`) | ✅ real | logged only (no local model turn) |
+| `link` | ✅ real (`ui/open-link`) | ✅ real | ✅ opens in a new tab |
 | `notify` | ✅ **real** MCP `notifications/message` (via `app.sendLog`) | ⚠️ enpilink extension (`window.openai.notify` hook, else `postMessage`) | shown in the Logs drawer |
 | `intent` | ⚠️ enpilink extension (best-effort over `notifications/message`, `logger: "enpilink/intent"`) | ⚠️ enpilink extension (`window.openai.sendIntent` hook, else `postMessage`) | shown in the Logs drawer |
 
