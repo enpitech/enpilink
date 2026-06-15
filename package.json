@@ -18,8 +18,16 @@
     "ai",
     "enpilink"
   ],
-  "author": "Frédéric Barthelet",
-  "license": "ISC",
+  "author": "Enpitech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enpitech/enpilink.git"
+  },
+  "homepage": "https://github.com/enpitech/enpilink#readme",
+  "bugs": {
+    "url": "https://github.com/enpitech/enpilink/issues"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
     "@total-typescript/tsconfig": "^1.0.4",
