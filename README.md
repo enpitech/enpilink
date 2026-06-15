@@ -19,7 +19,7 @@ Claude, ChatGPT, VS Code, Goose, and any other MCP-Apps-compatible host.
   <a href="https://github.com/enpitech/enpilink/pulls"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-FF941F.svg"></a>
 </p>
 
-<sub>a rebrand-and-strip fork of <a href="https://github.com/alpic-ai/skybridge"><code>alpic-ai/skybridge</code></a> (MIT) · powered by</sub>
+<sub>a fork of <a href="https://github.com/alpic-ai/skybridge"><code>alpic-ai/skybridge</code></a> · powered by</sub>
 
 <a href="https://enpitech.dev"><img src="docs/images/enpitech-logo.png" alt="Enpitech" width="200"></a>
 
@@ -27,21 +27,18 @@ Claude, ChatGPT, VS Code, Goose, and any other MCP-Apps-compatible host.
 
 ---
 
-## Why enpilink is different from skybridge
+## Account-free by design
 
-enpilink keeps skybridge's architecture and API surface, but removes every
-dependency on a vendor account or hosted cloud:
+Local dev, public tunneling, and deploy all work with **no account, no token, and
+no vendor lock-in**:
 
-| | skybridge (upstream) | **enpilink** |
-|---|---|---|
-| Account | Required for tunnel / deploy / playground | **None, anywhere** |
-| Public tunnel | Proprietary `npx alpic tunnel` (cloud) | **[srv.us](https://srv.us)** — open, SSH-based, no signup |
-| Telemetry | PostHog + StatsD (hardcoded keys/IP) | **Removed** (no network, no keys) |
-| Deploy | `alpic deploy` (hosted) | **Generic** — `enpilink build` + self-host anywhere |
-| Interaction types | `tool`, `prompt` | **all 4 mcp-ui types** (adds `notify`, `intent`) |
-
-No login, no token, no hardcoded vendor endpoint — local dev, tunneling, and
-deploy all work account-free.
+- **Account-free tunneling** via [srv.us](https://srv.us) — open and SSH-based, no
+  signup. `enpilink dev --tunnel` gives you a public `/mcp` URL in seconds and
+  auto-generates an SSH key at `~/.enpilink/id_ed25519` the first time.
+- **No telemetry** — zero analytics, no network calls, no embedded keys.
+- **Deploy anywhere** — `enpilink build` produces a standard Node server
+  (`node dist/__entry.js`); self-host on any platform or container.
+- **All four mcp-ui interaction types** — `tool`, `prompt`, `notify`, and `intent`.
 
 ## MCP Apps compliance
 
@@ -53,7 +50,7 @@ so the same view runs in either host:
 - `ui://views/ext-apps/*` — MCP Apps (Claude, Goose, VS Code, …)
 - `ui://views/apps-sdk/*` — ChatGPT Apps SDK
 
-## The 4 interaction types (a superset of skybridge)
+## The 4 mcp-ui interaction types
 
 Views talk back to the host through hooks (never raw `postMessage`). enpilink
 supports all four mcp-ui interaction types:
