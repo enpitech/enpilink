@@ -103,6 +103,34 @@ Hooks never touch raw `postMessage`; the bridge picks the right runtime call.
 
 ---
 
+## Documentation
+
+There's **no hosted docs site yet** — the full docs run locally with
+[Mintlify](https://mintlify.com):
+
+```bash
+pnpm install
+pnpm docs:dev          # serves the docs at http://localhost:3000
+```
+
+What's inside [`docs/`](docs):
+
+- **API reference** ([`docs/api-reference/`](docs/api-reference)) — a page per
+  hook and core API (`useCallTool`, `useNotify`, `useViewState`, `registerTool`,
+  …), each with the signature, **a runnable example**, and runtime support. This
+  is the "what can I actually do with this hook" reference.
+- **Guides** ([`docs/guides/`](docs/guides)) — task-oriented: communicating with
+  the model, managing state, host-environment context, fetching data, and the
+  interaction types.
+- **Concepts & fundamentals** — MCP Apps vs the Apps SDK, write-once-run-everywhere,
+  type safety, and data flow.
+- **Quickstart** — create a new app, add to an existing server, deploy, migrate.
+
+> Tip: you can also read any page directly as Markdown in [`docs/`](docs) on
+> GitHub — e.g. [`docs/api-reference/use-notify.mdx`](docs/api-reference/use-notify.mdx).
+
+---
+
 ## Quickstart
 
 ### Prerequisites
