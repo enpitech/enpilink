@@ -1,15 +1,29 @@
+<div align="center">
+
 # enpilink
 
-**The open, account-free full-stack framework for [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (and the ChatGPT Apps SDK).**
+**The open, account-free full-stack framework for [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — and the ChatGPT Apps SDK.**
 
-enpilink lets you build type-safe MCP servers whose tools render interactive
-**React views** inside MCP hosts — Claude, ChatGPT, VS Code, Goose, and any other
-MCP-Apps-compatible client. It is a rebrand-and-strip fork of
-[`alpic-ai/skybridge`](https://github.com/alpic-ai/skybridge) (MIT), maintained by
-**Enpitech**.
+Build type-safe MCP servers whose tools render interactive **React views** inside
+Claude, ChatGPT, VS Code, Goose, and any other MCP-Apps-compatible host.
 
-> enpilink is shown as a plain text wordmark; the only logo image used in the
-> project is the real **Enpitech** mark ("powered by Enpitech").
+<p>
+  <a href="https://github.com/enpitech/enpilink/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-8E2DE2.svg"></a>
+  <a href="https://github.com/modelcontextprotocol/ext-apps"><img alt="MCP Apps" src="https://img.shields.io/badge/MCP_Apps-compatible-4A00E0.svg"></a>
+  <img alt="Account-free" src="https://img.shields.io/badge/account-not_required-22c55e.svg">
+  <img alt="Tunnel: srv.us" src="https://img.shields.io/badge/tunnel-srv.us_(no_signup)-0ea5e9.svg">
+  <img alt="Interaction types" src="https://img.shields.io/badge/mcp--ui-tool_·_prompt_·_notify_·_intent-8E2DE2.svg">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white">
+  <img alt="Node" src="https://img.shields.io/badge/node-%3E%3D22-339933.svg?logo=node.js&logoColor=white">
+  <a href="https://github.com/enpitech/enpilink/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/enpitech/enpilink/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/enpitech/enpilink/pulls"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-FF941F.svg"></a>
+</p>
+
+<sub>a rebrand-and-strip fork of <a href="https://github.com/alpic-ai/skybridge"><code>alpic-ai/skybridge</code></a> (MIT) · powered by</sub>
+
+<a href="https://enpitech.dev"><img src="docs/images/enpitech-logo.png" alt="Enpitech" width="200"></a>
+
+</div>
 
 ---
 
