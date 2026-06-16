@@ -7,7 +7,11 @@ import {
   Timer,
   TrendingUp,
 } from "lucide-react";
+import { useMemo } from "react";
+import { useDashboardRange } from "@/lib/nuqs.js";
 import {
+  RANGES,
+  resolveRange,
   type Summary,
   type ToolStat,
   useConnectObservabilityStream,
@@ -23,6 +27,7 @@ import {
   VolumeAreaChart,
 } from "./charts.js";
 import { LiveLogs } from "./live-logs.js";
+import { RangePicker } from "./range-picker.js";
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const pctFmt = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -241,34 +246,26 @@ function DisabledHint() {
  * --mock`.
  */
 export const Dashboard = () => {
-  useConnectObservabilityStream();
-  const { data: summary, isLoading, isError } = useObservabilitySummary();
+  const [range, setRange] = useDashboardRange();
+  // Quantize `now` to a 30s step so the derived `since` (and the query keys it
+  // feeds) stays referentially stable across renders — polling refetches on its
+  // own interval; we don't want every render to mint a new cache key. Changing
+  // the range still flips `since` immediately.
+  const { since, bucketMs } = useMemo(() => {
+    const now = Math.floor(Date.now() / 30_000) * 30_000;
+    return resolveRange(range, now);
+  }, [range]);
+
+  useConnectObservabilityStream(since);
+  const {
+    data: summary,
+    isLoading,
+    isError,
+  } = useObservabilitySummary(since, bucketMs);
   const theme = useChartTheme();
 
-  if (isLoading && !summary) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading metrics…</p>
-      </div>
-    );
-  }
-
-  if (isError || !summary) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-muted-foreground">
-          Could not load observability data.
-        </p>
-      </div>
-    );
-  }
-
-  if (!summary.enabled) {
-    return <DisabledHint />;
-  }
-
-  const s: Summary = summary;
-  const successRate = s.total === 0 ? 1 : 1 - s.errorRate;
+  const s: Summary | undefined = summary?.enabled ? summary : undefined;
+  const successRate = !s || s.total === 0 ? 1 : 1 - s.errorRate;
 
   return (
     <div
@@ -276,143 +273,185 @@ export const Dashboard = () => {
       data-testid="dashboard"
     >
       <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
-        {/* Page heading */}
-        <div className="flex items-end justify-between gap-3">
+        {/* Page heading + time-range picker */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Observability
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Tool-call analytics, latency, and live logs.
+              Tool-call analytics, latency, and live logs ·{" "}
+              {RANGES[range].label}.
             </p>
           </div>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            {numberFmt.format(s.total)} calls · {rateFmt(s.throughputPerMin)}
-          </span>
-        </div>
-
-        {/* Counters */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-          <StatCard
-            icon={Hash}
-            label="Total calls"
-            value={numberFmt.format(s.total)}
-          />
-          <StatCard
-            icon={TrendingUp}
-            label="Throughput"
-            value={rateFmt(s.throughputPerMin)}
-          />
-          <StatCard
-            icon={CheckCircle2}
-            label="Success rate"
-            value={pctFmt(successRate)}
-            tone="success"
-          />
-          <StatCard
-            icon={AlertTriangle}
-            label="Error rate"
-            value={pctFmt(s.errorRate)}
-            hint={`${numberFmt.format(s.errors)} errors`}
-            tone="danger"
-          />
-          <StatCard
-            icon={Gauge}
-            label="p50 latency"
-            value={msFmt(s.p50)}
-            hint={`avg ${msFmt(s.avg)}`}
-          />
-          <StatCard
-            icon={Timer}
-            label="p95 / p99"
-            value={msFmt(s.p95)}
-            hint={`p99 ${msFmt(s.p99)}`}
-          />
-        </div>
-
-        {/* Volume + success donut */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card
-            title="Tool-call volume over time"
-            subtitle="calls vs errors"
-            className="lg:col-span-2"
-          >
-            <div className="h-64" data-testid="volume-chart">
-              {s.callsOverTime.length === 0 ? (
-                <EmptyChart message="No calls in the selected window yet." />
-              ) : (
-                <VolumeAreaChart buckets={s.callsOverTime} theme={theme} />
-              )}
-            </div>
-          </Card>
-          <Card title="Success vs error">
-            <div className="h-64">
-              {s.total === 0 ? (
-                <EmptyChart message="No calls yet." />
-              ) : (
-                <SuccessDonut total={s.total} errors={s.errors} theme={theme} />
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* Top tools + slowest tools + method donut */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card title="Top tools" subtitle="by call volume">
-            <div className="h-64" data-testid="top-tools-chart">
-              {s.topTools.length === 0 ? (
-                <EmptyChart message="No tools yet." />
-              ) : (
-                <TopToolsBar tools={s.topTools.slice(0, 7)} theme={theme} />
-              )}
-            </div>
-          </Card>
-          <Card title="Slowest tools" subtitle="by p95 latency">
-            <div className="h-64">
-              {s.slowestTools.length === 0 ? (
-                <EmptyChart message="No timed tools yet." />
-              ) : (
-                <SlowestToolsBar
-                  tools={s.slowestTools.slice(0, 7)}
-                  theme={theme}
-                />
-              )}
-            </div>
-          </Card>
-          <Card title="Calls by method">
-            <div className="h-64">
-              {s.byMethod.length === 0 ? (
-                <EmptyChart message="No methods yet." />
-              ) : (
-                <MethodDonut methods={s.byMethod} theme={theme} />
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* Latency histogram */}
-        <Card title="Latency distribution" subtitle="calls per latency bucket">
-          <div className="h-56" data-testid="latency-histogram">
-            {s.latencyHistogram.every((b) => b.count === 0) ? (
-              <EmptyChart message="No latency samples yet." />
-            ) : (
-              <LatencyHistogram buckets={s.latencyHistogram} theme={theme} />
-            )}
-          </div>
-        </Card>
-
-        {/* Table + live logs */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="min-h-[20rem]">
-            <ToolTable tools={s.topTools} />
-          </div>
-          <div className="min-h-[20rem]">
-            <LiveLogs />
+          <div className="flex items-center gap-3">
+            {s ? (
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                {numberFmt.format(s.total)} calls ·{" "}
+                {rateFmt(s.throughputPerMin)}
+              </span>
+            ) : null}
+            <RangePicker
+              value={range}
+              onChange={(next) => void setRange(next)}
+            />
           </div>
         </div>
+
+        {isLoading && !summary ? (
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <p className="text-sm text-muted-foreground">Loading metrics…</p>
+          </div>
+        ) : isError || !summary ? (
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Could not load observability data.
+            </p>
+          </div>
+        ) : !summary.enabled || !s ? (
+          <DisabledHint />
+        ) : (
+          <DashboardBody s={s} successRate={successRate} theme={theme} />
+        )}
       </div>
     </div>
   );
 };
+
+/** The populated dashboard grid, split out so the heading + picker stay mounted
+ * across loading / disabled / error states (so the range can always be changed). */
+function DashboardBody({
+  s,
+  successRate,
+  theme,
+}: {
+  s: Summary;
+  successRate: number;
+  theme: ReturnType<typeof useChartTheme>;
+}) {
+  return (
+    <>
+      {/* Counters */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard
+          icon={Hash}
+          label="Total calls"
+          value={numberFmt.format(s.total)}
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Throughput"
+          value={rateFmt(s.throughputPerMin)}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Success rate"
+          value={pctFmt(successRate)}
+          tone="success"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Error rate"
+          value={pctFmt(s.errorRate)}
+          hint={`${numberFmt.format(s.errors)} errors`}
+          tone="danger"
+        />
+        <StatCard
+          icon={Gauge}
+          label="p50 latency"
+          value={msFmt(s.p50)}
+          hint={`avg ${msFmt(s.avg)}`}
+        />
+        <StatCard
+          icon={Timer}
+          label="p95 / p99"
+          value={msFmt(s.p95)}
+          hint={`p99 ${msFmt(s.p99)}`}
+        />
+      </div>
+
+      {/* Volume + success donut */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card
+          title="Tool-call volume over time"
+          subtitle="calls vs errors"
+          className="lg:col-span-2"
+        >
+          <div className="h-64" data-testid="volume-chart">
+            {s.callsOverTime.length === 0 ? (
+              <EmptyChart message="No calls in the selected window yet." />
+            ) : (
+              <VolumeAreaChart buckets={s.callsOverTime} theme={theme} />
+            )}
+          </div>
+        </Card>
+        <Card title="Success vs error">
+          <div className="h-64">
+            {s.total === 0 ? (
+              <EmptyChart message="No calls yet." />
+            ) : (
+              <SuccessDonut total={s.total} errors={s.errors} theme={theme} />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Top tools + slowest tools + method donut */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card title="Top tools" subtitle="by call volume">
+          <div className="h-64" data-testid="top-tools-chart">
+            {s.topTools.length === 0 ? (
+              <EmptyChart message="No tools yet." />
+            ) : (
+              <TopToolsBar tools={s.topTools.slice(0, 7)} theme={theme} />
+            )}
+          </div>
+        </Card>
+        <Card title="Slowest tools" subtitle="by p95 latency">
+          <div className="h-64">
+            {s.slowestTools.length === 0 ? (
+              <EmptyChart message="No timed tools yet." />
+            ) : (
+              <SlowestToolsBar
+                tools={s.slowestTools.slice(0, 7)}
+                theme={theme}
+              />
+            )}
+          </div>
+        </Card>
+        <Card title="Calls by method">
+          <div className="h-64">
+            {s.byMethod.length === 0 ? (
+              <EmptyChart message="No methods yet." />
+            ) : (
+              <MethodDonut methods={s.byMethod} theme={theme} />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Latency histogram */}
+      <Card title="Latency distribution" subtitle="calls per latency bucket">
+        <div className="h-56" data-testid="latency-histogram">
+          {s.latencyHistogram.every((b) => b.count === 0) ? (
+            <EmptyChart message="No latency samples yet." />
+          ) : (
+            <LatencyHistogram buckets={s.latencyHistogram} theme={theme} />
+          )}
+        </div>
+      </Card>
+
+      {/* Table + live logs */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-h-[20rem]">
+          <ToolTable tools={s.topTools} />
+        </div>
+        <div className="min-h-[20rem]">
+          <LiveLogs />
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default Dashboard;

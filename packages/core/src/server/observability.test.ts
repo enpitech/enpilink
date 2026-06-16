@@ -172,6 +172,64 @@ describe("summarize", () => {
   });
 });
 
+describe("summarize — bucket size per range (M9)", () => {
+  const MINUTE = 60_000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+  const base = 1_700_000_000_000;
+
+  // One event at the start of each of 14 consecutive days.
+  const daily: AnalyticsEvent[] = Array.from({ length: 14 }, (_, i) =>
+    ev({ ts: base + i * DAY, tool: "echo", ms: 5, ok: true }),
+  );
+
+  it("echoes the chosen bucketMs and aligns buckets to it", () => {
+    for (const bucketMs of [MINUTE, HOUR, 6 * HOUR, DAY]) {
+      const s = summarize(daily, { since: base, bucketMs });
+      expect(s.bucketMs).toBe(bucketMs);
+      // Every bucket start is aligned to bucketMs.
+      for (const b of s.callsOverTime) {
+        expect(b.ts % bucketMs).toBe(0);
+      }
+    }
+  });
+
+  it("daily buckets (30d range): 14 daily events → 14 buckets", () => {
+    const s = summarize(daily, { since: base, bucketMs: DAY });
+    expect(s.callsOverTime).toHaveLength(14);
+    expect(s.callsOverTime.every((b) => b.count === 1)).toBe(true);
+  });
+
+  it("6h buckets (7d range) keep each daily event in its own bucket", () => {
+    const s = summarize(daily, { since: base, bucketMs: 6 * HOUR });
+    // Events are a full day apart, so no two share a 6h bucket.
+    expect(s.callsOverTime).toHaveLength(14);
+  });
+
+  it("coarser buckets merge sub-bucket events; finer buckets split them", () => {
+    // Two events 90 minutes apart.
+    const pair: AnalyticsEvent[] = [
+      ev({ ts: base, tool: "echo", ms: 1, ok: true }),
+      ev({ ts: base + 90 * MINUTE, tool: "echo", ms: 1, ok: true }),
+    ];
+    // Minute buckets (1h range): two distinct buckets.
+    expect(
+      summarize(pair, { since: base, bucketMs: MINUTE }).callsOverTime,
+    ).toHaveLength(2);
+    // Hourly buckets (24h range): still two (they straddle the hour boundary).
+    expect(
+      summarize(pair, { since: base, bucketMs: HOUR }).callsOverTime,
+    ).toHaveLength(2);
+    // Daily buckets (30d range): both fall in one day → a single bucket of 2.
+    const dayBuckets = summarize(pair, {
+      since: base,
+      bucketMs: DAY,
+    }).callsOverTime;
+    expect(dayBuckets).toHaveLength(1);
+    expect(dayBuckets[0]?.count).toBe(2);
+  });
+});
+
 // --- Router behaviour (incl. the disabled/no-storage path) ---
 
 const servers: Array<{ close: () => Promise<void> }> = [];

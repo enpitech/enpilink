@@ -76,6 +76,34 @@ describe("generateMockEvents (determinism)", () => {
     }
   });
 
+  it("spreads the default dataset across ~7–14 days (M9: fills the 7d default)", () => {
+    // The default window widened from 6h to ~10 days so the dashboard's
+    // default Last-7-days range looks full. Verify deterministically (fixed
+    // base) without hardcoding the exact span.
+    const events = generateMockEvents({ now: BASE });
+    expect(events).toHaveLength(600);
+    const oldest = events[0]?.ts ?? 0;
+    const newest = events.at(-1)?.ts ?? 0;
+    const spanDays = (newest - oldest) / (24 * 60 * 60 * 1000);
+    expect(spanDays).toBeGreaterThanOrEqual(7);
+    expect(spanDays).toBeLessThanOrEqual(14);
+    // All within [now-14d, now]; comfortably more than a day's worth before now.
+    for (const e of events) {
+      expect(e.ts).toBeLessThanOrEqual(BASE);
+      expect(e.ts).toBeGreaterThanOrEqual(BASE - 14 * 24 * 60 * 60 * 1000);
+    }
+    // A healthy chunk of events falls inside the default 7-day window.
+    const sevenDaysAgo = BASE - 7 * 24 * 60 * 60 * 1000;
+    const inLast7d = events.filter((e) => e.ts >= sevenDaysAgo).length;
+    expect(inLast7d).toBeGreaterThan(200);
+  });
+
+  it("default window is deterministic (same base → identical wide spread)", () => {
+    expect(JSON.stringify(generateMockEvents({ now: BASE }))).toEqual(
+      JSON.stringify(generateMockEvents({ now: BASE })),
+    );
+  });
+
   it("produces a sensible (non-zero, non-total) error spread", () => {
     const events = generateMockEvents({ now: BASE, count: 600 });
     const errors = events.filter((e) => e.ok === false).length;

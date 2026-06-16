@@ -171,12 +171,15 @@ export interface MockSeedOptions {
   seed?: number;
   /** Number of `tool_call` events to generate. Defaults to 600. */
   count?: number;
-  /** Time span the events are spread over, in ms. Defaults to 6h. */
+  /** Time span the events are spread over, in ms. Defaults to ~10 days. */
   spanMs?: number;
 }
 
 const DEFAULT_COUNT = 600;
-const DEFAULT_SPAN_MS = 6 * 60 * 60 * 1000; // 6h
+// Spread the demo events across ~10 days so the dashboard's default 7-day range
+// (M9) looks full rather than sparse. Still deterministic (same seed+base →
+// identical output) — only the time window widened, the count is unchanged.
+const DEFAULT_SPAN_MS = 10 * 24 * 60 * 60 * 1000; // ~10 days
 
 /**
  * Build a deterministic, weighted, time-ordered list of demo `tool_call`

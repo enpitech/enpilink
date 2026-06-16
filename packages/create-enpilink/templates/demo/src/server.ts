@@ -1,6 +1,5 @@
 import { McpServer } from "enpilink/server";
 import { z } from "zod";
-
 import {
   CUSTOMER,
   getProduct,
@@ -16,6 +15,7 @@ import {
   summarizeOrders,
 } from "@/domain/catalog.js";
 import { deterministicId } from "@/domain/id.js";
+import pkg from "../package.json" with { type: "json" };
 
 /**
  * Northwind kitchen-sink — a GENERIC-brand demo MCP App built with enpilink.
@@ -62,8 +62,8 @@ const WIDGET_ACCESSIBLE = { "openai/widgetAccessible": true } as const;
 
 const server = new McpServer(
   {
-    name: "northwind-kitchen-sink",
-    version: "0.0.1",
+    name: pkg.name,
+    version: pkg.version,
   },
   { capabilities: {} },
 )

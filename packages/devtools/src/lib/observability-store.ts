@@ -98,13 +98,76 @@ export const logEntrySchema = z.object({
 
 export type LogEntry = z.infer<typeof logEntrySchema>;
 
+// --- Dashboard-wide time range (M9) ---
+
+/** The selectable dashboard time ranges (GA-style). */
+export type RangeKey = "1h" | "24h" | "7d" | "30d" | "all";
+
+/** The default range on first load. */
+export const DEFAULT_RANGE: RangeKey = "7d";
+
+/** Ordered list of ranges for rendering the picker. */
+export const RANGE_KEYS: RangeKey[] = ["1h", "24h", "7d", "30d", "all"];
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/**
+ * Per-range config: the trailing window length (`rangeMs`, `null` = "All time"),
+ * the time-bucket size for the volume chart (adapted so the series has a sane
+ * number of points), and a short human label.
+ */
+export interface RangeConfig {
+  label: string;
+  /** Window length in ms, or `null` for "All time" (→ `since` = 0). */
+  rangeMs: number | null;
+  /** Volume-chart bucket width in ms, passed to the summary `bucketMs`. */
+  bucketMs: number;
+}
+
+export const RANGES: Record<RangeKey, RangeConfig> = {
+  // ~60 one-minute buckets
+  "1h": { label: "Last 1 hour", rangeMs: HOUR, bucketMs: MINUTE },
+  // 24 hourly buckets
+  "24h": { label: "Last 24 hours", rangeMs: DAY, bucketMs: HOUR },
+  // 28 six-hour buckets
+  "7d": { label: "Last 7 days", rangeMs: 7 * DAY, bucketMs: 6 * HOUR },
+  // 30 daily buckets
+  "30d": { label: "Last 30 days", rangeMs: 30 * DAY, bucketMs: DAY },
+  // daily buckets across whatever history exists
+  all: { label: "All time", rangeMs: null, bucketMs: DAY },
+};
+
+/**
+ * Resolve a range key to the `since` lower bound (epoch ms; `0` for "All") and
+ * the adapted `bucketMs`. `now` is injected so it stays referentially stable
+ * across a render (callers memoize it per refetch tick).
+ */
+export function resolveRange(
+  range: RangeKey,
+  now: number,
+): { since: number; bucketMs: number } {
+  const cfg = RANGES[range] ?? RANGES[DEFAULT_RANGE];
+  const since = cfg.rangeMs === null ? 0 : Math.max(0, now - cfg.rangeMs);
+  return { since, bucketMs: cfg.bucketMs };
+}
+
 // --- TanStack Query hooks (polling) ---
 
-export function useObservabilitySummary(bucketMs = 60_000) {
+/**
+ * Summary scoped to a `since` lower bound + an adapted `bucketMs`. The query
+ * key includes both so changing the range refetches. Callers quantize `since`
+ * (the Dashboard rounds `now` to a 30s step) so polling doesn't thrash the
+ * cache key every render.
+ */
+export function useObservabilitySummary(since: number, bucketMs: number) {
   return useQuery({
-    queryKey: ["observability", "summary", bucketMs],
+    queryKey: ["observability", "summary", since, bucketMs],
     queryFn: async (): Promise<Summary> => {
-      const res = await authedFetch(`${BASE}/summary?bucketMs=${bucketMs}`);
+      const res = await authedFetch(
+        `${BASE}/summary?since=${since}&bucketMs=${bucketMs}`,
+      );
       if (!res.ok) {
         throw new Error(`summary failed (${res.status})`);
       }
@@ -114,11 +177,13 @@ export function useObservabilitySummary(bucketMs = 60_000) {
   });
 }
 
-export function useObservabilityEvents(limit = 100) {
+export function useObservabilityEvents(since: number, limit = 100) {
   return useQuery({
-    queryKey: ["observability", "events", limit],
+    queryKey: ["observability", "events", since, limit],
     queryFn: async (): Promise<AnalyticsEvent[]> => {
-      const res = await authedFetch(`${BASE}/events?limit=${limit}`);
+      const res = await authedFetch(
+        `${BASE}/events?since=${since}&limit=${limit}`,
+      );
       if (!res.ok) {
         throw new Error(`events failed (${res.status})`);
       }
@@ -142,7 +207,8 @@ type ObservabilityStreamStore = {
   liveLogs: LiveLog[];
   /** Whether the stream reports analytics is enabled. */
   enabled: boolean;
-  connect: () => () => void;
+  /** Connect the SSE stream, optionally backfilling logs since `since` (epoch ms). */
+  connect: (since?: number) => () => void;
   clear: () => void;
 };
 
@@ -151,10 +217,16 @@ export const useObservabilityStream = create<ObservabilityStreamStore>()(
     liveLogs: [],
     enabled: false,
 
-    connect() {
+    connect(since?: number) {
       // EventSource can't set headers; append the admin token as `?token=`
-      // (no-op in dev where no token is set).
-      const source = new EventSource(withStreamToken(`${BASE}/stream`));
+      // (no-op in dev where no token is set). When a `since` is given, start the
+      // stream cursor there so logs within the selected range are backfilled
+      // (otherwise the server starts the cursor at connect time = forward-only).
+      const url =
+        since !== undefined
+          ? `${BASE}/stream?since=${since}`
+          : `${BASE}/stream`;
+      const source = new EventSource(withStreamToken(url));
 
       source.addEventListener("status", (event) => {
         if (!(event instanceof MessageEvent)) {
@@ -207,8 +279,17 @@ export const useObservabilityStream = create<ObservabilityStreamStore>()(
   }),
 );
 
-/** Subscribe to the live observability stream for the component's lifetime. */
-export function useConnectObservabilityStream() {
+/**
+ * Subscribe to the live observability stream for the component's lifetime.
+ * When `since` changes (the dashboard range changed), the previous stream is
+ * torn down, the log ring is cleared, and a fresh stream is opened from the new
+ * lower bound so the Live logs panel re-scopes to the selected range.
+ */
+export function useConnectObservabilityStream(since?: number) {
   const connect = useObservabilityStream((s) => s.connect);
-  useEffect(() => connect(), [connect]);
+  const clear = useObservabilityStream((s) => s.clear);
+  useEffect(() => {
+    clear();
+    return connect(since);
+  }, [connect, clear, since]);
 }

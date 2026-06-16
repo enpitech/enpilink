@@ -4,6 +4,9 @@
     "module": "NodeNext",
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
+    // Allow `import pkg from "../package.json" with { type: "json" }` so server
+    // code can read its own name/version from package.json (single source).
+    "resolveJsonModule": true,
 
     // Output options
     "rootDir": "${configDir}/src",

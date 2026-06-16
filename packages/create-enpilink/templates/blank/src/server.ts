@@ -1,10 +1,12 @@
 import { McpServer } from "enpilink/server";
 import { z } from "zod";
 
+import pkg from "../package.json" with { type: "json" };
+
 const server = new McpServer(
   {
-    name: "enpilink-blank",
-    version: "0.0.1",
+    name: pkg.name,
+    version: pkg.version,
   },
   { capabilities: {} },
 ).registerTool(
