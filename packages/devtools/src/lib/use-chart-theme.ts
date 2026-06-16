@@ -7,27 +7,29 @@ import { useEffect, useState } from "react";
  * shell toggles on `<html>`. A MutationObserver keeps charts in sync at
  * runtime. Defaults to light when no `.dark` class is present.
  *
- * MD3 direction: ONE soft, muted violet/lavender accent family (lighter than
- * the vivid brand #4A00E0). Series are differentiated by TINTS/opacities of
- * that single hue + neutral slate — no bright orange, no vivid purple. The
+ * MD5 direction: ONE soft, muted TEAL accent family (replaces the former
+ * violet/lavender). Series are differentiated by TINTS/opacities of that single
+ * teal hue + neutral slate — no bright neon teal, no second accent hue. The
  * only saturated colors are restrained pastel green/rose on the success-vs-
- * error donut, where the meaning demands it. The result reads as one calm,
- * unified palette. (Violet is still the enpitech purple family, just softened.)
+ * error donut, where the meaning demands it (success is a teal-leaning green so
+ * it harmonizes with the accent). The result reads as one calm, unified teal
+ * palette. Keeps the MD3 gentle treatment: very light gridlines, thin gentle
+ * strokes, low-opacity fills.
  */
 
 export interface ChartTheme {
   mode: "light" | "dark";
-  /** Primary soft violet accent (series 1 / lines / primary bars). */
+  /** Primary soft teal accent (series 1 / lines / primary bars). */
   brand: string;
-  /** Lighter lavender tint of the accent (secondary series / fills). */
+  /** Lighter teal tint of the accent (secondary series / fills). */
   brandSoft: string;
-  /** Lightest lavender tint (tertiary / distribution bars). */
+  /** Lightest teal tint (tertiary / distribution bars). */
   brandFaint: string;
   /** Muted neutral slate (secondary "errors" line, low-emphasis series). */
   neutral: string;
-  /** Soft muted green (donut success only). */
+  /** Soft muted teal-green (donut success only). */
   success: string;
-  /** Soft muted rose (donut error / error semantics only). */
+  /** Soft coral #FF746C (donut error / error line / error semantics only). */
   error: string;
   /** Axis label + legend text color (muted slate). */
   text: string;
@@ -36,7 +38,7 @@ export interface ChartTheme {
   /** Very light grid / border line color. */
   grid: string;
   /**
-   * A UNIFIED categorical palette — tints of the one violet hue plus neutral
+   * A UNIFIED categorical palette — tints of the one teal hue plus neutral
    * slate. Used by the method donut so it reads as one calm family, not a
    * rainbow.
    */
@@ -45,36 +47,36 @@ export interface ChartTheme {
 
 const LIGHT: ChartTheme = {
   mode: "light",
-  // Soft muted violet/lavender — the single unified accent (was vivid #4A00E0).
-  brand: "#8b80e6",
-  brandSoft: "#a99cf5",
-  brandFaint: "#c7befb",
+  // Soft muted teal — the single unified accent (was violet #8b80e6).
+  brand: "#3fb6a8",
+  brandSoft: "#7fd0c6",
+  brandFaint: "#b3e4dd",
   // Neutral slate for low-emphasis series (e.g. the errors line on volume).
   neutral: "#cbd2de",
-  // Restrained pastel semantics — soft, not vivid.
-  success: "#7fc8a9",
-  error: "#e89aae",
+  // Restrained semantics — teal-leaning green success, soft coral error.
+  success: "#5cc2ab",
+  error: "#ff746c",
   // Muted slate typography on a light canvas.
   text: "#64748b",
   mutedText: "#9aa6b8",
   // Very light gridlines for the gentle/airy look.
   grid: "#f1f3f7",
-  // Unified violet-family tints + a neutral — one calm hue, not a rainbow.
-  palette: ["#8b80e6", "#a99cf5", "#c7befb", "#b7a4ef", "#9c8ff0", "#cbd2de"],
+  // Unified teal-family tints + a neutral — one calm hue, not a rainbow.
+  palette: ["#3fb6a8", "#7fd0c6", "#b3e4dd", "#5cc2ab", "#94dcd2", "#cbd2de"],
 };
 
 const DARK: ChartTheme = {
   mode: "dark",
-  brand: "#a99cf5",
-  brandSoft: "#c7befb",
-  brandFaint: "#d8d0fb",
+  brand: "#5fc7ba",
+  brandSoft: "#8fd9cf",
+  brandFaint: "#b3e4dd",
   neutral: "#6b7280",
-  success: "#6ec2a3",
-  error: "#e08aa3",
+  success: "#67c9b1",
+  error: "#ff746c",
   text: "#cbd5e1",
   mutedText: "#8a93a6",
-  grid: "#241d44",
-  palette: ["#a99cf5", "#c7befb", "#d8d0fb", "#b7a4ef", "#9c8ff0", "#6b7280"],
+  grid: "#173a36",
+  palette: ["#5fc7ba", "#8fd9cf", "#b3e4dd", "#67c9b1", "#9ee0d6", "#6b7280"],
 };
 
 function detectDark(): boolean {

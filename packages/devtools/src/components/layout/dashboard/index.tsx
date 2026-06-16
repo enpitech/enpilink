@@ -32,20 +32,21 @@ const rateFmt = (n: number) =>
 
 type Tone = "default" | "success" | "warning" | "danger";
 
-// MD3: gentle, unified icon chips — soft violet accent for neutral cards,
+// MD5: gentle, unified icon chips — soft TEAL accent for neutral cards,
 // restrained muted pastels only where the metric carries success/error meaning
-// (no bright orange/amber; warning reuses the calm violet family).
+// (no bright orange/amber; warning reuses the calm teal family).
 const TONE_ICON: Record<Tone, string> = {
-  default: "bg-[#8b80e6]/10 text-[#7a6fd6]",
+  default: "bg-[#3fb6a8]/10 text-[#2f9e91]",
   success: "bg-emerald-400/10 text-emerald-500",
-  warning: "bg-[#8b80e6]/10 text-[#7a6fd6]",
-  danger: "bg-rose-400/10 text-rose-400",
+  warning: "bg-[#3fb6a8]/10 text-[#2f9e91]",
+  // Soft coral (#FF746C) — consistent error accent across the dashboard.
+  danger: "bg-[#ff746c]/10 text-[#ff746c]",
 };
 
 /**
  * Clean light stat card (MD2): white card on a light-gray canvas, sharp
  * corners (~6px), a thin 1px border + soft shadow, a small uppercase muted
- * label, a big bold tabular number, and a subtle caption. The accent (purple)
+ * label, a big bold tabular number, and a subtle caption. The accent (teal)
  * is reserved for the icon chip — no per-card gradient rails.
  */
 function StatCard({
@@ -198,8 +199,8 @@ function DisabledHint() {
       data-testid="analytics-disabled-hint"
     >
       <div className="max-w-md space-y-3 rounded-md border border-canvas-border bg-background p-8 text-center shadow-sm">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-primary/10">
-          <Activity className="size-6 text-primary" />
+        <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-[#3fb6a8]/10">
+          <Activity className="size-6 text-[#2f9e91] dark:text-[#5fc7ba]" />
         </div>
         <h3 className="text-base font-semibold text-foreground">
           No observability data yet
@@ -230,8 +231,8 @@ function DisabledHint() {
 }
 
 /**
- * The Dashboard tab (MD redesign). Polished, dark-mode-aware, on-brand
- * (enpitech purple #4A00E0 → #8E2DE2). Polls `/summary` (+ the SSE `/stream`
+ * The Dashboard tab (MD redesign). Polished, dark-mode-aware, soft teal accent
+ * (MD5 — primary #3fb6a8 + tints). Polls `/summary` (+ the SSE `/stream`
  * for live logs) and renders an expanded, ApexCharts-driven metrics set:
  * counters (total, throughput, error rate, p50/p95/p99, avg), a volume area
  * chart, success/error + method donuts, top + slowest tools bars, a latency
@@ -313,7 +314,7 @@ export const Dashboard = () => {
             label="Error rate"
             value={pctFmt(s.errorRate)}
             hint={`${numberFmt.format(s.errors)} errors`}
-            tone={s.errorRate > 0.1 ? "danger" : "warning"}
+            tone="danger"
           />
           <StatCard
             icon={Gauge}

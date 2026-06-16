@@ -49,7 +49,7 @@ export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
  * a COMPACT, TOP-ALIGNED column of centered icon buttons (no text labels). The
  * label shows as a native hover tooltip (`title`) and is the button's
  * `aria-label` for accessibility. The active item is a SUBTLE small rounded
- * pill (light accent tint behind the icon + brand-purple icon), not a bulky
+ * pill (light accent tint behind the icon + teal accent icon), not a bulky
  * box. Drives the same `<Tabs>` root in `app-layout.tsx` via `TabsTrigger
  * value=…` so panels + active state are managed by Radix.
  *
@@ -81,10 +81,18 @@ export function Sidebar() {
               aria-label={item.label}
               title={item.label}
               className={cn(
-                "size-9 flex-none! justify-center p-0! rounded-md",
+                // The vendored TabsTrigger applies vertical-orientation
+                // `w-full` + `justify-start` via a `group-data-[orientation=
+                // vertical]/tabs:` prefix that tailwind-merge can't dedupe
+                // against a plain `w-9`/`justify-center`. Re-assert with the
+                // SAME variant prefix (and `!`) so each trigger is a centered
+                // 36px square — icon + active pill sit dead-center in the rail.
+                "size-9 w-9! flex-none! p-0! rounded-md justify-center!",
+                "group-data-[orientation=vertical]/tabs:w-9 group-data-[orientation=vertical]/tabs:justify-center group-data-[orientation=vertical]/tabs:p-0",
                 "text-muted-foreground",
                 "[@media(hover:hover)]:hover:bg-accent/60 [@media(hover:hover)]:hover:text-foreground",
-                "data-[state=active]:bg-accent! data-[state=active]:text-primary data-[state=active]:shadow-none!",
+                // Active = subtle centered pill + teal icon (MD5 accent).
+                "data-[state=active]:bg-accent! data-[state=active]:text-[#2f9e91]! data-[state=active]:shadow-none! dark:data-[state=active]:text-[#5fc7ba]!",
               )}
             >
               <Icon className="size-4 shrink-0" />

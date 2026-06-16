@@ -11,7 +11,7 @@ import type { ChartTheme } from "@/lib/use-chart-theme.js";
 
 /**
  * ApexCharts-based charts for the Dashboard (MD3 — gentle/unified). ApexCharts
- * is pure-JS (MIT) and renders SVG; we feed it the soft, unified violet palette
+ * is pure-JS (MIT) and renders SVG; we feed it the soft, unified teal palette
  * resolved from {@link ChartTheme} so every series reads as tints/opacities of
  * ONE hue (plus neutral slate) — gentle thin strokes, low-opacity fills, very
  * light gridlines. Each chart is a thin, memoized wrapper.
@@ -57,9 +57,9 @@ export function VolumeAreaChart({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "area", stacked: false },
-      // Unified: violet primary line + neutral slate for the errors series —
-      // differentiated by tint, not a second hue.
-      colors: [theme.brand, theme.neutral],
+      // Teal primary line + soft coral (#ff746c) errors series so error
+      // elements read consistently across the dashboard.
+      colors: [theme.brand, theme.error],
       stroke: { curve: "smooth", width: 2 },
       fill: {
         type: "gradient",
@@ -188,7 +188,7 @@ export function SlowestToolsBar({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "bar" },
-      // Was a bright orange — now a soft lavender tint of the one accent.
+      // A soft teal tint of the one accent.
       colors: [theme.brandSoft],
       plotOptions: {
         bar: { horizontal: true, borderRadius: 3, barHeight: "60%" },
@@ -232,7 +232,7 @@ export function LatencyHistogram({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "bar" },
-      // Lightest lavender tint — distinct from the other bars, same hue family.
+      // Lightest teal tint — distinct from the other bars, same hue family.
       colors: [theme.brandFaint],
       plotOptions: {
         bar: { columnWidth: "70%", borderRadius: 3, distributed: false },
