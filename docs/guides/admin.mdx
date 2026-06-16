@@ -1,0 +1,116 @@
+---
+title: Admin (Production)
+description: "Run the enpilink Dashboard + Configuration in production behind a static bearer token — two-tier auth, browser token-login, SSE auth, and the reverse-proxy / OIDC path for SSO."
+---
+
+The observability Dashboard and Configuration tab are always available in local
+dev. To expose them on a **production** server, enpilink has an opt-in **admin
+plane** guarded by a bearer token. It is **off by default** and **refuses to
+start without a token** — it is never default-open.
+
+## Enabling the prod admin plane
+
+Two things are required:
+
+```bash
+ENPILINK_ADMIN=1 \
+ENPILINK_ADMIN_TOKEN=<a-strong-secret> \
+node dist/__entry.js
+```
+
+Or via the CLI flag, which sets `ENPILINK_ADMIN=1` for you:
+
+```bash
+ENPILINK_ADMIN_TOKEN=<a-strong-secret> enpilink start --admin
+```
+
+`ENPILINK_ADMIN` accepts `1`/`true`/`yes`/`on`. If admin is enabled but
+`ENPILINK_ADMIN_TOKEN` is empty or unset, the process **exits non-zero with a
+clear error** rather than starting an unauthenticated admin plane.
+
+<Note>
+The token is a **static shared secret**, read from the env in-process. It is
+never logged, never persisted to the database, and never returned by any HTTP
+route. Compared against presented tokens in **constant time** to avoid timing
+leaks.
+</Note>
+
+## Two-tier auth
+
+The admin plane has two halves with different exposure:
+
+| Surface | Auth | Why |
+|---|---|---|
+| Devtools **SPA shell** (HTML/JS/CSS) | **public** | So a browser can always load the app and render its own login screen |
+| `/__enpilink/observability/*` + `/__enpilink/config*` (**data APIs**) | **bearer-gated** | The real analytics/config data |
+| `/mcp` (your MCP transport) | **always public** | The MCP endpoint must stay reachable for hosts |
+
+The bearer guard is mounted at the app root but enforces auth **only on the data
+API paths** — the shell, static assets, and `/mcp` pass straight through. So an
+unauthenticated browser gets the app shell and a login prompt, but **no data
+leaks** until the token is presented.
+
+In dev (`ENPILINK_ADMIN` unset) nothing is guarded — today's localhost behavior
+is unchanged and the login screen never appears.
+
+## Browser login and SSE auth
+
+When the data APIs return 401, the devtools UI shows a **token-login screen**.
+The token is verified against the observability summary endpoint and, on
+success, stored in **`sessionStorage`** (cleared on tab close — never
+`localStorage`, never a cookie). The app then attaches
+`Authorization: Bearer <token>` to every data fetch.
+
+Because browsers' `EventSource` can't set request headers, the live-log SSE
+stream (`/__enpilink/observability/stream`) **also** accepts the token via a
+`?token=` query param. enpilink copies that into the `Authorization` header so
+the *same* verifier enforces it, then **strips `token` from the request URL** so
+the secret never reaches the route handler, `req.query`, or any logged request
+line. `?token=` is honored on the stream route only.
+
+## SSO / stronger auth
+
+The built-in mechanism is the **static bearer token** — simple, dependency-free,
+and good for a single operator or a small team. If you need single sign-on,
+per-user access, or short-lived credentials, put the admin plane behind an
+authenticating layer:
+
+### Reverse proxy (recommended for SSO)
+
+Terminate auth in front of enpilink and forward only authenticated traffic to
+the admin paths. Any of these work well:
+
+- **Cloudflare Access** — Zero Trust policies in front of `/__enpilink/*`.
+- **oauth2-proxy** — an OIDC/OAuth2 reverse proxy that gates the data APIs.
+- **Tailscale** — keep the admin plane on your tailnet (and/or use Tailscale
+  Serve) so only your devices can reach it.
+
+Keep `/mcp` reachable to your MCP hosts when you scope the proxy's protection,
+and you can still set `ENPILINK_ADMIN_TOKEN` as a second factor behind the proxy.
+
+### Self-hosted OIDC
+
+enpilink builds on the MCP SDK's auth primitives — `requireBearerAuth` and
+`mcpAuthMetadataRouter` exist in the dependency tree — so a self-hosted OIDC /
+OAuth2 setup is possible for teams that want to wire their own verifier. This is
+**not** a built-in turnkey feature today; treat the static token as the shipped
+mechanism and reach for a proxy or a custom verifier for full SSO.
+
+<Note>
+Be honest with yourself about exposure: the static token is the built-in. If the
+admin plane is reachable from the public internet, front it with one of the
+options above and rotate the token.
+</Note>
+
+## Storage in production
+
+When admin is enabled, enpilink ensures an active storage adapter exists even if
+analytics *recording* is off — the admin still needs somewhere to read/write
+config and observability data. In production the default engine is **SQLite**.
+See [Storage](/guides/storage).
+
+## Related
+
+- [Observability](/guides/observability) — what the Dashboard shows
+- [Configuration](/guides/configuration) — the admin token is a bootstrap secret
+- [Storage](/guides/storage) — the prod-default SQLite store

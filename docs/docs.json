@@ -73,7 +73,11 @@
               "guides/managing-state",
               "guides/communicating-with-model",
               "guides/interaction-types",
-              "guides/host-environment-context"
+              "guides/host-environment-context",
+              "guides/observability",
+              "guides/configuration",
+              "guides/admin",
+              "guides/storage"
             ]
           },
           {

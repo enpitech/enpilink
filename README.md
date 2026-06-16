@@ -110,6 +110,34 @@ Hooks never touch raw `postMessage`; the bridge picks the right runtime call.
 
 ---
 
+## Observability & Admin
+
+enpilink ships an **opt-in** observability + admin layer — **off by default**,
+with zero overhead and zero network when disabled (still no telemetry to us).
+
+- **Observability** — set `ENPILINK_ANALYTICS=1` to record per-tool-call volume,
+  latency (p50/p95/p99), and error rate, viewable in the devtools **Dashboard**
+  with a **live log stream**. Try it with demo data:
+  `enpilink dev --mock` (deterministic, in-memory, no real traffic). See
+  [`docs/guides/observability.mdx`](docs/guides/observability.mdx).
+- **Configuration** — a typed config layer with **env > file > DB** precedence, a
+  **Configuration** admin tab for runtime settings, **env-only masked secrets**,
+  and a change **audit log**. See
+  [`docs/guides/configuration.mdx`](docs/guides/configuration.mdx).
+- **Admin (production)** — expose the Dashboard + Configuration in prod with
+  `enpilink start --admin` + `ENPILINK_ADMIN_TOKEN` (refuses to start without a
+  token). Two-tier auth keeps `/mcp` and the SPA shell public while gating the
+  data APIs behind a static bearer token; for SSO, front it with a reverse proxy
+  (Cloudflare Access / oauth2-proxy / Tailscale) or self-hosted OIDC. See
+  [`docs/guides/admin.mdx`](docs/guides/admin.mdx).
+- **Storage** — pluggable adapters: `memory` (dev), `sqlite` (prod default,
+  `ENPILINK_DB_PATH`), `postgres` (`ENPILINK_DB_URL`/`DATABASE_URL`/`PG*`), plus
+  `registerStorageAdapter` for custom backends, and optional **OpenTelemetry**
+  metrics export (`ENPILINK_OTEL=1` + `OTEL_EXPORTER_OTLP_ENDPOINT`). See
+  [`docs/guides/storage.mdx`](docs/guides/storage.mdx).
+
+---
+
 ## Documentation
 
 **New here?** Read [`PRESENTATION.md`](PRESENTATION.md) first — a plain-language,
@@ -131,8 +159,9 @@ What's inside [`docs/`](docs):
   …), each with the signature, **a runnable example**, and runtime support. This
   is the "what can I actually do with this hook" reference.
 - **Guides** ([`docs/guides/`](docs/guides)) — task-oriented: communicating with
-  the model, managing state, host-environment context, fetching data, and the
-  interaction types.
+  the model, managing state, host-environment context, fetching data, the
+  interaction types, and the observability / configuration / admin / storage
+  layer.
 - **Concepts & fundamentals** — MCP Apps vs the Apps SDK, write-once-run-everywhere,
   type safety, and data flow.
 - **Quickstart** — create a new app, add to an existing server, deploy, migrate.

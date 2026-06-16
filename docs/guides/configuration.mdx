@@ -1,0 +1,95 @@
+---
+title: Configuration
+description: "enpilink's typed config layer — env > file > DB precedence, bootstrap vs runtime keys, the Configuration admin tab, env-only masked secrets, and the config audit log."
+---
+
+enpilink has a single, typed configuration layer for the admin / control plane.
+It resolves every setting through a clear precedence chain, splits settings into
+**bootstrap** (env/file only) and **runtime** (editable in the admin UI), keeps
+**secrets out of the database**, and **audit-logs** every change.
+
+## Precedence: env > file > DB > default
+
+Each setting is resolved from the first source that provides it:
+
+1. **Environment variable** — highest priority. An env value always wins and
+   **locks** the setting (it can't be overridden in the UI).
+2. **Config file** — `enpilink.config.json` in the project root.
+3. **Database** — the runtime values written from the Configuration admin tab.
+4. **Built-in default** — the schema's default, used when nothing else sets it.
+
+This means an operator can pin any value via env or file and it becomes
+read-only ("env-locked") in the admin UI, while everything else stays editable
+at runtime.
+
+<Note>
+The resolver is failure-tolerant: with no storage it returns defaults; if the
+DB or a file value is bad, it falls back per-key rather than crashing a read. A
+config read never throws.
+</Note>
+
+## Bootstrap vs. runtime keys
+
+**Bootstrap** keys configure how the process *starts* — they are **env/file
+only** and never editable from the DB or UI:
+
+| Key | Env var | Notes |
+|---|---|---|
+| `storage` | `ENPILINK_STORAGE` | Storage engine (`memory`/`sqlite`/`postgres`/custom) |
+| `dbPath` | `ENPILINK_DB_PATH` | SQLite database path |
+| `port` | `PORT` | HTTP port |
+| `admin` | `ENPILINK_ADMIN` | Enable the prod admin plane |
+| `adminAuthToken` | `ENPILINK_ADMIN_TOKEN` | **Secret** — admin bearer token |
+
+**Runtime** keys live in the DB and are editable from the Configuration tab.
+They still honour the env > file > DB precedence, so each can be env-pinned:
+
+| Key | Env var | Default | Meaning |
+|---|---|---|---|
+| `analytics.enabled` | `ENPILINK_ANALYTICS` | `false` | Capture analytics events |
+| `analytics.sampleRate` | `ENPILINK_CFG_ANALYTICS_SAMPLE_RATE` | `1` | Fraction of requests sampled `[0,1]` |
+| `retention.events` | `ENPILINK_CFG_RETENTION_EVENTS` | `5000` | Max events retained |
+| `retention.logs` | `ENPILINK_CFG_RETENTION_LOGS` | `5000` | Max logs retained |
+| `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | Expose the live-log stream |
+| `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | Dashboard time-bucket width (ms) |
+
+Runtime keys use the `ENPILINK_CFG_*` convention so pinning one via env never
+collides with the bootstrap vars.
+
+## The Configuration admin tab
+
+The admin UI's **Configuration** tab lets an operator edit the runtime settings:
+
+- **Runtime settings** — booleans render as switches, numbers/strings as inputs
+  (saved on blur/Enter). Each change is written to the DB and takes effect
+  immediately.
+- **Read-only / env-locked** — any key set via env or file (and all bootstrap
+  keys) shows its value with a **source badge** (`env` / `file` / `db` /
+  `default`) and a "set via `<ENV_VAR>`" hint. It can't be edited in the UI.
+- **Change history** — the config audit trail (see below).
+
+Writes are validated against the schema and rejected with a clear status:
+unknown key → 404, secret → 403, bootstrap key → 403, env-locked → 409, invalid
+value → 400.
+
+## Secrets are env-only and masked
+
+Secret keys (currently `adminAuthToken`) are **never persisted to the database
+and never returned in plaintext** by any API. In the UI they render as masked
+(`••••••••` when set, "(not set)" otherwise) with a secret badge and are
+read-only — the only way to set a secret is its environment variable
+(`ENPILINK_ADMIN_TOKEN`). The DB layer never reads or stores them.
+
+## The config audit log
+
+Every config write appends a `config_audit` row capturing the timestamp, the
+key, the **old and new values**, and the **actor** who made the change (from the
+`x-enpilink-actor` request header, defaulting to `dev`). The Configuration tab's
+change-history list surfaces these most-recent-first so you can see who changed
+what and when.
+
+## Related
+
+- [Storage](/guides/storage) — the adapters that back config + audit
+- [Observability](/guides/observability) — what `analytics.*` and `flags.liveLogs` control
+- [Admin](/guides/admin) — the bootstrap admin token and prod auth

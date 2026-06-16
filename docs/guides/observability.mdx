@@ -1,0 +1,138 @@
+---
+title: Observability
+description: "Opt-in analytics, the observability Dashboard, the live-log SSE stream, and enpilink dev --mock for demos — all off by default, with zero overhead and zero network when disabled."
+---
+
+enpilink can record what your MCP server actually does — tool-call volume,
+latency, error rate, per-tool breakdowns — and surface it in a **Dashboard**
+with a **live log stream**. It is **opt-in and off by default**: when analytics
+is disabled there is no storage adapter, no `enpilink.db`, no middleware, and
+**zero network activity**.
+
+<Note>
+enpilink itself sends **no telemetry** to us or anyone. Analytics is a local,
+self-hosted feature: events go only to the storage adapter *you* configure
+([memory, SQLite, or Postgres](/guides/storage)) and never leave your process
+unless you explicitly turn on [OTel export](/guides/storage#opentelemetry-export).
+</Note>
+
+## Enabling analytics
+
+Set one environment variable:
+
+```bash
+ENPILINK_ANALYTICS=1
+```
+
+Accepted truthy values are `1`, `true`, `yes`, and `on` (case-insensitive).
+When set, enpilink resolves a storage adapter (see [Storage](/guides/storage)),
+initializes it, and installs a small middleware that records one event per MCP
+request.
+
+When it is **unset**, none of that happens — no adapter is resolved, no database
+file is created, and no middleware runs.
+
+### What gets recorded
+
+For every MCP request, the middleware records a `tool_call` event:
+
+| Field | Meaning |
+|---|---|
+| `ts` | When the request started (epoch ms) |
+| `type` | `"tool_call"` |
+| `tool` | The tool name (for `tools/call`); absent for other methods |
+| `method` | The MCP method, e.g. `tools/call`, `tools/list`, `initialize` |
+| `ms` | Duration in milliseconds |
+| `ok` | `false` when the result was an error or the handler threw |
+| `error` | The error message, when the call failed |
+
+<Note>
+Recording is **fire-and-forget** and wrapped so a storage failure can never
+break or slow a tool call — the request path always returns its real result,
+even if the write fails. Non-`tools/call` methods (like `tools/list`) are
+counted too, so the per-method view is complete.
+</Note>
+
+## The Dashboard
+
+When the admin plane is mounted (always in dev; opt-in in production — see
+[Admin](/guides/admin)), the devtools UI shows an **Observability** tab.
+
+<Frame>
+  <img src="/images/dashboard.png" alt="The enpilink observability Dashboard" />
+</Frame>
+
+It reads the same storage the middleware writes to and shows:
+
+- **Headline stats** — total calls, throughput (calls/min), success rate, error
+  rate, and overall latency percentiles (`p50`, `avg`, `p95`, `p99`).
+- **Calls over time** — a volume series bucketed by a configurable window
+  (default 60s), with errors overlaid.
+- **Success vs. error** and **calls by method** breakdowns.
+- **Top tools** by call count and **slowest tools** by p95 latency.
+- **Latency histogram** across fixed buckets (sub-ms lookups → multi-second
+  calls).
+- **Per-tool table** with count, error rate, and `p50`/`p95`/`p99` per tool.
+- **Live logs** — a streaming feed of captured server logs (see below).
+
+All rollups (percentiles, buckets, top/slowest tools) are computed by enpilink,
+not the storage adapter, so every adapter behaves identically.
+
+If you open the Dashboard with analytics off, it renders a friendly hint telling
+you to set `ENPILINK_ANALYTICS=1` or run `enpilink dev --mock`.
+
+## Live log stream
+
+The Dashboard's live-log panel is fed by a Server-Sent Events (SSE) endpoint at
+`/__enpilink/observability/stream`. It polls storage on a short interval and
+pushes only new events and logs since the last cursor, plus a `status` frame
+telling the client whether analytics is live. The connection cleans itself up
+when the client disconnects.
+
+Captured server logs (anything routed through enpilink's log sink, including
+default `/mcp` request errors) are mirrored to storage and appear here in real
+time. You can toggle the live-log feed off with the `flags.liveLogs` runtime
+config key — see [Configuration](/guides/configuration).
+
+<Note>
+In production the stream is bearer-gated like the rest of the data API. Because
+browsers' `EventSource` cannot set an `Authorization` header, the stream
+endpoint also accepts the token via a `?token=` query param, which is stripped
+from the request URL before it reaches any handler or log line. See
+[Admin](/guides/admin#browser-login-and-sse-auth).
+</Note>
+
+## Demo data with `enpilink dev --mock`
+
+To make the Dashboard look full for a demo or a screenshot without generating
+real traffic, run:
+
+```bash
+enpilink dev --mock
+```
+
+`--mock` is **dev-only** and **opt-in**. For that session it:
+
+- forces analytics on (`ENPILINK_ANALYTICS=1`) and an **in-memory** adapter
+  (`ENPILINK_STORAGE=memory`) — so it **never touches disk** and vanishes on
+  exit;
+- seeds a **deterministic** spread of demo `tool_call` events and log lines
+  (hundreds of calls across several demo tools, with realistic latency
+  distributions and a small error rate).
+
+The seed is fully deterministic — the same seed and base time produce
+byte-identical data every run, so screenshots are reproducible. Every seeded
+event is tagged `meta.demo = true`, and `--mock` is ignored entirely in
+production (it can never seed a real deployment).
+
+## Disabling
+
+Unset `ENPILINK_ANALYTICS` (and don't pass `--mock`). With both off, enpilink
+resolves no adapter, creates no database, registers no middleware, and makes no
+network calls.
+
+## Related
+
+- [Storage](/guides/storage) — where events and logs are persisted, and OTel export
+- [Configuration](/guides/configuration) — retention, sample rate, and the live-log flag
+- [Admin](/guides/admin) — running the Dashboard in production behind bearer auth

@@ -1,0 +1,136 @@
+---
+title: Storage
+description: "enpilink's pluggable storage adapters — memory, SQLite, and Postgres — plus registerStorageAdapter for custom backends and optional OpenTelemetry metrics export."
+---
+
+Analytics events, captured logs, and config (with its audit trail) are all
+persisted through a single pluggable interface: the **`StorageAdapter`**. Pick a
+built-in engine with one environment variable, or register your own.
+
+## Choosing an adapter
+
+```bash
+ENPILINK_STORAGE=memory      # dev default
+ENPILINK_STORAGE=sqlite      # production default
+ENPILINK_STORAGE=postgres    # external database
+```
+
+When `ENPILINK_STORAGE` is unset, enpilink defaults to **`memory` in
+development** and **`sqlite` in production** (`NODE_ENV=production`).
+
+| Adapter | Best for | Persistence | Extra setup |
+|---|---|---|---|
+| `memory` | dev, `--mock`, ephemeral | none (in-process, lost on exit) | none |
+| `sqlite` | production default | embedded file on disk | none (ships with enpilink) |
+| `postgres` | shared / external DB | your Postgres server | set a connection string |
+
+All adapters implement the same interface (events, logs, config, and the config
+audit trail) and return query results most-recent-first, so the Dashboard and
+Configuration tab behave identically regardless of engine.
+
+### memory
+
+Zero-dependency ring buffers (default cap 5000 events/logs). Nothing is written
+to disk and everything is lost on exit — ideal for local dev and the
+[`--mock` demo seed](/guides/observability#demo-data-with-enpilink-dev---mock).
+
+### sqlite
+
+The **production default**: an embedded SQLite database, no server to run. The
+file path comes from `ENPILINK_DB_PATH` (default `./enpilink.db`):
+
+```bash
+ENPILINK_STORAGE=sqlite ENPILINK_DB_PATH=/var/lib/enpilink/enpilink.db
+```
+
+SQLite ships with enpilink via prebuilt native binaries (macOS-arm64 and
+linux-x64), so there's no native build step.
+
+### postgres
+
+For a shared or external database, use the Postgres adapter:
+
+```bash
+ENPILINK_STORAGE=postgres
+ENPILINK_DB_URL=postgres://user:pass@host:5432/enpilink
+```
+
+The connection string is resolved from `ENPILINK_DB_URL`, then `DATABASE_URL`,
+and finally the standard `PG*` environment variables (`PGHOST`, `PGUSER`,
+`PGPASSWORD`, `PGDATABASE`, …) if neither URL is set. The adapter creates its
+tables (`events`, `logs`, `config`, `config_audit`) on first use.
+
+The Postgres driver (`pg`) is **pure JavaScript** and ships with enpilink — no
+extra install steps and no native build.
+
+<Note>
+The Postgres adapter's config read-then-write is not wrapped in a transaction,
+so concurrent writers to the *same* config key are not strictly atomic. This is
+fine for single-operator admin config edits. A high-concurrency deployment that
+writes config from multiple processes would want a row lock or a single
+`INSERT ... RETURNING`.
+</Note>
+
+### Firebird (documented adapter slot)
+
+Firebird is a **documented adapter slot**, not a built-in — there is no
+`firebird` engine shipped today. To use it, implement the `StorageAdapter`
+interface and register it (see below).
+
+## Custom adapters
+
+Register a named factory before the server resolves its adapter, then select it
+by name:
+
+```ts
+import { registerStorageAdapter } from "enpilink/server";
+
+registerStorageAdapter("my-store", (opts) => new MyStorageAdapter(opts));
+```
+
+```bash
+ENPILINK_STORAGE=my-store
+```
+
+Your adapter must implement the full `StorageAdapter` interface: `init`,
+`recordEvent`, `queryEvents`, `appendLog`, `queryLogs`, `getConfig`,
+`setConfig` (which must append a `config_audit` row), `allConfig`,
+`getConfigAudit`, and `close`. Treat config values as opaque, write an audit row
+on every `setConfig`, and return queries most-recent-first.
+
+## OpenTelemetry export
+
+Beyond storage, you can **mirror the analytics stream to an OpenTelemetry
+collector** as metrics. This is **off by default** — when disabled, no
+`@opentelemetry/*` package is imported, no exporter is constructed, and there is
+zero network activity.
+
+Enabling requires **both** of:
+
+```bash
+ENPILINK_OTEL=1
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-collector:4318
+```
+
+(`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` is preferred if set.) No endpoint is ever
+hardcoded — if the endpoint var is unset, OTel stays disabled even with
+`ENPILINK_OTEL=1`.
+
+When enabled, each `tool_call` is exported via OTLP/HTTP as three metrics:
+
+| Metric | Type | Attributes |
+|---|---|---|
+| `enpilink.tool_call.count` | counter | `tool`, `method`, `ok` |
+| `enpilink.tool_call.errors` | counter | `tool`, `method` |
+| `enpilink.tool_call.duration` | histogram (ms) | `tool`, `method`, `ok` |
+
+Attributes are deliberately low-cardinality. The exporter runs as an additional,
+guarded sink alongside storage — recording is fire-and-forget and never blocks
+or breaks a tool call, and `--mock` data is never exported. The OpenTelemetry
+packages are pure JavaScript and ship with enpilink.
+
+## Related
+
+- [Observability](/guides/observability) — what's recorded and shown
+- [Configuration](/guides/configuration) — `storage`/`dbPath` are bootstrap keys; retention caps
+- [Admin](/guides/admin) — prod admin uses the SQLite default
