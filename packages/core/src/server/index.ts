@@ -50,4 +50,22 @@ export {
   McpServer,
   normalizeContent,
 } from "./server.js";
+export {
+  DEFAULT_DB_PATH,
+  DEFAULT_MEMORY_CAP,
+  MemoryStorageAdapter,
+  registerStorageAdapter,
+  resolveStorageAdapter,
+  SqliteStorageAdapter,
+} from "./storage/index.js";
+export type {
+  AnalyticsEvent,
+  ConfigAuditEntry,
+  EventQuery,
+  LogEntry,
+  LogQuery,
+  StorageAdapter,
+  StorageAdapterFactory,
+  StorageAdapterOptions,
+} from "./storage/types.js";
 export { viewsDevServer } from "./viewsDevServer.js";

@@ -35,6 +35,9 @@
     "typescript": "^6.0.2"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ],
     "overrides": {
       "enpilink": "workspace:*",
       "@mintlify/prebuild>js-yaml": "^4.1.1",
