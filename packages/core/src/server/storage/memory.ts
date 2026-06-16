@@ -97,11 +97,16 @@ export class MemoryStorageAdapter implements StorageAdapter {
     return Object.fromEntries(this.config);
   }
 
+  async getConfigAudit(): Promise<ConfigAuditEntry[]> {
+    // Stored oldest-first; return most-recent-first to match the interface.
+    return this.audit.map((a) => ({ ...a })).reverse();
+  }
+
   async close(): Promise<void> {
     // Nothing to release.
   }
 
-  /** Audit trail of config writes (most recent last). Not part of the public interface. */
+  /** Audit trail of config writes (most recent last). Synchronous helper for tests. */
   getAuditLog(): ConfigAuditEntry[] {
     return this.audit.map((a) => ({ ...a }));
   }

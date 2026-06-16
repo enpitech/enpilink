@@ -86,6 +86,12 @@ export async function createApp({
     const { createObservabilityRouter } = await import("./observability.js");
     app.use(createObservabilityRouter());
 
+    // Config admin API (M4). Reads/writes the active analytics storage for
+    // runtime config; bootstrap + secret keys are env/file-only and rejected
+    // by the PUT route. Dev-only for now — prod admin mounting is M5.
+    const { createConfigRouter } = await import("./config/index.js");
+    app.use(createConfigRouter());
+
     const controlPort = parseControlPort(process.env.__TUNNEL_CONTROL_PORT);
     if (controlPort !== null) {
       const { createTunnelProxyRouter } = await import(

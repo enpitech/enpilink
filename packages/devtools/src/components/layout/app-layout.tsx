@@ -1,4 +1,4 @@
-import { BarChart3, PlugZap, Wrench } from "lucide-react";
+import { BarChart3, PlugZap, SlidersHorizontal, Wrench } from "lucide-react";
 import { Suspense } from "react";
 import {
   Group,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tabs.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { connectToServer } from "@/lib/mcp/index.js";
+import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
 import { Header } from "./header.js";
 import { ToolPanel } from "./tool-panel/index.js";
@@ -113,6 +114,10 @@ function AppLayout() {
               <BarChart3 className="size-3.5" />
               Dashboard
             </TabsTrigger>
+            <TabsTrigger value="configuration" data-testid="tab-configuration">
+              <SlidersHorizontal className="size-3.5" />
+              Configuration
+            </TabsTrigger>
             <TabsTrigger value="playground" data-testid="tab-playground">
               <Wrench className="size-3.5" />
               Playground
@@ -121,6 +126,9 @@ function AppLayout() {
         </div>
         <TabsContent value="dashboard" className="min-h-0 overflow-hidden">
           <Dashboard />
+        </TabsContent>
+        <TabsContent value="configuration" className="min-h-0 overflow-hidden">
+          <Configuration />
         </TabsContent>
         <TabsContent value="playground" className="min-h-0 overflow-hidden">
           <Playground />

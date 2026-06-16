@@ -186,6 +186,10 @@ export class SqliteStorageAdapter implements StorageAdapter {
     return out;
   }
 
+  async getConfigAudit(): Promise<ConfigAuditEntry[]> {
+    return this.getAuditLog();
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       this.db.close();
@@ -194,7 +198,7 @@ export class SqliteStorageAdapter implements StorageAdapter {
     }
   }
 
-  /** Audit trail of config writes (most recent first). Not part of the public interface. */
+  /** Audit trail of config writes (most recent first). Synchronous helper. */
   getAuditLog(): ConfigAuditEntry[] {
     const { db } = this.require();
     const rows = db

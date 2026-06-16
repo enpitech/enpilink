@@ -91,6 +91,12 @@ export interface StorageAdapter {
   setConfig(key: string, value: unknown, actor?: string): Promise<void>;
   /** Read all config as a plain object. */
   allConfig(): Promise<Record<string, unknown>>;
+  /**
+   * Read the config-change audit trail, most recent first. Surfaces the
+   * `config_audit` rows that {@link setConfig} writes, for the admin UI's
+   * change history.
+   */
+  getConfigAudit(): Promise<ConfigAuditEntry[]>;
   /** Release resources / close connections. */
   close(): Promise<void>;
 }
