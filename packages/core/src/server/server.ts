@@ -32,8 +32,9 @@ import express, {
   type Express,
   type RequestHandler,
 } from "express";
+import { installAnalytics } from "./analytics.js";
 import { createApp } from "./express.js";
-import { createMiddlewareEntry } from "./metric.js";
+import { getActiveStorage, serverLog, setActiveStorage } from "./log-sink.js";
 import type {
   McpExtra,
   McpExtraFor,
@@ -46,6 +47,7 @@ import type {
   McpWildcard,
 } from "./middleware.js";
 import { buildMiddlewareChain, getHandlerMaps } from "./middleware.js";
+import type { StorageAdapter } from "./storage/types.js";
 import { templateHelper } from "./templateHelper.js";
 
 const mergeWithUnion = <T extends object, S extends object>(
@@ -471,6 +473,12 @@ export class McpServer<
   private customErrorMiddleware: ErrorMiddlewareConfig[] = [];
   private mcpMiddlewareEntries: McpMiddlewareEntry[] = [];
   private mcpMiddlewareApplied = false;
+  /**
+   * The active analytics {@link StorageAdapter}, or `null` when analytics is
+   * disabled (`ENPILINK_ANALYTICS` unset). Set during `run()`/`connect()` and
+   * closed on shutdown.
+   */
+  private activeStorage: StorageAdapter | null = null;
   private claimedViews = new Map<string, string>();
   private viewMetaBuilders = new Map<
     string,
@@ -495,6 +503,20 @@ export class McpServer<
       this.setViteManifest(pendingBuildManifest);
       pendingBuildManifest = null;
     }
+  }
+
+  /**
+   * The active analytics/observability {@link StorageAdapter} for this server,
+   * or `null` when analytics is disabled (`ENPILINK_ANALYTICS` unset) or before
+   * `run()`/`connect()` has been called.
+   *
+   * This is the in-process handoff for the observability API (M3): it is the
+   * SAME instance the analytics middleware writes `tool_call` events to and the
+   * log sink mirrors logs to. (A process-wide `getActiveStorage()` from
+   * `./log-sink.js` returns the same value for code without a server handle.)
+   */
+  get storage(): StorageAdapter | null {
+    return this.activeStorage;
   }
 
   /**
@@ -628,7 +650,7 @@ export class McpServer<
     return this;
   }
 
-  private applyMcpMiddleware(): void {
+  private async applyMcpMiddleware(): Promise<void> {
     if (this.mcpMiddlewareApplied) {
       return;
     }
@@ -657,9 +679,16 @@ export class McpServer<
       },
     };
 
-    const monitoringEntry = createMiddlewareEntry();
+    // Opt-in analytics (M2): only when `ENPILINK_ANALYTICS` is set does this
+    // resolve + init a StorageAdapter and produce a monitoring entry. When off
+    // it returns null — no adapter, no file, no middleware, zero overhead.
+    const analytics = await installAnalytics();
+    if (analytics) {
+      this.activeStorage = analytics.storage;
+    }
+
     const entries = [
-      ...(monitoringEntry ? [monitoringEntry] : []),
+      ...(analytics ? [analytics.entry] : []),
       viewListMetaEntry,
       ...this.mcpMiddlewareEntries,
     ];
@@ -698,6 +727,27 @@ export class McpServer<
   }
 
   /**
+   * Close the active analytics storage (if any) and clear the shared
+   * active-storage reference. Idempotent and error-swallowing — safe to call
+   * from a shutdown handler.
+   */
+  private async closeStorage(): Promise<void> {
+    const storage = this.activeStorage;
+    if (!storage) {
+      return;
+    }
+    this.activeStorage = null;
+    if (getActiveStorage() === storage) {
+      setActiveStorage(null);
+    }
+    try {
+      await storage.close();
+    } catch {
+      // Shutdown must not hang or throw on a storage close failure.
+    }
+  }
+
+  /**
    * Connect to an MCP transport (override of the SDK's `connect`). Use this
    * when you're embedding enpilink in a host that already manages its own
    * transport (e.g. stdio for desktop apps); for HTTP, prefer {@link McpServer.run}
@@ -708,7 +758,7 @@ export class McpServer<
   async connect(
     transport: Parameters<typeof McpServerBase.prototype.connect>[0],
   ): Promise<void> {
-    this.applyMcpMiddleware();
+    await this.applyMcpMiddleware();
     return McpServerBase.prototype.connect.call(this, transport);
   }
 
@@ -725,7 +775,7 @@ export class McpServer<
   async connectStatelessTransport(
     transport: Parameters<typeof McpServerBase.prototype.connect>[0],
   ): Promise<void> {
-    this.applyMcpMiddleware();
+    await this.applyMcpMiddleware();
 
     const { requestHandlers, notificationHandlers } = getHandlerMaps(
       this.server,
@@ -756,7 +806,7 @@ export class McpServer<
   async run(): Promise<
     { fetch: (...args: unknown[]) => unknown } | Express | undefined
   > {
-    this.applyMcpMiddleware();
+    await this.applyMcpMiddleware();
 
     if (process.env.VERCEL === "1") {
       // createApp only reads httpServer inside its dev-only branch
@@ -783,7 +833,9 @@ export class McpServer<
     const port = parseInt(process.env.__PORT ?? "3000", 10);
     await new Promise<void>((resolve, reject) => {
       httpServer.on("error", (error: Error) => {
-        console.error("Failed to start server:", error);
+        serverLog("error", "Failed to start server", {
+          error: error.message,
+        });
         reject(error);
       });
       httpServer.listen(port, () => {
@@ -808,6 +860,9 @@ export class McpServer<
       // (force-quit on a second Ctrl+C while drain is hanging).
       process.off("SIGTERM", shutdown);
       process.off("SIGINT", shutdown);
+      // Close the analytics storage (if any) so e.g. the sqlite file handle is
+      // released. Fire-and-forget + swallow: shutdown must not hang or throw.
+      void this.closeStorage();
       httpServer.close(() => process.exit(0));
       // Force exit if connections don't drain in time so the port is still
       // released promptly (e.g. for nodemon restarts).

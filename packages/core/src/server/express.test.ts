@@ -355,10 +355,11 @@ describe("createApp", () => {
       error: { code: -32603, message: "Internal server error" },
       id: null,
     });
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Error handling MCP request:",
-      expect.any(Error),
-    );
+    // The default error handler now routes through the serverLog sink, which
+    // still prints to console.error (message + structured data).
+    expect(consoleSpy).toHaveBeenCalledWith("Error handling MCP request", {
+      error: "boom",
+    });
     consoleSpy.mockRestore();
   });
 

@@ -1,4 +1,9 @@
 export {
+  analyticsEnabled,
+  type InstallAnalyticsOptions,
+  installAnalytics,
+} from "./analytics.js";
+export {
   type AuthInfo,
   type AuthMetadataOptions,
   type BearerAuthMiddlewareOptions,
@@ -23,6 +28,7 @@ export type {
   ToolOutput,
   ToolResponseMetadata,
 } from "./inferUtilityTypes.js";
+export { getActiveStorage, serverLog } from "./log-sink.js";
 export type {
   McpExtra,
   McpMethodString,

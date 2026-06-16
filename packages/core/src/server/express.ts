@@ -3,6 +3,7 @@ import path from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import cors from "cors";
 import express from "express";
+import { serverLog } from "./log-sink.js";
 import type { McpServer } from "./server.js";
 
 function parseControlPort(raw: string | undefined): number | null {
@@ -38,7 +39,9 @@ function defaultErrorHandler(
   res: express.Response,
   _next: express.NextFunction,
 ) {
-  console.error("Error handling MCP request:", err);
+  serverLog("error", "Error handling MCP request", {
+    error: err instanceof Error ? err.message : String(err),
+  });
   if (!res.headersSent) {
     res.status(500).json({
       jsonrpc: "2.0",
