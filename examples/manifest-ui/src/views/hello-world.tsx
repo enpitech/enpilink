@@ -2,7 +2,7 @@ import "@/index.css";
 
 import { Github } from "lucide-react";
 import { useOpenExternal } from "enpilink/web";
-import enpitechLogo from "../assets/enpitech-logo.png";
+import enpitechLogo from "../assets/enpitech-logo.svg";
 import { Hero } from "../components/ui/hero.js";
 import { useToolInfo } from "../helpers.js";
 

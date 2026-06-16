@@ -7,7 +7,7 @@
  *   raster mark, used as a "powered by Enpitech" attribution badge per the
  *   BRANDING RULE. enpilink itself is always shown as plain text.
  */
-import enpitechLogo from "@/assets/enpitech-logo.png";
+import enpitechLogo from "@/assets/enpitech-logo.svg";
 import { brand } from "@/views/theme/brand.js";
 
 export function Logo({ size = "md" }: { size?: "sm" | "md" }) {

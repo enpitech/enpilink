@@ -21,7 +21,7 @@ Claude, ChatGPT, VS Code, Goose, and any other MCP-Apps-compatible host.
 
 <sub>a fork of <a href="https://github.com/alpic-ai/skybridge"><code>alpic-ai/skybridge</code></a> · powered by</sub>
 
-<a href="https://enpitech.dev"><img src="docs/images/enpitech-logo.png" alt="Enpitech" width="200"></a>
+<a href="https://enpitech.dev"><img src="docs/images/enpitech-logo.svg" alt="Enpitech" width="150"></a>
 
 </div>
 

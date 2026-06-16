@@ -27,8 +27,9 @@ export default class Dev extends Command {
       default: false,
     }),
     open: Flags.boolean({
-      description: "Open DevTools in the browser when the server is ready",
-      default: process.env.ENPILINK_OPEN !== "false",
+      description:
+        "Open DevTools in the browser when the server is ready (off by default — pass --open or set ENPILINK_OPEN=true; avoids stacking browser tabs on restart)",
+      default: process.env.ENPILINK_OPEN === "true",
       allowNo: true,
     }),
     verbose: Flags.boolean({

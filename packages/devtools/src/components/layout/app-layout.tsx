@@ -104,26 +104,26 @@ function AppLayout() {
     <div className="grid h-screen grid-rows-[auto_1fr] overflow-hidden bg-background text-foreground">
       <Header />
       <Tabs
-        defaultValue="playground"
+        defaultValue="dashboard"
         className="grid min-h-0 grid-rows-[auto_1fr] gap-0"
       >
         <div className="border-b border-border px-4 py-2">
           <TabsList variant="line">
-            <TabsTrigger value="playground" data-testid="tab-playground">
-              <Wrench className="size-3.5" />
-              Playground
-            </TabsTrigger>
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="size-3.5" />
               Dashboard
             </TabsTrigger>
+            <TabsTrigger value="playground" data-testid="tab-playground">
+              <Wrench className="size-3.5" />
+              Playground
+            </TabsTrigger>
           </TabsList>
         </div>
-        <TabsContent value="playground" className="min-h-0 overflow-hidden">
-          <Playground />
-        </TabsContent>
         <TabsContent value="dashboard" className="min-h-0 overflow-hidden">
           <Dashboard />
+        </TabsContent>
+        <TabsContent value="playground" className="min-h-0 overflow-hidden">
+          <Playground />
         </TabsContent>
       </Tabs>
     </div>

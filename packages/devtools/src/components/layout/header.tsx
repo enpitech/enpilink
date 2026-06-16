@@ -59,7 +59,7 @@ function BrandLockup() {
         <span className="text-[10px] font-medium uppercase tracking-wide text-quaternary-foreground">
           powered by
         </span>
-        <img src="/enpitech-logo.png" alt="enpitech" className="h-4 w-auto" />
+        <img src="/enpitech-logo.svg" alt="enpitech" className="h-4 w-auto" />
       </a>
     </div>
   );
