@@ -1,10 +1,14 @@
 /* ───────────────────────────────────────────────────────────────────────────
- * enpilink devtools design tokens (vendored, enpitech-branded).
+ * enpilink console design tokens (vendored, enpitech-branded).
  *
- * Forked from the @alpic-ai/ui token set and recolored to the enpitech brand:
- *   primary gradient #4A00E0 → #8E2DE2, accent/border #8F2EE3, soft #BB81EE,
- *   dark surfaces #090715 / #130C38 / #1E1645, Ubuntu type.
- * This file replaces the former `@import "@alpic-ai/ui/theme"`.
+ * Forked from the @alpic-ai/ui token set and recolored to the enpitech brand.
+ * The brand/primary/accent is the dashboard TEAL family (light primary #3fb6a8,
+ * active/hover #2f9e91, soft #7fd0c6, faint #b3e4dd; dark #5fc7ba / #6fd0c4).
+ * These are the GLOBAL tokens — every shadcn primitive that reads
+ * --color-primary / --color-ring / --color-accent renders teal. Error /
+ * destructive stays the #d92d20/#FF746C family; only brand goes teal. Dark
+ * chrome surfaces stay the neutral indigo (#090715/#130c38/#1e1645) — they are
+ * page chrome, not the accent. Ubuntu type.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 @theme {
@@ -12,14 +16,14 @@
   --font-display: "Ubuntu", system-ui, sans-serif;
   --font-body: "Ubuntu", system-ui, sans-serif;
 
-  /* enpitech brand gradient (used on primary CTAs / active states) */
-  --enpilink-gradient: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
+  /* enpitech brand gradient (used on primary CTAs / active states) — teal */
+  --enpilink-gradient: linear-gradient(135deg, #3fb6a8 0%, #2f9e91 100%);
 
   --color-background: #ffffff;
   --color-foreground: #1e1645;
-  --color-border: #e7defa; /* soft purple-tinted border */
+  --color-border: #d9ece9; /* soft teal-tinted border */
 
-  --color-accent: #f5f1fd;
+  --color-accent: #ecf8f6; /* faint teal hover surface */
   --color-accent-foreground: #1e1645;
 
   --color-muted: #f8f8fc;
@@ -30,45 +34,45 @@
   --color-canvas: #f7f8fb;
   --color-canvas-border: #eef1f6;
 
-  --color-shadow: #4a00e01a;
+  --color-shadow: #3fb6a81a;
 
   --color-inverted: #130c38;
   --color-inverted-foreground: #ffffff;
 
-  --color-primary-hover: #4a00e0;
+  --color-primary-hover: #2f9e91; /* teal active/hover */
   --color-primary-hover-foreground: #ffffff;
 
-  --color-background-hover: #f3eefe;
+  --color-background-hover: #ecf8f6; /* faint teal */
   --color-muted-foreground-hover: #2a1f57;
-  --color-link: #7a1fd1;
+  --color-link: #2f9e91; /* teal link */
   --color-link-muted: #6b6398;
 
-  --color-primary: #8e2de2; /* brand purple */
+  --color-primary: #3fb6a8; /* brand teal */
   --color-primary-foreground: #ffffff;
 
-  --color-tertiary: #8e2de2;
+  --color-tertiary: #2f9e91;
 
   --color-destructive: #d92d20;
   --color-destructive-hover: #b42318;
   --color-destructive-foreground: #ffffff;
 
-  --color-ring: #8f2ee3; /* accent purple focus ring */
+  --color-ring: #3fb6a8; /* teal focus ring */
 
   /* cta — decorative gradient accent used with --color-primary in the CTA ring */
-  --color-cta-accent: #bb81ee; /* soft purple */
+  --color-cta-accent: #7fd0c6; /* soft teal */
 
   /* sidebar */
-  --color-sidebar: #faf8ff;
+  --color-sidebar: #f6fbfa;
   --color-sidebar-foreground: #4b4170;
   --color-sidebar-primary: #1e1645;
   --color-sidebar-primary-foreground: #ffffff;
-  --color-sidebar-accent: #f3eefe;
+  --color-sidebar-accent: #ecf8f6;
   --color-sidebar-accent-foreground: #1e1645;
-  --color-sidebar-border: #e7defa;
-  --color-sidebar-ring: #8f2ee3;
+  --color-sidebar-border: #d9ece9;
+  --color-sidebar-ring: #3fb6a8;
 
   /* card */
-  --color-card: #faf8ff;
+  --color-card: #f6fbfa;
   --color-card-foreground: #1e1645;
 
   /* popover */
@@ -83,16 +87,16 @@
   --color-code-error: #d92d20;
 
   /* surfaces */
-  --color-subtle: #ece4fb;
+  --color-subtle: #def0ed;
   --color-subtle-foreground: #6b6398;
 
   /* input */
   --color-placeholder: #8b82b3;
   --color-border-error: #fda29b;
-  --color-disabled: #f3eefe;
+  --color-disabled: #ecf8f6;
   --color-disabled-foreground: #8b82b3;
-  --color-border-secondary: #ddd2f6;
-  --color-required: #c79bf0;
+  --color-border-secondary: #cfe7e3;
+  --color-required: #7fd0c6;
 
   /* badge */
   --color-badge-success: #079455;
@@ -107,7 +111,7 @@
   --color-quaternary-foreground: #8b82b3;
 
   /* avatar */
-  --color-avatar-border: rgba(74, 0, 224, 0.08);
+  --color-avatar-border: rgba(63, 182, 168, 0.08);
   --color-avatar-online: #079455;
 
   /* radius */
@@ -144,7 +148,7 @@
   }
 }
 
-/* ─── CTA button — enpitech purple gradient ───────────────────────────────── */
+/* ─── CTA button — enpitech teal gradient ─────────────────────────────────── */
 
 .button-cta {
   position: relative;
@@ -152,8 +156,8 @@
   background-image: var(--enpilink-gradient);
   color: #ffffff;
   box-shadow:
-    0 6px 24px -10px color-mix(in oklab, #4a00e0 45%, transparent),
-    0 2px 6px -4px color-mix(in oklab, #8e2de2 35%, transparent);
+    0 6px 24px -10px color-mix(in oklab, #3fb6a8 45%, transparent),
+    0 2px 6px -4px color-mix(in oklab, #2f9e91 35%, transparent);
   transition:
     box-shadow 400ms ease,
     transform 300ms ease,
@@ -164,8 +168,8 @@
   .button-cta:hover {
     filter: brightness(1.05) saturate(1.05);
     box-shadow:
-      0 10px 30px -8px color-mix(in oklab, #4a00e0 58%, transparent),
-      0 3px 10px -3px color-mix(in oklab, #8e2de2 45%, transparent);
+      0 10px 30px -8px color-mix(in oklab, #3fb6a8 58%, transparent),
+      0 3px 10px -3px color-mix(in oklab, #2f9e91 45%, transparent);
   }
 }
 
@@ -207,26 +211,26 @@
   --color-inverted: #1e1645;
   --color-inverted-foreground: #ffffff;
 
-  --color-primary-hover: #8e2de2;
-  --color-primary-hover-foreground: #ffffff;
+  --color-primary-hover: #6fd0c4;
+  --color-primary-hover-foreground: #0b3b35;
 
   --color-background-hover: #1e1645;
   --color-muted-foreground-hover: #d6cdf2;
-  --color-link: #bb81ee;
+  --color-link: #5fc7ba;
   --color-link-muted: #8b82b3;
 
-  --color-primary: #8e2de2;
-  --color-primary-foreground: #ffffff;
+  --color-primary: #5fc7ba;
+  --color-primary-foreground: #0b3b35;
 
-  --color-tertiary: #bb81ee;
+  --color-tertiary: #8fd9cf;
 
   --color-destructive: #d92d20;
   --color-destructive-foreground: #ffffff;
   --color-destructive-hover: #f04438;
 
-  --color-ring: #8f2ee3;
+  --color-ring: #5fc7ba;
 
-  --color-cta-accent: #bb81ee;
+  --color-cta-accent: #8fd9cf;
 
   /* sidebar */
   --color-sidebar: #130c38;
@@ -236,7 +240,7 @@
   --color-sidebar-accent: #1e1645;
   --color-sidebar-accent-foreground: #ffffff;
   --color-sidebar-border: #2a2156;
-  --color-sidebar-ring: #8f2ee3;
+  --color-sidebar-ring: #5fc7ba;
 
   /* card */
   --color-card: #130c38;
@@ -256,7 +260,7 @@
   --color-disabled: #1e1645;
   --color-disabled-foreground: #6b6398;
   --color-border-secondary: #2a2156;
-  --color-required: #bb81ee;
+  --color-required: #8fd9cf;
 
   /* badge */
   --color-badge-success: #17b26a;
@@ -285,7 +289,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --gradient-sidebar: linear-gradient(0deg, #f3eefe80 0%, #ffffff 70%);
+  --gradient-sidebar: linear-gradient(0deg, #ecf8f680 0%, #ffffff 70%);
 }
 
 .dark {
