@@ -1,12 +1,14 @@
 ---
 title: Configuration
-description: "enpilink's typed config layer — env > file > DB precedence, bootstrap vs runtime keys, the Configuration admin tab, env-only masked secrets, and the config audit log."
+description: "enpilink's typed config layer — env > file > DB precedence, editability tiers (runtime / restart / read-only), the Configuration admin tab, reset-to-default, Dev/Prod presets, env-only masked secrets, and the config audit log."
 ---
 
 enpilink has a single, typed configuration layer for the admin / control plane.
-It resolves every setting through a clear precedence chain, splits settings into
-**bootstrap** (env/file only) and **runtime** (editable in the admin UI), keeps
-**secrets out of the database**, and **audit-logs** every change.
+It resolves every setting through a clear precedence chain, classifies each
+setting by how it can be edited (**runtime**, **restart**, or **read-only**),
+keeps **secrets out of the database**, and **audit-logs** every change. The
+Configuration tab groups settings into friendly functional sections and offers
+**reset-to-default** and one-click **Dev/Prod presets**.
 
 ## Precedence: env > file > DB > default
 
@@ -28,49 +30,99 @@ DB or a file value is bad, it falls back per-key rather than crashing a read. A
 config read never throws.
 </Note>
 
-## Bootstrap vs. runtime keys
+## Editability tiers
 
-**Bootstrap** keys configure how the process *starts* — they are **env/file
-only** and never editable from the DB or UI:
+Every key is classified by how it can be edited, surfaced as `editable` on each
+resolved setting:
 
-| Key | Env var | Notes |
-|---|---|---|
-| `storage` | `ENPILINK_STORAGE` | Storage engine (`memory`/`sqlite`/`postgres`/custom) |
-| `dbPath` | `ENPILINK_DB_PATH` | SQLite database path |
-| `port` | `PORT` | HTTP port |
-| `admin` | `ENPILINK_ADMIN` | Enable the prod admin plane |
-| `adminAuthToken` | `ENPILINK_ADMIN_TOKEN` | **Secret** — admin bearer token |
+- **`runtime`** — editable live in the Configuration tab; takes effect
+  immediately. These live in the DB (`analytics.*`, `retention.*`, `flags.*`,
+  `display.*`).
+- **`restart`** — DB-editable, but the change only takes effect after a process
+  **restart**. These are the non-secret bootstrap keys `port`, `storage`, and
+  `dbPath`. The running process keeps using the value it booted with; the UI
+  shows a **"requires restart"** badge and, once you change one, a
+  "takes effect after restart" note.
+- **`readonly`** — environment-only, never web-editable. These are the `admin`
+  gate and the `adminAuthToken` secret.
 
-**Runtime** keys live in the DB and are editable from the Configuration tab.
-They still honour the env > file > DB precedence, so each can be env-pinned:
+All tiers still honour env > file > DB precedence, so pinning a `runtime` or
+`restart` key via env/file makes it **env-locked** (read-only in the UI).
 
-| Key | Env var | Default | Meaning |
-|---|---|---|---|
-| `analytics.enabled` | `ENPILINK_ANALYTICS` | `false` | Capture analytics events |
-| `analytics.sampleRate` | `ENPILINK_CFG_ANALYTICS_SAMPLE_RATE` | `1` | Fraction of requests sampled `[0,1]` |
-| `retention.events` | `ENPILINK_CFG_RETENTION_EVENTS` | `5000` | Max events retained |
-| `retention.logs` | `ENPILINK_CFG_RETENTION_LOGS` | `5000` | Max logs retained |
-| `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | Expose the live-log stream |
-| `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | Dashboard time-bucket width (ms) |
+| Key | Env var | Default | Tier | Group | Meaning |
+|---|---|---|---|---|---|
+| `analytics.enabled` | `ENPILINK_ANALYTICS` | `false` | runtime | Analytics | Capture analytics events |
+| `analytics.sampleRate` | `ENPILINK_CFG_ANALYTICS_SAMPLE_RATE` | `1` | runtime | Analytics | Fraction of requests sampled `[0,1]` |
+| `retention.events` | `ENPILINK_CFG_RETENTION_EVENTS` | `5000` | runtime | Retention | Max events retained |
+| `retention.logs` | `ENPILINK_CFG_RETENTION_LOGS` | `5000` | runtime | Retention | Max logs retained |
+| `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | runtime | Features | Expose the live-log stream |
+| `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | runtime | Display | Dashboard time-bucket width (ms) |
+| `port` | `PORT` | `3000` | restart | Server | HTTP port (restart to apply) |
+| `storage` | `ENPILINK_STORAGE` | `memory` | restart | Storage | Storage engine (`memory`/`sqlite`/`postgres`/custom) |
+| `dbPath` | `ENPILINK_DB_PATH` | `./enpilink.db` | restart | Storage | SQLite database path |
+| `admin` | `ENPILINK_ADMIN` | `false` | readonly | Security | Enable the prod admin plane |
+| `adminAuthToken` | `ENPILINK_ADMIN_TOKEN` | — | readonly | Security | **Secret** — admin bearer token |
 
 Runtime keys use the `ENPILINK_CFG_*` convention so pinning one via env never
 collides with the bootstrap vars.
 
+## Per-key metadata
+
+Each resolved setting carries presentation metadata so the UI can render it
+clearly: a human **`label`**, a plain-language **`description`**, a functional
+**`group`**, an optional **`unit`** (e.g. `ms`, `events`, `0–1 ratio`), the
+schema **`default`**, the **`editable`** tier, plus runtime flags: **`source`**
+(`env`/`file`/`db`/`default`), **`secret`**, **`envLocked`**, **`modified`**
+(the effective value is a DB override differing from the default), and
+**`restartRequired`** (a `restart` key whose persisted value differs from the
+value the process booted with — a pending change awaiting a restart).
+
 ## The Configuration admin tab
 
-The admin UI's **Configuration** tab lets an operator edit the runtime settings:
+The admin UI's **Configuration** tab groups settings into friendly sections
+(Analytics, Retention, Features, Display, Storage, Server, Security) rather than
+a raw bootstrap/runtime split. Each row shows the human label, the raw key, the
+description + unit hint, a source badge, and a **"modified"** badge when changed.
 
-- **Runtime settings** — booleans render as switches, numbers/strings as inputs
-  (saved on blur/Enter). Each change is written to the DB and takes effect
+- **Runtime keys** — booleans render as switches, numbers/strings as inputs
+  (saved on blur/Enter); each change is written to the DB and takes effect
   immediately.
-- **Read-only / env-locked** — any key set via env or file (and all bootstrap
-  keys) shows its value with a **source badge** (`env` / `file` / `db` /
-  `default`) and a "set via `<ENV_VAR>`" hint. It can't be edited in the UI.
+- **Restart keys** — editable inputs with a **"requires restart"** badge; once
+  changed they show a "takes effect after a restart" note.
+- **Read-only keys** — secrets and `admin`, plus any env/file-pinned key, render
+  read-only with a source badge and a "set via `<ENV_VAR>`" hint.
+- **Reset** — each modified key has a reset affordance, and a **"Reset all to
+  defaults"** action clears every DB override (with a confirm).
+- **Presets** — one-click **Dev** / **Prod** buttons (see below).
 - **Change history** — the config audit trail (see below).
 
 Writes are validated against the schema and rejected with a clear status:
-unknown key → 404, secret → 403, bootstrap key → 403, env-locked → 409, invalid
-value → 400.
+unknown key → 404, secret / `admin` → 403, env-locked → 409, invalid value →
+400, no storage → 409.
+
+## Reset to default
+
+`DELETE /__enpilink/config/:key` clears a key's DB override and audit-logs the
+reset. After clearing, resolution falls back to file/env/default. The same
+guardrails as a write apply (only `runtime` and non-env-locked `restart` keys;
+secrets, `admin`, unknown, and env-locked keys are rejected). The storage layer
+backs this with `clearConfig(key, actor?)`.
+
+## Presets
+
+Two built-in presets bundle runtime-key changes into one action. Presets **only
+touch runtime keys** — never secrets, never `admin`, never restart-tier
+bootstrap keys — and **skip any key that is env/file-pinned**, reporting which
+were applied vs skipped.
+
+| Preset | What it sets |
+|---|---|
+| **Dev** | analytics on, full sampling (`1`), retention `5000`/`5000`, live logs **on**, 1-minute chart buckets — maximum visibility for local development. |
+| **Prod** | analytics on but sampled to **`0.25`**, retention `20000`/`20000`, live logs **off**, 5-minute chart buckets — lower overhead and more history for busy servers. |
+
+- `GET /__enpilink/config/presets` — list presets and the values each would set.
+- `POST /__enpilink/config/preset/:name` — apply a preset (`dev` / `prod`);
+  returns a summary of `applied` vs `skipped` keys.
 
 ## Secrets are env-only and masked
 

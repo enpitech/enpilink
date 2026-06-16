@@ -7,10 +7,14 @@ import {
   coerceBool,
   coerceNumber,
   configSchema,
+  defaultForKey,
+  type Editable,
   ENV_VARS,
+  isRestartKey,
   isRuntimeKey,
   isSecretKey,
   keyMeta,
+  RESTART_KEYS,
   RUNTIME_KEYS,
   schemaForKey,
 } from "./schema.js";
@@ -44,12 +48,37 @@ export interface ResolvedSetting {
   /** Whether this key is a secret (never returned in plaintext). */
   secret: boolean;
   /**
-   * Whether this key is read-only in the admin UI. True for all bootstrap keys,
-   * and for any runtime key pinned via env or file (the DB value is shadowed).
+   * Whether this key is pinned by env/file (the DB value is shadowed). The UI
+   * renders these read-only with a "set via ENV_VAR" hint. NOTE: a `restart`
+   * key that is NOT env/file-pinned is editable here even though
+   * `editable === "restart"`.
    */
   envLocked: boolean;
   /** The env var that drives / can pin this key. */
   env: string;
+  /** Human-friendly label. */
+  label: string;
+  /** Plain-language one-liner describing the setting. */
+  description: string;
+  /** Functional group for UI sectioning (e.g. "Analytics", "Server"). */
+  group: string;
+  /** Optional unit hint (e.g. "ms", "events", "0–1 ratio"). */
+  unit?: string;
+  /** The schema default value. */
+  default: unknown;
+  /** Editability classification: `runtime` | `restart` | `readonly`. */
+  editable: Editable;
+  /**
+   * True when the effective value comes from a DB override that differs from
+   * the schema default (i.e. the operator has changed it).
+   */
+  modified: boolean;
+  /**
+   * Restart-tier only: true when a persisted DB value differs from the value
+   * this process actually booted with — a pending change awaiting restart.
+   * Always `false` for non-restart keys.
+   */
+  restartRequired: boolean;
 }
 
 /** The full resolved config plus per-key reporting. */
@@ -102,6 +131,42 @@ function envValue(key: ConfigKey): string | undefined {
 /** Default-typed sample used to learn each key's expected runtime type. */
 const TYPE_SAMPLE = configSchema.parse({}) as Record<string, unknown>;
 
+/**
+ * The value each restart-tier key BOOTED with, computed once at module load
+ * from env > file > default (NEVER the DB — the running process never reads
+ * restart keys from the DB). A later persisted DB value that differs from this
+ * snapshot is a pending change awaiting restart (`restartRequired`).
+ *
+ * Memoized: captured lazily on first read so tests that set env/cwd before the
+ * first `resolveConfig` call observe the right boot values, and it stays stable
+ * for the lifetime of the process thereafter.
+ */
+let bootSnapshot: Record<string, unknown> | null = null;
+function getBootSnapshot(cwd: string): Record<string, unknown> {
+  if (bootSnapshot) {
+    return bootSnapshot;
+  }
+  const file = loadConfigFile(cwd);
+  const snap: Record<string, unknown> = {};
+  for (const key of RESTART_KEYS) {
+    const env = envValue(key);
+    if (env !== undefined) {
+      snap[key] = coerceForKey(key, env);
+    } else if (key in file.values) {
+      snap[key] = file.values[key];
+    } else {
+      snap[key] = defaultForKey(key);
+    }
+  }
+  bootSnapshot = snap;
+  return snap;
+}
+
+/** TEST-ONLY: reset the memoized boot snapshot so each test recomputes it. */
+export function resetBootSnapshotForTests(): void {
+  bootSnapshot = null;
+}
+
 /** Coerce a raw value (e.g. an env string) to the key's expected type. */
 function coerceForKey(key: ConfigKey, raw: unknown): unknown {
   const expected = typeof TYPE_SAMPLE[key];
@@ -128,12 +193,12 @@ export async function resolveConfig(
 ): Promise<ResolvedConfig> {
   const file = loadConfigFile(cwd);
 
-  // DB values for runtime keys only (secrets are never persisted/read).
+  // DB values for runtime + restart-tier keys (secrets are never persisted/read).
   let db: Record<string, unknown> = {};
   if (storage) {
     try {
       const all = await storage.allConfig();
-      for (const key of RUNTIME_KEYS) {
+      for (const key of [...RUNTIME_KEYS, ...RESTART_KEYS]) {
         if (key in all && !isSecretKey(key)) {
           db[key] = all[key];
         }
@@ -159,8 +224,12 @@ export async function resolveConfig(
       sources.set(key, "file");
       continue;
     }
-    // Secrets are never read from the DB.
-    if (isRuntimeKey(key) && !isSecretKey(key) && key in db) {
+    // Runtime + restart-tier keys may be sourced from the DB. Secrets never are.
+    if (
+      (isRuntimeKey(key) || isRestartKey(key)) &&
+      !isSecretKey(key) &&
+      key in db
+    ) {
       rawValues[key] = db[key];
       sources.set(key, "db");
       continue;
@@ -187,19 +256,31 @@ export async function resolveConfig(
     values = configSchema.parse(safe);
   }
 
+  const boot = getBootSnapshot(cwd);
+
   const settings: ResolvedSetting[] = keys.map((key) => {
     const meta = keyMeta(key);
     const source = sources.get(key) ?? "default";
     const secret = meta.secret;
-    // Env-locked: bootstrap keys are always read-only; runtime keys are locked
-    // when pinned by env or file (the DB write would be shadowed).
+    // Env-locked (read-only in the UI) when:
+    // - the key is `readonly` (admin gate + the secret), OR
+    // - the key is pinned via env or file (a DB write would be shadowed).
+    // A `restart` key NOT pinned by env/file is editable (just needs a restart).
     const envLocked =
-      meta.tier === "bootstrap" || source === "env" || source === "file";
+      meta.editable === "readonly" || source === "env" || source === "file";
     const value = secret
       ? values[key] !== undefined && values[key] !== ""
         ? MASKED
         : null
       : (values[key] as unknown);
+    // `modified` — the effective value is a DB override that differs from the
+    // schema default.
+    const modified =
+      !secret && source === "db" && !valuesEqual(values[key], meta.default);
+    // `restartRequired` — restart-tier key whose persisted DB value differs
+    // from the value this process booted with.
+    const restartRequired =
+      isRestartKey(key) && key in db && !valuesEqual(db[key], boot[key]);
     return {
       key,
       tier: meta.tier,
@@ -208,10 +289,30 @@ export async function resolveConfig(
       secret,
       envLocked,
       env: meta.env,
+      label: meta.label,
+      description: meta.description,
+      group: meta.group,
+      unit: meta.unit,
+      default: meta.default,
+      editable: meta.editable,
+      modified,
+      restartRequired,
     };
   });
 
   return { values, settings };
+}
+
+/** Structural value-equality for JSON-ish config values (primitives only here). */
+function valuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true;
+  }
+  // Treat numerically-equal values across number/string coercion as equal.
+  if (typeof a === "number" && typeof b === "number") {
+    return a === b;
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /**
@@ -226,6 +327,28 @@ export function validateRuntimeWrite(
   if (!isRuntimeKey(key)) {
     return { ok: false, error: `"${key}" is not a runtime key` };
   }
+  return validateAgainstSchema(key, rawValue);
+}
+
+/**
+ * Validate + coerce a single WRITABLE value (runtime OR restart tier) before
+ * persisting. Rejects secret keys and any key that is not writable from the
+ * admin UI (`readonly`/unknown). Used by the router's PUT + preset/reset paths.
+ */
+export function validateConfigWrite(
+  key: string,
+  rawValue: unknown,
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  if (!isRuntimeKey(key) && !isRestartKey(key)) {
+    return { ok: false, error: `"${key}" is not editable` };
+  }
+  return validateAgainstSchema(key, rawValue);
+}
+
+function validateAgainstSchema(
+  key: string,
+  rawValue: unknown,
+): { ok: true; value: unknown } | { ok: false; error: string } {
   if (isSecretKey(key)) {
     return { ok: false, error: `"${key}" is a secret and cannot be set here` };
   }

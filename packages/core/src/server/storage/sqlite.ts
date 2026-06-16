@@ -32,6 +32,7 @@ export class SqliteStorageAdapter implements StorageAdapter {
     insertLog: Statement;
     getConfig: Statement;
     upsertConfig: Statement;
+    deleteConfig: Statement;
     insertAudit: Statement;
     allConfig: Statement;
   } | null = null;
@@ -64,6 +65,7 @@ export class SqliteStorageAdapter implements StorageAdapter {
       upsertConfig: db.prepare(
         "INSERT INTO config (key, value) VALUES (@key, @value) ON CONFLICT(key) DO UPDATE SET value = @value",
       ),
+      deleteConfig: db.prepare("DELETE FROM config WHERE key = ?"),
       insertAudit: db.prepare(
         "INSERT INTO config_audit (ts, key, old_value, new_value, actor) VALUES (@ts, @key, @old_value, @new_value, @actor)",
       ),
@@ -170,6 +172,29 @@ export class SqliteStorageAdapter implements StorageAdapter {
         key,
         old_value: existing === undefined ? null : existing.value,
         new_value: serialized,
+        actor: actor ?? "system",
+      });
+    });
+    tx();
+  }
+
+  async clearConfig(key: string, actor?: string): Promise<void> {
+    const { db, stmts } = this.require();
+    const tx = db.transaction(() => {
+      const existing = stmts.getConfig.get(key) as
+        | { value: string }
+        | undefined;
+      if (existing === undefined) {
+        return;
+      }
+      stmts.deleteConfig.run(key);
+      // `new_value` is NOT NULL; a reset stores JSON `null` (which getAuditLog
+      // parses back to `null`) to represent "reset to default".
+      stmts.insertAudit.run({
+        ts: Date.now(),
+        key,
+        old_value: existing.value,
+        new_value: "null",
         actor: actor ?? "system",
       });
     });

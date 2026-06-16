@@ -219,6 +219,25 @@ export class PostgresStorageAdapter implements StorageAdapter {
     );
   }
 
+  async clearConfig(key: string, actor?: string): Promise<void> {
+    const pool = this.require();
+    const { rows } = await pool.query<{ value: string }>(
+      "SELECT value FROM config WHERE key = $1",
+      [key],
+    );
+    const existing = rows[0];
+    if (existing === undefined) {
+      return;
+    }
+    await pool.query("DELETE FROM config WHERE key = $1", [key]);
+    // `new_value` is NOT NULL; a reset stores JSON `null` to represent
+    // "reset to default" (getConfigAudit parses it back to `null`).
+    await pool.query(
+      "INSERT INTO config_audit (ts, key, old_value, new_value, actor) VALUES ($1, $2, $3, $4, $5)",
+      [Date.now(), key, existing.value, "null", actor ?? "system"],
+    );
+  }
+
   async allConfig(): Promise<Record<string, unknown>> {
     const pool = this.require();
     const { rows } = await pool.query<{ key: string; value: string }>(

@@ -93,6 +93,21 @@ export class MemoryStorageAdapter implements StorageAdapter {
     });
   }
 
+  async clearConfig(key: string, actor?: string): Promise<void> {
+    if (!this.config.has(key)) {
+      return;
+    }
+    const oldValue = this.config.get(key);
+    this.config.delete(key);
+    this.audit.push({
+      ts: Date.now(),
+      key,
+      oldValue,
+      newValue: undefined,
+      actor: actor ?? "system",
+    });
+  }
+
   async allConfig(): Promise<Record<string, unknown>> {
     return Object.fromEntries(this.config);
   }

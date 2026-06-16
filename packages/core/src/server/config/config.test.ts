@@ -5,23 +5,39 @@ import express from "express";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MemoryStorageAdapter } from "../storage/memory.js";
 import type { StorageAdapter } from "../storage/types.js";
-import { MASKED, resolveConfig, validateRuntimeWrite } from "./resolve.js";
+import {
+  MASKED,
+  resetBootSnapshotForTests,
+  resolveConfig,
+  validateConfigWrite,
+  validateRuntimeWrite,
+} from "./resolve.js";
 import { createConfigRouter } from "./router.js";
 
 /** A throwaway dir with no enpilink.config.* so file source never interferes. */
 let cwd: string;
 
+const RESTART_ENV = ["ENPILINK_STORAGE", "ENPILINK_DB_PATH", "PORT"];
+
 beforeEach(() => {
   cwd = fs.mkdtempSync(path.join(os.tmpdir(), "enpi-cfg-"));
+  resetBootSnapshotForTests();
 });
 afterEach(() => {
   fs.rmSync(cwd, { recursive: true, force: true });
   // Clean any env we set.
   for (const k of Object.keys(process.env)) {
-    if (k.startsWith("ENPILINK_CFG_") || k === "ENPILINK_ANALYTICS") {
+    if (
+      k.startsWith("ENPILINK_CFG_") ||
+      k === "ENPILINK_ANALYTICS" ||
+      k === "ENPILINK_ADMIN_TOKEN" ||
+      k === "ENPILINK_ADMIN" ||
+      RESTART_ENV.includes(k)
+    ) {
       delete process.env[k];
     }
   }
+  resetBootSnapshotForTests();
 });
 
 describe("resolveConfig precedence", () => {
@@ -99,12 +115,21 @@ describe("secret masking", () => {
     expect(s?.value).toBeNull();
   });
 
-  it("bootstrap keys are always env-locked", async () => {
+  it("readonly bootstrap key (admin) is always env-locked", async () => {
     const { settings } = await resolveConfig(null, cwd);
-    for (const key of ["storage", "dbPath", "port", "admin"]) {
+    const s = settings.find((x) => x.key === "admin");
+    expect(s?.tier).toBe("bootstrap");
+    expect(s?.editable).toBe("readonly");
+    expect(s?.envLocked).toBe(true);
+  });
+
+  it("restart-tier bootstrap keys are editable when not env/file-pinned", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    for (const key of ["storage", "dbPath", "port"]) {
       const s = settings.find((x) => x.key === key);
       expect(s?.tier).toBe("bootstrap");
-      expect(s?.envLocked).toBe(true);
+      expect(s?.editable).toBe("restart");
+      expect(s?.envLocked).toBe(false);
     }
   });
 });
@@ -197,11 +222,11 @@ describe("config router", () => {
     });
   });
 
-  it("PUT rejects a bootstrap key (403)", async () => {
+  it("PUT rejects a readonly bootstrap key like `admin` (403)", async () => {
     const storage = new MemoryStorageAdapter();
     const app = appWith(storage);
-    const { status } = await request(app, "PUT", "/__enpilink/config/port", {
-      value: 9999,
+    const { status } = await request(app, "PUT", "/__enpilink/config/admin", {
+      value: true,
     });
     expect(status).toBe(403);
   });
@@ -271,5 +296,261 @@ describe("config router", () => {
     );
     expect(status).toBe(200);
     expect((json as { audit: unknown[] }).audit).toEqual([]);
+  });
+});
+
+// --- Per-key metadata (richer ResolvedSetting) ---
+
+describe("resolved setting metadata", () => {
+  it("exposes label/description/group/unit/default/editable per key", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    const sample = settings.find((s) => s.key === "analytics.sampleRate");
+    expect(sample?.label).toBe("Sampling rate");
+    expect(typeof sample?.description).toBe("string");
+    expect(sample?.group).toBe("Analytics");
+    expect(sample?.unit).toBe("0–1 ratio");
+    expect(sample?.default).toBe(1);
+    expect(sample?.editable).toBe("runtime");
+  });
+
+  it("classifies restart vs readonly editability", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    const byKey = new Map(settings.map((s) => [s.key, s]));
+    expect(byKey.get("port")?.editable).toBe("restart");
+    expect(byKey.get("storage")?.editable).toBe("restart");
+    expect(byKey.get("dbPath")?.editable).toBe("restart");
+    expect(byKey.get("admin")?.editable).toBe("readonly");
+    expect(byKey.get("adminAuthToken")?.editable).toBe("readonly");
+  });
+
+  it("restart-tier keys NOT pinned by env/file are not env-locked", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    const port = settings.find((s) => s.key === "port");
+    expect(port?.envLocked).toBe(false);
+    const admin = settings.find((s) => s.key === "admin");
+    // readonly key stays env-locked (read-only) even without an env pin.
+    expect(admin?.envLocked).toBe(true);
+  });
+
+  it("modified=true only when a DB override differs from the default", async () => {
+    const storage = new MemoryStorageAdapter();
+    await storage.setConfig("retention.events", 9999);
+    const { settings } = await resolveConfig(storage, cwd);
+    const s = settings.find((x) => x.key === "retention.events");
+    expect(s?.modified).toBe(true);
+    // an untouched key is not modified
+    const other = settings.find((x) => x.key === "analytics.sampleRate");
+    expect(other?.modified).toBe(false);
+  });
+});
+
+// --- Restart-tier writes + restartRequired ---
+
+describe("restart-tier editability", () => {
+  it("validateConfigWrite accepts a restart key, rejects secret", () => {
+    expect(validateConfigWrite("port", 8080).ok).toBe(true);
+    expect(validateConfigWrite("storage", "sqlite").ok).toBe(true);
+    expect(validateConfigWrite("adminAuthToken", "x").ok).toBe(false);
+    expect(validateConfigWrite("admin", true).ok).toBe(false);
+  });
+
+  it("PUT a restart key persists + flags restartRequired", async () => {
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    const { status, json } = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/port",
+      {
+        value: 8080,
+      },
+    );
+    expect(status).toBe(200);
+    expect((json as { restartRequired: boolean }).restartRequired).toBe(true);
+    expect(await storage.getConfig("port")).toBe(8080);
+
+    // The boot snapshot is the default 3000; the persisted 8080 differs → pending.
+    const { settings } = await resolveConfig(storage, cwd);
+    const port = settings.find((s) => s.key === "port");
+    expect(port?.source).toBe("db");
+    expect(port?.value).toBe(8080);
+    expect(port?.restartRequired).toBe(true);
+  });
+
+  it("restartRequired is false when the DB value equals the booted value", async () => {
+    const storage = new MemoryStorageAdapter();
+    // booted with default 3000; persist the same value
+    await storage.setConfig("port", 3000);
+    const { settings } = await resolveConfig(storage, cwd);
+    const port = settings.find((s) => s.key === "port");
+    expect(port?.restartRequired).toBe(false);
+  });
+
+  it("PUT a restart key 409s when env-pinned (envLocked)", async () => {
+    process.env.PORT = "4000";
+    resetBootSnapshotForTests();
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    const { status } = await request(app, "PUT", "/__enpilink/config/port", {
+      value: 8080,
+    });
+    expect(status).toBe(409);
+  });
+});
+
+// --- Security guardrails ---
+
+describe("write guardrails (PUT + DELETE)", () => {
+  it("PUT rejects `admin` (403) — never web-editable", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    const { status } = await request(app, "PUT", "/__enpilink/config/admin", {
+      value: true,
+    });
+    expect(status).toBe(403);
+  });
+
+  it("PUT rejects `adminAuthToken` (403) — secret", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    const { status } = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/adminAuthToken",
+      { value: "leak" },
+    );
+    expect(status).toBe(403);
+  });
+
+  it("PUT rejects an unknown key (404)", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    const { status } = await request(app, "PUT", "/__enpilink/config/nope", {
+      value: 1,
+    });
+    expect(status).toBe(404);
+  });
+
+  it("PUT rejects an env-locked runtime key (409)", async () => {
+    process.env.ENPILINK_CFG_FLAGS_LIVE_LOGS = "false";
+    const app = appWith(new MemoryStorageAdapter());
+    const { status } = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/flags.liveLogs",
+      { value: true },
+    );
+    expect(status).toBe(409);
+  });
+
+  it("DELETE rejects `admin`/`adminAuthToken`/unknown the same way", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    expect(
+      (await request(app, "DELETE", "/__enpilink/config/admin")).status,
+    ).toBe(403);
+    expect(
+      (await request(app, "DELETE", "/__enpilink/config/adminAuthToken"))
+        .status,
+    ).toBe(403);
+    expect(
+      (await request(app, "DELETE", "/__enpilink/config/nope")).status,
+    ).toBe(404);
+  });
+});
+
+// --- Reset to default ---
+
+describe("reset to default (DELETE)", () => {
+  it("clears a DB override and falls back to default + audits", async () => {
+    const storage = new MemoryStorageAdapter();
+    await storage.setConfig("retention.events", 9999, "tester");
+    const app = appWith(storage);
+    const { status, json } = await request(
+      app,
+      "DELETE",
+      "/__enpilink/config/retention.events",
+    );
+    expect(status).toBe(200);
+    expect((json as { reset: boolean }).reset).toBe(true);
+    // Override gone → resolution falls back to the default.
+    const { settings } = await resolveConfig(storage, cwd);
+    const s = settings.find((x) => x.key === "retention.events");
+    expect(s?.source).toBe("default");
+    expect(s?.value).toBe(5000);
+    expect(s?.modified).toBe(false);
+    // Audit recorded the reset (most recent first; router actor = "dev").
+    const audit = await storage.getConfigAudit();
+    expect(audit[0]).toMatchObject({ key: "retention.events", actor: "dev" });
+  });
+
+  it("DELETE with no storage → 409", async () => {
+    const app = appWith(null);
+    const { status } = await request(
+      app,
+      "DELETE",
+      "/__enpilink/config/flags.liveLogs",
+    );
+    expect(status).toBe(409);
+  });
+});
+
+// --- Presets ---
+
+describe("presets", () => {
+  it("GET /config/presets lists Dev + Prod with values", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    const { status, json } = await request(
+      app,
+      "GET",
+      "/__enpilink/config/presets",
+    );
+    expect(status).toBe(200);
+    const presets = (json as { presets: Array<{ name: string }> }).presets;
+    expect(presets.map((p) => p.name).sort()).toEqual(["dev", "prod"]);
+  });
+
+  it("POST applies a preset to runtime keys + audits", async () => {
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    const { status, json } = await request(
+      app,
+      "POST",
+      "/__enpilink/config/preset/prod",
+    );
+    expect(status).toBe(200);
+    const body = json as {
+      applied: { key: string }[];
+      skipped: { key: string }[];
+    };
+    expect(body.applied.length).toBeGreaterThan(0);
+    expect(await storage.getConfig("analytics.sampleRate")).toBe(0.25);
+    expect(await storage.getConfig("flags.liveLogs")).toBe(false);
+  });
+
+  it("POST skips env-locked keys, reporting them", async () => {
+    process.env.ENPILINK_CFG_ANALYTICS_SAMPLE_RATE = "1";
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    const { json } = await request(
+      app,
+      "POST",
+      "/__enpilink/config/preset/prod",
+    );
+    const body = json as {
+      applied: { key: string }[];
+      skipped: { key: string; reason: string }[];
+    };
+    expect(body.skipped.some((s) => s.key === "analytics.sampleRate")).toBe(
+      true,
+    );
+    // env-pinned key was NOT persisted
+    expect(await storage.getConfig("analytics.sampleRate")).toBeUndefined();
+  });
+
+  it("POST unknown preset → 404", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    const { status } = await request(
+      app,
+      "POST",
+      "/__enpilink/config/preset/nope",
+    );
+    expect(status).toBe(404);
   });
 });

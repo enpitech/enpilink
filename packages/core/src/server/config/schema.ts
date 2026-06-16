@@ -100,7 +100,17 @@ export type ConfigKey = keyof Config;
 export type BootstrapKey = keyof BootstrapConfig;
 export type RuntimeKey = keyof RuntimeConfig;
 
-/** Per-key metadata describing tier / secret / env-lock semantics. */
+/**
+ * Editability classification, surfaced to the admin UI:
+ * - `runtime`  — editable live; takes effect immediately.
+ * - `restart`  — DB-editable but only takes effect after a process restart
+ *   (the non-secret bootstrap keys `port`/`storage`/`dbPath`).
+ * - `readonly` — env-only; never web-editable (the `admin` gate + the
+ *   `adminAuthToken` secret).
+ */
+export type Editable = "runtime" | "restart" | "readonly";
+
+/** Per-key metadata describing tier / secret / env-lock + UI presentation. */
 export interface KeyMeta {
   key: ConfigKey;
   /** `bootstrap` (env/file only) or `runtime` (DB-editable). */
@@ -109,7 +119,122 @@ export interface KeyMeta {
   secret: boolean;
   /** The env var that drives this key (for the "set via env" hint). */
   env: string;
+  /** Human-friendly label (primary heading in the UI). */
+  label: string;
+  /** One-line plain-language description of what the setting does. */
+  description: string;
+  /** Functional category used to group settings in the UI. */
+  group: string;
+  /** Optional unit hint (e.g. `"ms"`, `"events"`, `"0–1 ratio"`). */
+  unit?: string;
+  /** The schema default value for this key. */
+  default: unknown;
+  /** How this key may be edited from the admin UI. */
+  editable: Editable;
 }
+
+/**
+ * Per-key UI/editability descriptors. `label`/`description`/`group`/`unit` are
+ * user-facing — kept clear and non-jargon. `editable` drives the three-tier
+ * editability story (runtime live · restart-required · env-only read-only).
+ */
+interface KeyDescriptor {
+  label: string;
+  description: string;
+  group: string;
+  unit?: string;
+  editable: Editable;
+}
+
+const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
+  // --- Server (restart-tier bootstrap) ---
+  port: {
+    label: "Server port",
+    description:
+      "The network port the server listens on. Changing this needs a restart to take effect.",
+    group: "Server",
+    editable: "restart",
+  },
+  storage: {
+    label: "Storage engine",
+    description:
+      "Where analytics, logs, and settings are persisted: in-memory (resets on restart), sqlite (a local file), or postgres. Takes effect after a restart.",
+    group: "Storage",
+    editable: "restart",
+  },
+  dbPath: {
+    label: "SQLite database file",
+    description:
+      "Path to the SQLite database file (only used when the storage engine is sqlite). Takes effect after a restart.",
+    group: "Storage",
+    editable: "restart",
+  },
+  // --- Security (read-only, env-only) ---
+  admin: {
+    label: "Production admin plane",
+    description:
+      "Enables the admin dashboard in production. For safety this can only be turned on via environment variable, never from the web UI.",
+    group: "Security",
+    editable: "readonly",
+  },
+  adminAuthToken: {
+    label: "Admin auth token",
+    description:
+      "Secret bearer token guarding the production admin plane. Set via environment only; never stored or shown in plaintext.",
+    group: "Security",
+    editable: "readonly",
+  },
+  // --- Analytics (runtime) ---
+  "analytics.enabled": {
+    label: "Analytics enabled",
+    description:
+      "Record tool-call events and server logs so the dashboard can show usage and latency.",
+    group: "Analytics",
+    editable: "runtime",
+  },
+  "analytics.sampleRate": {
+    label: "Sampling rate",
+    description:
+      "Fraction of requests to record. 1 records everything; lower values reduce overhead and storage on busy servers.",
+    group: "Analytics",
+    unit: "0–1 ratio",
+    editable: "runtime",
+  },
+  // --- Retention (runtime) ---
+  "retention.events": {
+    label: "Event retention",
+    description:
+      "Maximum number of tool-call events kept. Oldest events are dropped once the cap is reached.",
+    group: "Retention",
+    unit: "events",
+    editable: "runtime",
+  },
+  "retention.logs": {
+    label: "Log retention",
+    description:
+      "Maximum number of captured log lines kept. Oldest logs are dropped once the cap is reached.",
+    group: "Retention",
+    unit: "logs",
+    editable: "runtime",
+  },
+  // --- Features (runtime) ---
+  "flags.liveLogs": {
+    label: "Live log stream",
+    description:
+      "Show the real-time server log stream in the dashboard's live-logs panel.",
+    group: "Features",
+    editable: "runtime",
+  },
+  // --- Display (runtime) ---
+  "display.bucketMs": {
+    label: "Chart time bucket",
+    description:
+      "Default width of each time bucket in the dashboard's volume/latency charts.",
+    group: "Display",
+    unit: "ms",
+    editable: "runtime",
+  },
+};
 
 /** Bootstrap keys (env/file only). */
 export const BOOTSTRAP_KEYS = [
@@ -136,6 +261,17 @@ export const SECRET_KEYS = [
 ] as const satisfies readonly ConfigKey[];
 
 /**
+ * Restart-tier keys: non-secret bootstrap keys that ARE DB-editable but only
+ * take effect after a process restart. Resolution still honours env>file>db so
+ * an env/file pin locks them (read-only).
+ */
+export const RESTART_KEYS = [
+  "port",
+  "storage",
+  "dbPath",
+] as const satisfies readonly BootstrapKey[];
+
+/**
  * Env var mapping per key. Bootstrap keys map to dedicated env vars that match
  * the framework's existing env surface; runtime keys use an
  * `ENPILINK_CFG_<KEY>` convention so an operator can pin (env-lock) any runtime
@@ -158,6 +294,7 @@ export const ENV_VARS: Record<ConfigKey, string> = {
 const SECRET_SET = new Set<string>(SECRET_KEYS);
 const RUNTIME_SET = new Set<string>(RUNTIME_KEYS);
 const BOOTSTRAP_SET = new Set<string>(BOOTSTRAP_KEYS);
+const RESTART_SET = new Set<string>(RESTART_KEYS);
 
 export function isSecretKey(key: string): boolean {
   return SECRET_SET.has(key);
@@ -171,14 +308,49 @@ export function isBootstrapKey(key: string): key is BootstrapKey {
 export function isKnownKey(key: string): key is ConfigKey {
   return RUNTIME_SET.has(key) || BOOTSTRAP_SET.has(key);
 }
+/** A restart-tier key: DB-editable but only effective after a restart. */
+export function isRestartKey(key: string): key is BootstrapKey {
+  return RESTART_SET.has(key);
+}
+
+/**
+ * The editability classification for a key:
+ * - secret/admin → `readonly` (env-only, never web-editable)
+ * - other bootstrap keys (port/storage/dbPath) → `restart`
+ * - runtime keys → `runtime`
+ */
+export function editableOf(key: ConfigKey): Editable {
+  if (isRestartKey(key)) {
+    return "restart";
+  }
+  if (isBootstrapKey(key)) {
+    return "readonly";
+  }
+  return "runtime";
+}
+
+/** Default-typed sample used to read each key's schema default. */
+const DEFAULTS = configSchema.parse({}) as Record<string, unknown>;
+
+/** The schema default value for a key (undefined for optional secrets). */
+export function defaultForKey(key: ConfigKey): unknown {
+  return DEFAULTS[key];
+}
 
 /** Metadata for every known key. */
 export function keyMeta(key: ConfigKey): KeyMeta {
+  const d = KEY_DESCRIPTORS[key];
   return {
     key,
     tier: isBootstrapKey(key) ? "bootstrap" : "runtime",
     secret: isSecretKey(key),
     env: ENV_VARS[key],
+    label: d.label,
+    description: d.description,
+    group: d.group,
+    unit: d.unit,
+    default: defaultForKey(key),
+    editable: d.editable,
   };
 }
 

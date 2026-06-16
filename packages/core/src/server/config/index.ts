@@ -1,10 +1,17 @@
 export {
+  getPreset,
+  PRESET_NAMES,
+  PRESETS,
+  type Preset,
+} from "./presets.js";
+export {
   type ConfigSource,
   loadConfigFile,
   MASKED,
   type ResolvedConfig,
   type ResolvedSetting,
   resolveConfig,
+  validateConfigWrite,
   validateRuntimeWrite,
 } from "./resolve.js";
 export { createConfigRouter } from "./router.js";
@@ -17,13 +24,18 @@ export {
   type Config,
   type ConfigKey,
   configSchema,
+  defaultForKey,
+  type Editable,
   ENV_VARS,
+  editableOf,
   isBootstrapKey,
   isKnownKey,
+  isRestartKey,
   isRuntimeKey,
   isSecretKey,
   type KeyMeta,
   keyMeta,
+  RESTART_KEYS,
   RUNTIME_KEYS,
   type RuntimeConfig,
   type RuntimeKey,

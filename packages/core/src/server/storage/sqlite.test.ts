@@ -116,6 +116,25 @@ describe("SqliteStorageAdapter", () => {
         actor: "system",
       });
     });
+
+    it("clearConfig removes the row and audits the reset", async () => {
+      await store.setConfig("k", "v1");
+      await store.clearConfig("k", "bob");
+      expect(await store.getConfig("k")).toBeUndefined();
+      expect(await store.allConfig()).toEqual({});
+      const audit = await store.getConfigAudit();
+      expect(audit[0]).toMatchObject({
+        key: "k",
+        oldValue: "v1",
+        newValue: null,
+        actor: "bob",
+      });
+    });
+
+    it("clearConfig is a no-op (no audit) when the key was never set", async () => {
+      await store.clearConfig("absent");
+      expect(await store.getConfigAudit()).toHaveLength(0);
+    });
   });
 
   describe("persistence", () => {

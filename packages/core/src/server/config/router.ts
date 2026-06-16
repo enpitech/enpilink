@@ -1,33 +1,48 @@
 import express, { type Router } from "express";
 import { getActiveStorage } from "../log-sink.js";
 import type { ConfigAuditEntry, StorageAdapter } from "../storage/types.js";
-import { resolveConfig, validateRuntimeWrite } from "./resolve.js";
+import { getPreset, PRESETS } from "./presets.js";
 import {
+  type ResolvedSetting,
+  resolveConfig,
+  validateConfigWrite,
+} from "./resolve.js";
+import {
+  type ConfigKey,
   isBootstrapKey,
   isKnownKey,
+  isRestartKey,
   isRuntimeKey,
   isSecretKey,
 } from "./schema.js";
 
 /**
- * Config admin API (M4). Pure core — reads the SAME active
- * {@link StorageAdapter} the analytics middleware writes to, via
- * {@link getActiveStorage}. Does NOT depend on `@enpilink/console`.
+ * Config admin API. Pure core — reads the SAME active {@link StorageAdapter}
+ * the analytics middleware writes to, via {@link getActiveStorage}. Does NOT
+ * depend on `@enpilink/console`.
  *
- * Mounted dev-only (under the `NODE_ENV !== "production"` block in
- * `express.ts`) at `/__enpilink/config`. Prod admin mounting (behind bearer
- * auth) is M5.
+ * Mounted dev-only (unauth, localhost) and in the prod admin plane (behind
+ * bearer auth) at `/__enpilink/config`.
  *
  * Routes:
- * - `GET  /__enpilink/config`        — all settings (value-or-masked + source +
- *   secret/envLocked flags).
- * - `PUT  /__enpilink/config/:key`   — set a RUNTIME, non-secret key. Rejects
- *   bootstrap / secret / env-locked / unknown keys with a clear 4xx.
- * - `GET  /__enpilink/config/audit`  — recent config-change history.
+ * - `GET    /__enpilink/config`               — all settings (rich metadata +
+ *   source + secret/envLocked/modified/restartRequired flags).
+ * - `PUT    /__enpilink/config/:key`          — set a RUNTIME or RESTART-tier
+ *   key. Rejects secret / `admin` / env-locked / unknown keys with a clear 4xx.
+ * - `DELETE /__enpilink/config/:key`          — reset a key to its default
+ *   (clears the DB override). Same guardrails as PUT.
+ * - `GET    /__enpilink/config/presets`       — list presets + the values each
+ *   would set.
+ * - `POST   /__enpilink/config/preset/:name`  — apply a preset (validate +
+ *   persist + audit each runtime key; skip env-locked).
+ * - `GET    /__enpilink/config/audit`         — recent config-change history.
  *
- * Disabled-safe: when there is no active storage, reads fall back to env/file/
- * defaults (runtime keys show their defaults) and NEVER 500. Writes require a
- * storage adapter (409 when none) — there is nowhere to persist otherwise.
+ * Disabled-safe: with no active storage, reads fall back to env/file/defaults
+ * and NEVER 500. Writes require a storage adapter (409 when none).
+ *
+ * SECURITY: `admin`, `adminAuthToken`, unknown keys, and env-locked keys can
+ * NEVER be written here. `adminAuthToken` is never persisted nor returned in
+ * plaintext.
  */
 export function createConfigRouter(
   getStorage: () => StorageAdapter | null = getActiveStorage,
@@ -41,10 +56,14 @@ export function createConfigRouter(
       const resolved = await resolveConfig(getStorage());
       res.json({ settings: resolved.settings });
     } catch {
-      // Last-resort: resolve with no storage so reads never fail.
       const resolved = await resolveConfig(null);
       res.json({ settings: resolved.settings });
     }
+  });
+
+  // GET /config/presets — list presets + the values each would set.
+  router.get(`${base}/presets`, (_req, res) => {
+    res.json({ presets: Object.values(PRESETS) });
   });
 
   // GET /config/audit — change history (most recent first). Never 500.
@@ -62,61 +81,82 @@ export function createConfigRouter(
     }
   });
 
-  // PUT /config/:key — set a runtime, non-secret key. Reject everything else.
-  router.put(`${base}/:key`, async (req, res) => {
-    const key = req.params.key;
-
-    if (!isKnownKey(key)) {
-      res.status(404).json({ error: `Unknown config key "${key}"` });
+  // POST /config/preset/:name — apply a runtime-only preset.
+  router.post(`${base}/preset/:name`, async (req, res) => {
+    const preset = getPreset(req.params.name);
+    if (!preset) {
+      res.status(404).json({ error: `Unknown preset "${req.params.name}"` });
       return;
     }
-    if (isSecretKey(key)) {
-      res.status(403).json({
-        error: `"${key}" is a secret and is set via environment only`,
-      });
-      return;
-    }
-    if (isBootstrapKey(key)) {
-      res.status(403).json({
-        error: `"${key}" is a bootstrap setting (env/file only) and is read-only here`,
-      });
-      return;
-    }
-    if (!isRuntimeKey(key)) {
-      res.status(403).json({ error: `"${key}" is not editable` });
-      return;
-    }
-
-    // Reject if this runtime key is currently pinned (env-locked) by env/file.
-    const resolved = await resolveConfig(getStorage());
-    const setting = resolved.settings.find((s) => s.key === key);
-    if (setting?.envLocked) {
+    const storage = getStorage();
+    if (!storage) {
       res.status(409).json({
-        error: `"${key}" is pinned via ${setting.source} and cannot be changed here`,
+        error: "No active storage; cannot apply preset",
       });
       return;
     }
+
+    const resolved = await resolveConfig(storage);
+    const byKey = new Map(resolved.settings.map((s) => [s.key, s]));
+    const actor = actorOf(req);
+
+    const applied: { key: string; value: unknown }[] = [];
+    const skipped: { key: string; reason: string }[] = [];
+
+    for (const [key, value] of Object.entries(preset.values)) {
+      // Presets only ever touch runtime keys; double-check the guardrail.
+      if (!isRuntimeKey(key)) {
+        skipped.push({ key, reason: "not a runtime key" });
+        continue;
+      }
+      const setting = byKey.get(key as ConfigKey);
+      if (setting?.envLocked) {
+        skipped.push({ key, reason: `pinned via ${setting.source}` });
+        continue;
+      }
+      const check = validateConfigWrite(key, value);
+      if (!check.ok) {
+        skipped.push({ key, reason: check.error });
+        continue;
+      }
+      try {
+        await storage.setConfig(key, check.value, actor);
+        applied.push({ key, value: check.value });
+      } catch (err) {
+        skipped.push({
+          key,
+          reason: err instanceof Error ? err.message : "write failed",
+        });
+      }
+    }
+
+    res.json({ ok: true, preset: preset.name, applied, skipped });
+  });
+
+  // PUT /config/:key — set a runtime or restart-tier key.
+  router.put(`${base}/:key`, async (req, res) => {
+    const guard = await writeGuard(req.params.key, getStorage);
+    if (!guard.ok) {
+      res.status(guard.status).json({ error: guard.error });
+      return;
+    }
+    const key = guard.key;
 
     const body = req.body as { value?: unknown } | undefined;
-    const rawValue = body?.value;
-    const check = validateRuntimeWrite(key, rawValue);
+    const check = validateConfigWrite(key, body?.value);
     if (!check.ok) {
       res.status(400).json({ error: check.error });
       return;
     }
 
-    const storage = getStorage();
-    if (!storage) {
-      res.status(409).json({
-        error: "No active storage; cannot persist runtime config",
-      });
-      return;
-    }
-
     try {
-      const actor = actorOf(req);
-      await storage.setConfig(key, check.value, actor);
-      res.json({ ok: true, key, value: check.value });
+      await guard.storage.setConfig(key, check.value, actorOf(req));
+      res.json({
+        ok: true,
+        key,
+        value: check.value,
+        restartRequired: isRestartKey(key),
+      });
     } catch (err) {
       res.status(500).json({
         error: err instanceof Error ? err.message : "Failed to write config",
@@ -124,7 +164,87 @@ export function createConfigRouter(
     }
   });
 
+  // DELETE /config/:key — reset to default (clear the DB override).
+  router.delete(`${base}/:key`, async (req, res) => {
+    const guard = await writeGuard(req.params.key, getStorage);
+    if (!guard.ok) {
+      res.status(guard.status).json({ error: guard.error });
+      return;
+    }
+    try {
+      await guard.storage.clearConfig(guard.key, actorOf(req));
+      res.json({
+        ok: true,
+        key: guard.key,
+        reset: true,
+        restartRequired: isRestartKey(guard.key),
+      });
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : "Failed to reset config",
+      });
+    }
+  });
+
   return router;
+}
+
+type WriteGuardResult =
+  | { ok: true; key: ConfigKey; storage: StorageAdapter }
+  | { ok: false; status: number; error: string };
+
+/**
+ * Shared guardrail for PUT + DELETE. Rejects unknown / secret / `admin` /
+ * env-locked keys and requires an active storage adapter. Only runtime and
+ * non-env-locked restart-tier keys pass.
+ */
+async function writeGuard(
+  key: string,
+  getStorage: () => StorageAdapter | null,
+): Promise<WriteGuardResult> {
+  if (!isKnownKey(key)) {
+    return { ok: false, status: 404, error: `Unknown config key "${key}"` };
+  }
+  if (isSecretKey(key)) {
+    return {
+      ok: false,
+      status: 403,
+      error: `"${key}" is a secret and is set via environment only`,
+    };
+  }
+  // Bootstrap keys are writable ONLY if they are restart-tier (port/storage/
+  // dbPath). `admin` (and any other bootstrap key) is env-only / read-only.
+  if (isBootstrapKey(key) && !isRestartKey(key)) {
+    return {
+      ok: false,
+      status: 403,
+      error: `"${key}" is environment-only and is read-only here`,
+    };
+  }
+  if (!isRuntimeKey(key) && !isRestartKey(key)) {
+    return { ok: false, status: 403, error: `"${key}" is not editable` };
+  }
+
+  // Reject if the key is currently pinned (env-locked) by env/file.
+  const resolved = await resolveConfig(getStorage());
+  const setting = resolved.settings.find((s: ResolvedSetting) => s.key === key);
+  if (setting?.envLocked) {
+    return {
+      ok: false,
+      status: 409,
+      error: `"${key}" is pinned via ${setting.source} and cannot be changed here`,
+    };
+  }
+
+  const storage = getStorage();
+  if (!storage) {
+    return {
+      ok: false,
+      status: 409,
+      error: "No active storage; cannot persist config",
+    };
+  }
+  return { ok: true, key: key as ConfigKey, storage };
 }
 
 /** Best-effort actor attribution for audit rows (no auth in dev → "dev"). */

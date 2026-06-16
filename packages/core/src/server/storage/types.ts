@@ -89,6 +89,12 @@ export interface StorageAdapter {
   getConfig(key: string): Promise<unknown>;
   /** Write a config value AND append a `config_audit` row (old → new). */
   setConfig(key: string, value: unknown, actor?: string): Promise<void>;
+  /**
+   * Remove a config override (reset to default) AND append a `config_audit`
+   * row (old → undefined). A no-op when the key was not set. After clearing,
+   * config resolution falls back to file/env/default for the key.
+   */
+  clearConfig(key: string, actor?: string): Promise<void>;
   /** Read all config as a plain object. */
   allConfig(): Promise<Record<string, unknown>>;
   /**
