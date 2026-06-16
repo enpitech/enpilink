@@ -10,17 +10,17 @@ Install dependencies and start the dev server in the background:
 
 For Deno projects, use `deno task dev` instead.
 
-When started, output the local MCP server and devtools URL.
+When started, output the local MCP server and Console URL.
 
 Hot reload enabled (nodemon for server, HMR for views).
 
-## 2. Test in DevTools via Chrome DevTools MCP (Optional)
+## 2. Test in Console via Chrome DevTools MCP (Optional)
 
-Use the devtools to render views locally. Use this method when iterating with the user on the rendered result of its app.
+Use the Console to render views locally. Use this method when iterating with the user on the rendered result of its app.
 
-The devtools page exposes WebMCP tools, powering faster interactions than with traditional click/fill/screenshot interactions. Requires the Chrome DevTools MCP server running with `--categoryExperimentalWebmcp=true`, which adds the `list_webmcp_tools` and `execute_webmcp_tool` tools.
+The Console page exposes WebMCP tools, powering faster interactions than with traditional click/fill/screenshot interactions. Requires the Chrome DevTools MCP server running with `--categoryExperimentalWebmcp=true`, which adds the `list_webmcp_tools` and `execute_webmcp_tool` tools.
 
-1. `navigate_page` to the devtools URL output by the dev server
+1. `navigate_page` to the Console URL output by the dev server
 2. `list_webmcp_tools` to discover the page's tools:
    - one tool per app tool — executes it on the local MCP server, returns its result, and renders its view in the preview pane
    - `devtools_set_view_options` — sets any subset of `displayMode` (`inline`|`pip`|`fullscreen`), `darkTheme` (boolean), `mobileDevice` (boolean), `locale` (BCP 47 code)
@@ -30,7 +30,7 @@ Interactions inside the rendered view itself are not WebMCP tools, use regular D
 
 ## 3. Connect to AI Assistants (Optional)
 
-Ask user if they want to test in ChatGPT/Claude or just use local devtools.
+Ask user if they want to test in ChatGPT/Claude or just use the local Console.
 
 If yes, expose the local server with the account-free srv.us tunnel — no login,
 no signup, it just needs `ssh` (present on macOS/Linux):

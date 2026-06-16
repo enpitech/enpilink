@@ -1,12 +1,12 @@
 ---
 title: Fast Iteration
-description: "Develop Apps locally with enpilink's DevTools and Vite HMR for instant feedback without tunneling."
+description: "Develop Apps locally with enpilink's Console and Vite HMR for instant feedback without tunneling."
 ---
 
 
 **Problem:** Testing views in remote MCP Clients (e.g. ChatGPT, Claude, etc.) is slow. It requires HTTP tunneling, manual refreshes, and provides limited debugging feedback.
 
-**Solution:** enpilink includes DevTools and a Vite HMR plugin that let you develop views entirely on your machine with instant feedback.
+**Solution:** enpilink includes the Console and a Vite HMR plugin that let you develop views entirely on your machine with instant feedback.
 
 ## The Challenge
 
@@ -30,32 +30,32 @@ With enpilink, the loop becomes:
 1. Make a code change
 2. See it instantly in your browser
 
-That's it. DevTools mocks the Apps SDK (ChatGPT) environment, and Vite's HMR updates your view without a full reload.
+That's it. The Console mocks the Apps SDK (ChatGPT) environment, and Vite's HMR updates your view without a full reload.
 
-## DevTools
+## Console
 
 When you run `pnpm dev`, enpilink starts:
 - Your MCP server at `http://localhost:3000/mcp`
-- DevTools UI at `http://localhost:3000/`
+- The Console UI at `http://localhost:3000/`
 
-The DevTools UI provides:
+The Console UI provides:
 - **Tool listing** - See all registered tools and views
 - **Input forms** - Test tools with custom inputs
 - **View preview** - Render views in a mocked Apps SDK (ChatGPT) environment
 
 <Note>
-**MCP Apps and DevTools**
+**MCP Apps and the Console**
 
-DevTools uses the **Apps SDK runtime** (mocked `window.openai`). MCP Apps view rendering is not yet supported in DevTools. For MCP Apps, use DevTools for tool development and UI logic; validate views in a real client (e.g. [Goose](https://goose.ai/), Claude) before shipping. See [DevTools Guide](/devtools) and [Test Your App](/quickstart/test-your-app#testing-in-claude).
+The Console's Playground uses the **Apps SDK runtime** (mocked `window.openai`). MCP Apps view rendering is not yet supported in the local playground. For MCP Apps, use the Console for tool development and UI logic; validate views in a real client (e.g. [Goose](https://goose.ai/), Claude) before shipping. See [Console Guide](/devtools/devtools) and [Test Your App](/quickstart/test-your-app#testing-in-claude).
 </Note>
 
 <Info>
-**Full DevTools Guide**
+**Full Console Guide**
 
-For comprehensive documentation on all DevTools features, including view inspection, MCP client logs, and custom integration, see the [DevTools Guide](/devtools).
+For comprehensive documentation on all Console features, including view inspection, MCP client logs, and custom integration, see the [Console Guide](/devtools/devtools).
 </Info>
 
-<img src="/images/devtools-landing.png" alt="enpilink DevTools" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
+<img src="/images/devtools-landing.png" alt="enpilink Console" style={{maxWidth: '100%', borderRadius: '8px', border: '1px solid #e0e0e0'}} />
 
 ## HMR with Vite Plugin
 
@@ -88,18 +88,18 @@ When you save a file, only the changed component re-renders. Form inputs, scroll
 
 ## Automatic Environment Detection
 
-Your view code works identically in ChatGPT, MCP Apps clients like Claude, and local DevTools. enpilink detects the environment and uses the appropriate communication layer:
+Your view code works identically in ChatGPT, MCP Apps clients like Claude, and the local Console. enpilink detects the environment and uses the appropriate communication layer:
 
 | Environment | Communication |
 |-------------|---------------|
 | ChatGPT | `window.openai` API |
 | MCP Apps (Goose, Claude, …) | MCP protocol via postMessage |
-| DevTools | Mocked Apps SDK (postMessage) |
+| Console / local playground | Mocked Apps SDK (postMessage) |
 You don't need to know which is active—just use the hooks.
 
 ## When to Use What
 
-**DevTools (90% of development time)**
+**Console / local playground (90% of development time)**
 - Rapid UI iteration
 - Testing tool inputs/outputs
 - Debugging state management
@@ -119,9 +119,9 @@ Build locally → validate in [ChatGPT](/quickstart/test-your-app#testing-in-cha
 See [Test Your App](/quickstart/test-your-app) for detailed testing setup instructions.
 </Tip>
 
-## DevTools Features
+## Console Features
 
-The DevTools UI includes:
+The Console UI includes:
 
 ### Tool Inspector
 See all registered tools and their schemas. Click to fill input forms automatically.
@@ -138,7 +138,7 @@ View the full tool response including `content`, `structuredContent`, and `_meta
 
 ## Related
 
-- [DevTools Guide](/devtools) - Complete DevTools documentation and features
+- [Console Guide](/devtools/devtools) - Complete Console documentation and features
 - [Test Your App](/quickstart/test-your-app) - Full testing workflow including ChatGPT and MCP Apps clients
 - [useLayout API](/api-reference/use-layout) - Access theme and layout info
 - [useCallTool API](/api-reference/use-call-tool) - Make tool calls from views

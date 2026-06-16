@@ -64,7 +64,7 @@ bun dev
 This command starts:
 
 - Your MCP server at `http://localhost:3000/mcp`.
-- enpilink DevTools UI at `http://localhost:3000/`.
+- enpilink Console at `http://localhost:3000/`.
 
 #### 3. Project structure
 
@@ -127,7 +127,7 @@ Modify files in `server/` and refresh the connection with your testing MCP Clien
 
 ### Testing your App
 
-You can test your App locally by using our DevTools UI on `http://localhost:3000` while running the dev command.
+You can test your App locally by using the Console at `http://localhost:3000` while running the dev command.
 
 To test your app with other MCP Clients like ChatGPT, Claude or VSCode, see [Testing Your App](https://docs.enpitech.dev/quickstart/test-your-app).
 

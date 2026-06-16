@@ -268,7 +268,7 @@ any vendor service.
 
 ## 8. The developer experience
 
-- **Local playground (devtools):** a browser emulator that lists your tools,
+- **Local playground (Console):** a browser emulator that lists your tools,
   lets you run them, and renders your views instantly — with hot reload as you
   edit. (It emulates the ChatGPT Apps-SDK runtime, so `notify`/`intent` show up
   as log entries there.)

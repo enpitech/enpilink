@@ -7,11 +7,11 @@ enpilink provides two CLI tools: the main `enpilink` CLI for development and pro
 
 ## enpilink CLI
 
-The main CLI is available as both `enpilink` and `sb` commands after installing `enpilink` in your project.
+The main CLI is available as both `enpilink` and `enpi` commands after installing `enpilink` in your project.
 
 ### enpilink dev
 
-Start the development server with hot module reloading and DevTools.
+Start the development server with hot module reloading and the Console.
 
 ```bash
 enpilink dev
@@ -19,7 +19,7 @@ enpilink dev
 
 **What it does:**
 - Starts a development server at `http://localhost:3000/`
-- Opens DevTools for local testing at `http://localhost:3000/`
+- Serves the Console UI at `http://localhost:3000/`
 - Exposes MCP server at `http://localhost:3000/mcp`
 - Enables file watching with automatic server restart
 - Enables Hot Module Reloading (HMR) for views
@@ -30,7 +30,8 @@ enpilink dev
 |------|-------------|
 | `-p, --port <number>` | Port to run the server on. Defaults to `3000`, or the next available port if `3000` is in use. |
 | `--tunnel` | Open an account-free [srv.us](https://srv.us) SSH tunnel for remote testing (no login, no signup). |
-| `--no-open` | Don't open DevTools in the browser when the server is ready. |
+| `--open` | Open the Console in the browser when the server is ready (off by default). |
+| `--mock` | Seed the Dashboard with deterministic demo analytics for demos/screenshots. Implies analytics-on and in-memory storage for the session — never touches disk and vanishes on exit. Dev-only; ignored in production. |
 | `-v, --verbose` | Show tunnel logs. |
 
 You can also set the port via the `PORT` environment variable:
@@ -39,14 +40,14 @@ You can also set the port via the `PORT` environment variable:
 PORT=8080 enpilink dev
 ```
 
-If you'd rather never have DevTools opened automatically, export `ENPILINK_OPEN=false` at the shell level (e.g. in your `~/.zshrc`, `~/.bashrc`, or shell profile). It's equivalent to passing `--no-open` on every run, but lets you opt out once globally instead of per-invocation:
+To have the Console open automatically on every `dev` run, set `ENPILINK_OPEN=true`:
 
 ```bash
 # one-off
-ENPILINK_OPEN=false enpilink dev
+ENPILINK_OPEN=true enpilink dev
 
 # persistent (add to your shell profile)
-export ENPILINK_OPEN=false
+export ENPILINK_OPEN=true
 ```
 
 ---
@@ -82,6 +83,13 @@ enpilink start
 **Requirements:**
 - Must run `enpilink build` first
 - Requires `dist/__entry.js` (the entry wrapper, which primes the Vite manifest so hashed asset URLs resolve). Falls back to `dist/server.js` if the wrapper is absent.
+
+**Flags**
+
+| Flag | Description |
+|------|-------------|
+| `-p, --port <number>` | Port to run the server on. Defaults to `3000`, or the next available port if `3000` is in use. |
+| `--admin` | Enable the production admin plane (Console Dashboard + Configuration + observability API) behind bearer auth. Off by default. Requires `ENPILINK_ADMIN_TOKEN` to be set — the server refuses to start without it. Also enableable via `ENPILINK_ADMIN=1`. |
 
 **What it does:**
 - Runs the compiled server (`node dist/__entry.js`)

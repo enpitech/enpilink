@@ -31,7 +31,7 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 
 - **Fetch and render data** → [fetch-and-render-data.md](references/fetch-and-render-data.md): when implementing server handlers and view data fetching
 - **State and context** → [state-and-context.md](references/state-and-context.md): when persisting view UI state and updating LLM context
-- **View → host interactions** → [prompt-llm.md](references/prompt-llm.md): the 4 mcp-ui interaction types — `useCallTool` (tool), `useSendFollowUpMessage` (prompt), `useNotify` (notify), `useIntent` (intent). notify/intent are enpilink additions and best-effort on hosts.
+- **View → host interactions** → [prompt-llm.md](references/prompt-llm.md): the 5 mcp-ui interaction types — `useCallTool` (tool), `useSendFollowUpMessage` (prompt), `useOpenExternal` (link), `useNotify` (notify), `useIntent` (intent). notify/intent are best-effort on hosts.
 - **UI guidelines** → [ui-guidelines.md](references/ui-guidelines.md): display modes, layout constraints, theme, device, and locale
 - **External links** → [open-external-links.md](references/open-external-links.md): when redirecting to external URLs or setting "open in app" target
 - **Download file** → [download-file.md](references/download-file.md): when saving content to the user's filesystem

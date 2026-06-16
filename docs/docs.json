@@ -81,8 +81,8 @@
             ]
           },
           {
-            "group": "DevTools",
-            "icon": "wrench",
+            "group": "Console",
+            "icon": "display",
             "pages": ["devtools/skills", "devtools/devtools"]
           },
           {

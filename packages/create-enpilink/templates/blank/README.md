@@ -42,7 +42,7 @@ yarn dev
 
 This command starts:
 - Your MCP server at `http://localhost:3000/mcp`.
-- enpilink DevTools UI at `http://localhost:3000`.
+- enpilink Console at `http://localhost:3000`.
 
 #### 3. Project structure
 
@@ -72,7 +72,7 @@ Modify files in `src/` and refresh the tool list with your MCP Client to see the
 
 ### Testing your App
 
-You can test your app locally by using our DevTools UI on `http://localhost:3000` while running the `dev` command.
+You can test your app locally by using the Console at `http://localhost:3000` while running the `dev` command.
 
 To connect your app with web clients like ChatGPT or Claude, expose your server on the internet by adding the `--tunnel` flag.
 By enabling the tunnel, you'll also be able to access a playground to chat with your app and a real LLM. Learn more by reading the [test guide](https://docs.enpitech.dev/quickstart/test-your-app).

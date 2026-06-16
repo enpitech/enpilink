@@ -116,7 +116,7 @@ enpilink ships an **opt-in** observability + admin layer — **off by default**,
 with zero overhead and zero network when disabled (still no telemetry to us).
 
 - **Observability** — set `ENPILINK_ANALYTICS=1` to record per-tool-call volume,
-  latency (p50/p95/p99), and error rate, viewable in the devtools **Dashboard**
+  latency (p50/p95/p99), and error rate, viewable in the Console **Dashboard**
   with a **live log stream**. Try it with demo data:
   `enpilink dev --mock` (deterministic, in-memory, no real traffic). See
   [`docs/guides/observability.mdx`](docs/guides/observability.mdx).
@@ -189,7 +189,7 @@ git clone https://github.com/enpitech/enpilink
 cd enpilink && pnpm install && pnpm run build
 
 cd examples/kitchen-sink
-pnpm dev          # local devtools emulator + HMR at http://localhost:3000/
+pnpm dev          # Console + HMR at http://localhost:3000/
 pnpm dev:tunnel   # opens an account-free srv.us tunnel and prints a public /mcp URL
 ```
 
@@ -230,10 +230,10 @@ and auto-reconnect.
 ## CLI
 
 ```bash
-enpilink dev [--tunnel] [-p <port>]   # dev server + devtools emulator + HMR (alias: enpi)
-enpilink build                        # compile server + views → dist/
-enpilink start                        # run the production build (node dist/__entry.js)
-enpilink create [dir]                 # scaffold a new app (passthrough to create-enpilink)
+enpilink dev [--tunnel] [-p <port>] [--open] [--mock]   # dev server + Console + HMR (alias: enpi)
+enpilink build                                           # compile server + views → dist/
+enpilink start [--admin]                                 # run the production build (node dist/__entry.js)
+enpilink create [dir]                                    # scaffold a new app (passthrough to create-enpilink)
 ```
 
 ### Production gotcha
@@ -271,7 +271,7 @@ enpilink/
 
 This is a POC fork. Today:
 
-- ✅ Local dev, devtools emulator, HMR, build, and self-host all work account-free.
+- ✅ Local dev, Console, HMR, build, and self-host all work account-free.
 - ✅ The account-free **srv.us** tunnel is live-verified end-to-end (the printed
   `/mcp` URL round-trips over a real public tunnel and survives reconnects).
 - ⏳ **Real npm distribution** requires publishing `enpilink` + `@enpilink/console`

@@ -61,7 +61,7 @@ The production server runs your compiled application from the `dist/` directory 
 
 - **Serves pre-built assets** - Views and styles are served as static files from `/assets` (compiled during `enpilink build`)
 - **MCP endpoint** - Exposes your MCP server at `/mcp` for MCP Clients to connect to
-- **No dev tools** - DevTools and Vite dev server are excluded in production for better performance
+- **No dev tools** - The Console playground and Vite dev server are excluded in production for better performance (the Console's Dashboard/Config are available in production only if `--admin` is enabled)
 - **Optimized rendering** - Uses production templates that load pre-bundled JavaScript and CSS files
 
 The server listens on port 3000 by default. 

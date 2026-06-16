@@ -52,4 +52,4 @@ sendIntent: (intent: Intent) => Promise<void>
 |---|---|---|
 | **MCP Apps** | enpilink extension over the standard `notifications/message` channel (`app.sendLog`, `logger: "enpilink/intent"`, payload `{ intent, params }`). | A compliant host that doesn't route intents records it as a log entry — never an error. |
 | **ChatGPT Apps SDK** | enpilink extension. Uses a `window.openai.sendIntent` host method if present, else `window.parent.postMessage({ type: "intent", payload }, "*")`. | Degrades to a no-op on hosts without support. |
-| **devtools emulator** | Shown as an `intent: <name>` entry in the Logs drawer. | Always observable locally. |
+| **Console / local playground** | Shown as an `intent: <name>` entry in the Logs drawer. | Always observable locally. |

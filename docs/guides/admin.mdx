@@ -41,7 +41,7 @@ The admin plane has two halves with different exposure:
 
 | Surface | Auth | Why |
 |---|---|---|
-| Devtools **SPA shell** (HTML/JS/CSS) | **public** | So a browser can always load the app and render its own login screen |
+| Console **SPA shell** (HTML/JS/CSS) | **public** | So a browser can always load the app and render its own login screen |
 | `/__enpilink/observability/*` + `/__enpilink/config*` (**data APIs**) | **bearer-gated** | The real analytics/config data |
 | `/mcp` (your MCP transport) | **always public** | The MCP endpoint must stay reachable for hosts |
 
@@ -55,7 +55,7 @@ is unchanged and the login screen never appears.
 
 ## Browser login and SSE auth
 
-When the data APIs return 401, the devtools UI shows a **token-login screen**.
+When the data APIs return 401, the Console shows a **token-login screen**.
 The token is verified against the observability summary endpoint and, on
 success, stored in **`sessionStorage`** (cleared on tab close — never
 `localStorage`, never a cookie). The app then attaches

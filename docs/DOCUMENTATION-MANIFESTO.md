@@ -35,7 +35,7 @@ Never assume the reader is already an expert in enpilink or MCP Apps. When you m
    - **Fundamentals**: what MCP Apps and ChatGPT Apps are, how they differ from traditional web apps, and how they build on MCP servers. This section should also explain how enpilink maps to the OpenAI Apps SDK and MCP runtimes.
    - **Quickstart**: how to get started with enpilink in under 5 minutes with our create command or the enpilink Skill.
    - **Migrate**: how to migrate your app with the enpilink Skill.
-   - **Test your app**: how to test your app locally with DevTools or inside your target MCP client such as ChatGPT, Claude, or Cursor.
+   - **Test your app**: how to test your app locally with the Console or inside your target MCP client such as ChatGPT, Claude, or Cursor.
    - **Build for production**: how to build your MCP server and UI code for production use.
    - **Deploy**: how to deploy your app and publish it to MCP client stores.
    
@@ -47,7 +47,7 @@ Never assume the reader is already an expert in enpilink or MCP Apps. When you m
    - **Write Once, Run Everywhere**: how a single codebase targets both ChatGPT Apps and MCP clients such as Claude or Cursor, and how enpilink abstracts client differences.
    - **Data Flow**: how data moves between the host, your app, and the LLM, and where state lives.
    - **LLM Context Sync**: how enpilink keeps the model's context in sync with your app state, and when that sync runs.
-   - **Fast Iteration**: the local development workflow, hot reload, and how to use DevTools to iterate without redeploying.
+   - **Fast Iteration**: the local development workflow, hot reload, and how to use the Console to iterate without redeploying.
    - **Type Safety**: how enpilink preserves types from your app to the client, including tools, parameters, and views, and how to get the most from TypeScript.
    
    </details>
@@ -66,7 +66,7 @@ Never assume the reader is already an expert in enpilink or MCP Apps. When you m
    <summary><strong>Developer tools</strong>: how to build and debug enpilink apps. This section should help readers develop faster and understand the tooling around enpilink.</summary>
 
    - **Skills**: using the enpilink Skill and similar workflows to scaffold, migrate, and maintain apps from your IDE or chat.
-   - **Local DevTools**: running and debugging your app locally, testing tools and views, and connecting to MCP clients.
+   - **Local Console**: running and debugging your app locally, testing tools and views, and connecting to MCP clients.
    
    </details>
 
@@ -123,7 +123,7 @@ Use this checklist when your PR changes product behavior, APIs, examples, termin
   - Quickstart instructions
   - Test, build, or deploy pages
   - Concepts or Guides
-  - DevTools
+  - Console
   - FAQ
 - [ ] If the answer is yes, update those pages in the same PR.
 - [ ] If the documentation work cannot be done in the same PR, open a follow-up issue at [enpitech/enpilink issues](https://github.com/enpitech/enpilink/issues/new/choose) and link it from the PR description.
@@ -159,7 +159,7 @@ Use this checklist when your PR changes product behavior, APIs, examples, termin
 
 ### Terminology and consistency
 
-- **Product and types:** Capitalize "App" when referring to the type, for example ChatGPT App, MCP App, or AI App. Use "your app" in body text. Use consistent product names: enpilink, Skill, DevTools, MCP.
+- **Product and types:** Capitalize "App" when referring to the type, for example ChatGPT App, MCP App, or AI App. Use "your app" in body text. Use consistent product names: enpilink, Skill, Console, MCP.
 - **User-centric language:** Orient sentences around what the reader is doing or needs. Use internal or team jargon only when it is part of the product vocabulary.
 
 ### What to avoid

@@ -52,7 +52,7 @@ notify: (notification: Notification) => Promise<void>
 |---|---|---|
 | **MCP Apps** | Real MCP protocol: `notifications/message` (`app.sendLog`, `logger: "enpilink"`). | `level: "success"` has no MCP logging equivalent and is **coerced to `info`** — the original level is preserved in the structured payload. Hosts may render a toast or just record it for debugging. |
 | **ChatGPT Apps SDK** | **enpilink extension** — not part of the Apps SDK. Uses a `window.openai.notify` host method if present, else falls back to `window.parent.postMessage({ type: "notify", payload }, "*")`. | Real-host rendering is unverified; degrades to a no-op. |
-| **devtools emulator** | Shown as a `notify [level]` entry in the Logs drawer. | Always observable locally. |
+| **Console / local playground** | Shown as a `notify [level]` entry in the Logs drawer. | Always observable locally. |
 
 <Warning>
 On the MCP Apps runtime `notify` uses the **real** `notifications/message`

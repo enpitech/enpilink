@@ -1,14 +1,15 @@
-# View → host interactions (the 4 mcp-ui types)
+# View → host interactions (the 5 mcp-ui types)
 
-A view can talk back to its host four ways. All route through enpilink's hooks —
-never call `postMessage` directly. `tool` and `prompt` are first-class on both
-runtimes; `notify` and `intent` are best-effort (a host that doesn't support
-them degrades to a no-op / log — never throws).
+A view can talk back to its host five ways. All route through enpilink's hooks —
+never call `postMessage` directly. `tool`, `prompt`, and `link` are first-class
+on both runtimes; `notify` and `intent` are best-effort (a host that doesn't
+support them degrades to a no-op / log — never throws).
 
 | Type | Hook | Use it to… |
 |---|---|---|
 | `tool` | `useCallTool` | call one of your MCP tools and render the result in the view |
 | `prompt` | `useSendFollowUpMessage` | send a text message to the model (start a model turn) |
+| `link` | `useOpenExternal` | open an external URL via the host (instead of `window.open`) |
 | `notify` | `useNotify` | surface a status/notification to the host |
 | `intent` | `useIntent` | express a high-level intent for the host to route |
 

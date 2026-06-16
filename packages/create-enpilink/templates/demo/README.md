@@ -59,7 +59,7 @@ and to serve as a not-empty starter you can build on.
 > - **intent** has **no equivalent in either spec** — it is an **enpilink
 >   extension on both runtimes**, best-effort, and a host that doesn't route it
 >   simply records a log line. It never throws.
-> - In the **devtools emulator**, notify and intent appear as entries in the
+> - In the **Console / local playground**, notify and intent appear as entries in the
 >   **Logs drawer** (not toasts), and `prompt` is logged only (no model turn
 >   runs locally). `tool` executes for real.
 
@@ -81,7 +81,7 @@ npm run typecheck   # tsc --noEmit, 0 errors
 npm test            # vitest — domain + determinism tests
 ```
 
-## Run locally (devtools emulator)
+## Run locally (Console)
 
 ```bash
 npm run dev         # pick a free port, e.g. enpilink dev -p 5050
