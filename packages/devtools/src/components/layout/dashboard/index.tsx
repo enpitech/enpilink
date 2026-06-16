@@ -65,11 +65,11 @@ function StatCard({
     <div className="rounded-md border border-canvas-border bg-background p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {label}
           </div>
           <div
-            className="mt-2 text-[1.75rem] font-bold leading-none tabular-nums text-foreground"
+            className="mt-2 text-[1.625rem] font-medium leading-none tabular-nums text-foreground"
             data-testid={`stat-${label}`}
           >
             {value}
@@ -104,7 +104,7 @@ function Card({
       className={`flex min-h-0 flex-col rounded-md border border-canvas-border bg-background shadow-sm ${className ?? ""}`}
     >
       <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-3">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
         {subtitle ? (
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
             {subtitle}
@@ -129,7 +129,7 @@ function EmptyChart({ message }: { message: string }) {
 function ToolTable({ tools }: { tools: ToolStat[] }) {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-canvas-border bg-background shadow-sm">
-      <h3 className="px-5 pt-4 pb-3 text-sm font-semibold text-foreground">
+      <h3 className="px-5 pt-4 pb-3 text-sm font-medium text-foreground">
         Per-tool / per-method breakdown
       </h3>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -278,7 +278,7 @@ export const Dashboard = () => {
         {/* Page heading */}
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
               Observability
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">

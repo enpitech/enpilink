@@ -1,4 +1,4 @@
-import { BarChart3, PlugZap, SlidersHorizontal, Wrench } from "lucide-react";
+import { PlugZap } from "lucide-react";
 import { Suspense } from "react";
 import {
   Group,
@@ -7,12 +7,7 @@ import {
   useDefaultLayout,
 } from "react-resizable-panels";
 import { Button } from "@/components/ui/button.js";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs.js";
+import { Tabs, TabsContent } from "@/components/ui/tabs.js";
 import { useAdminTokenStore } from "@/lib/admin-token-store.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { connectToServer } from "@/lib/mcp/index.js";
@@ -20,6 +15,7 @@ import { AdminLogin } from "./admin-login.js";
 import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
 import { Header } from "./header.js";
+import { Sidebar } from "./sidebar.js";
 import { ToolPanel } from "./tool-panel/index.js";
 import ToolsList from "./tools-list/index.js";
 
@@ -119,36 +115,35 @@ function AppLayout() {
     );
   }
 
+  // Single top bar (Header) + a left sidebar for sections + the content area
+  // to the right. The vertical `<Tabs>` root manages active state; the
+  // `<Sidebar>` is its `TabsList` and the `<TabsContent>` panels fill the
+  // remaining space. (MD4: replaces the old second top-nav row.)
   return (
     <div className="grid h-screen grid-rows-[auto_1fr] overflow-hidden bg-background text-foreground">
       <Header />
       <Tabs
         defaultValue="dashboard"
-        className="grid min-h-0 grid-rows-[auto_1fr] gap-0"
+        orientation="vertical"
+        className="min-h-0 gap-0"
       >
-        <div className="border-b border-border px-4 py-2">
-          <TabsList variant="line">
-            <TabsTrigger value="dashboard" data-testid="tab-dashboard">
-              <BarChart3 className="size-3.5" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="configuration" data-testid="tab-configuration">
-              <SlidersHorizontal className="size-3.5" />
-              Configuration
-            </TabsTrigger>
-            <TabsTrigger value="playground" data-testid="tab-playground">
-              <Wrench className="size-3.5" />
-              Playground
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        <TabsContent value="dashboard" className="min-h-0 overflow-hidden">
+        <Sidebar />
+        <TabsContent
+          value="dashboard"
+          className="min-h-0 min-w-0 overflow-hidden"
+        >
           <Dashboard />
         </TabsContent>
-        <TabsContent value="configuration" className="min-h-0 overflow-hidden">
+        <TabsContent
+          value="configuration"
+          className="min-h-0 min-w-0 overflow-hidden"
+        >
           <Configuration />
         </TabsContent>
-        <TabsContent value="playground" className="min-h-0 overflow-hidden">
+        <TabsContent
+          value="playground"
+          className="min-h-0 min-w-0 overflow-hidden"
+        >
           <Playground />
         </TabsContent>
       </Tabs>
