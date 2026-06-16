@@ -14,6 +14,7 @@ import { connectToServer } from "@/lib/mcp/index.js";
 import { AdminLogin } from "./admin-login.js";
 import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
+import Docs from "./docs/index.js";
 import { Header } from "./header.js";
 import { Sidebar } from "./sidebar.js";
 import { ToolPanel } from "./tool-panel/index.js";
@@ -145,6 +146,9 @@ function AppLayout() {
           className="min-h-0 min-w-0 overflow-hidden"
         >
           <Playground />
+        </TabsContent>
+        <TabsContent value="docs" className="min-h-0 min-w-0 overflow-hidden">
+          <Docs />
         </TabsContent>
       </Tabs>
     </div>

@@ -7,8 +7,9 @@ import { logout, signIn, useServerInfo } from "@/lib/mcp/index.js";
 import { StatusBadge } from "./status-badge.js";
 import { DeployButton, TunnelButton } from "./toolbar-actions.js";
 
+// The "docs" link moved into the left sidebar as an in-app Docs tab (M8); only
+// the external "github" link remains in the top bar.
 const EXTERNAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
-  { label: "docs", href: "https://docs.enpitech.dev/" },
   { label: "github", href: "https://github.com/enpitech/enpilink" },
 ];
 

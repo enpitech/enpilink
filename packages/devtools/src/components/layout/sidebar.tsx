@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, SlidersHorizontal, Wrench } from "lucide-react";
+import { BarChart3, BookOpen, SlidersHorizontal, Wrench } from "lucide-react";
 import { cn } from "@/components/ui/cn.js";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 
@@ -17,10 +17,9 @@ export type SidebarItem = {
 };
 
 /**
- * Section nav items, in display order. M8 will append a 4th
- * `{ value: "docs", label: "Docs", icon: BookOpen, testId: "nav-docs" }`
- * entry here (and a matching `<TabsContent value="docs">` panel) — no other
- * sidebar change needed.
+ * Section nav items, in display order: Dashboard, Configuration, Playground,
+ * and Docs (the M8 in-app guide renderer). Adding a new section is a one-liner
+ * here plus a matching `<TabsContent value=…>` panel in `app-layout.tsx`.
  */
 export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
   {
@@ -40,6 +39,12 @@ export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
     label: "Playground",
     icon: Wrench,
     testId: "nav-playground",
+  },
+  {
+    value: "docs",
+    label: "Docs",
+    icon: BookOpen,
+    testId: "nav-docs",
   },
 ];
 
