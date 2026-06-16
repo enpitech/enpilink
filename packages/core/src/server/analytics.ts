@@ -55,6 +55,12 @@ export function analyticsEnabled(): boolean {
  * NEVER touches disk and is never on by default.
  */
 export function mockEnabled(): boolean {
+  // The demo seed is DEV-ONLY: it must never seed a real deployment. In
+  // production `ENPILINK_MOCK` is ignored entirely (read the literal so the
+  // guard survives DCE and is unambiguous).
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
   const raw = process.env.ENPILINK_MOCK;
   return raw !== undefined && TRUTHY.has(raw.trim().toLowerCase());
 }

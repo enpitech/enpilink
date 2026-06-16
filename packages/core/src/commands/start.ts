@@ -13,6 +13,11 @@ export default class Start extends Command {
       description: "Port to run the server on",
       min: 1,
     }),
+    admin: Flags.boolean({
+      description:
+        "Enable the production admin plane (dashboard + config + observability API) behind bearer auth. OFF by default. Requires ENPILINK_ADMIN_TOKEN to be set — the server refuses to start without it.",
+      default: false,
+    }),
   };
 
   public async run(): Promise<void> {
@@ -52,12 +57,39 @@ export default class Start extends Command {
       console.log(`Running on \x1b[32mhttp://localhost:${port}/mcp\x1b[0m`);
     }
 
+    // `--admin` opts into the prod admin plane; it's also enableable purely via
+    // `ENPILINK_ADMIN`. Either way the spawned server reads `ENPILINK_ADMIN` +
+    // `ENPILINK_ADMIN_TOKEN` and refuses to start without a token.
+    const adminEnabled =
+      flags.admin ||
+      ["1", "true", "yes", "on"].includes(
+        (process.env.ENPILINK_ADMIN ?? "").trim().toLowerCase(),
+      );
+    if (adminEnabled) {
+      const hasToken = (process.env.ENPILINK_ADMIN_TOKEN ?? "").trim() !== "";
+      if (!hasToken) {
+        console.error("");
+        console.error(
+          "❌ Error: --admin requires ENPILINK_ADMIN_TOKEN to be set",
+        );
+        console.error(
+          "   Set a non-empty admin token, e.g. ENPILINK_ADMIN_TOKEN=… enpilink start --admin",
+        );
+        console.error("   Refusing to start an unauthenticated admin plane.");
+        process.exit(1);
+      }
+      console.log(
+        `Admin plane on \x1b[32mhttp://localhost:${port}/\x1b[0m \x1b[2m(behind bearer auth — send Authorization: Bearer <ENPILINK_ADMIN_TOKEN>)\x1b[0m`,
+      );
+    }
+
     await runCommand(`node ${indexPath}`, {
       stdio: ["ignore", "inherit", "inherit"],
       env: {
         ...process.env,
         NODE_ENV: "production",
         __PORT: String(port),
+        ...(flags.admin ? { ENPILINK_ADMIN: "1" } : {}),
       },
     });
   }

@@ -3,6 +3,14 @@ import path from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import cors from "cors";
 import express from "express";
+import {
+  AdminTokenMissingError,
+  adminAuthMiddleware,
+  adminEnabled,
+  ensureAdminStorage,
+  mountAdmin,
+  readAdminToken,
+} from "./admin.js";
 import { serverLog } from "./log-sink.js";
 import type { McpServer } from "./server.js";
 
@@ -68,29 +76,17 @@ export async function createApp({
   // Read `process.env.NODE_ENV` inline: wrangler/esbuild only substitute the literal expression,
   // so a local const would defeat dead-code elimination of the dev-only imports below.
   if (process.env.NODE_ENV !== "production") {
-    // Dev-only. A non-literal specifier + cast lets core type-check WITHOUT
-    // @enpilink/devtools being built first: core and devtools form a workspace
-    // cycle, and a clean checkout (e.g. CI) has no devtools `dist` yet. The whole
-    // block is dead-code-eliminated in production by the NODE_ENV guard above.
-    const devtoolsSpecifier = "@enpilink/devtools";
-    const { devtoolsStaticServer } = (await import(devtoolsSpecifier)) as {
-      devtoolsStaticServer: () => Promise<express.RequestHandler>;
-    };
-    app.use(await devtoolsStaticServer());
+    // Dev-only. The admin plane (devtools UI + observability + config API) is
+    // mounted UNAUTHENTICATED on localhost — today's dev behavior. The mounts
+    // live in `mountAdmin`, which holds @enpilink/devtools behind a non-literal
+    // specifier so core type-checks WITHOUT devtools being built first (the
+    // core↔devtools workspace cycle; a clean checkout has no devtools `dist`).
+    // This whole block is dead-code-eliminated in production by the literal
+    // `process.env.NODE_ENV` guard above (esbuild/wrangler substitution).
+    await mountAdmin(app);
+
     const { viewsDevServer } = await import("./viewsDevServer.js");
     app.use(await viewsDevServer(httpServer));
-
-    // Observability read API (M3). Reads the active analytics storage
-    // per-request; returns a 200 empty payload when analytics is OFF. Dev-only
-    // for now — prod admin mounting is M5.
-    const { createObservabilityRouter } = await import("./observability.js");
-    app.use(createObservabilityRouter());
-
-    // Config admin API (M4). Reads/writes the active analytics storage for
-    // runtime config; bootstrap + secret keys are env/file-only and rejected
-    // by the PUT route. Dev-only for now — prod admin mounting is M5.
-    const { createConfigRouter } = await import("./config/index.js");
-    app.use(createConfigRouter());
 
     const controlPort = parseControlPort(process.env.__TUNNEL_CONTROL_PORT);
     if (controlPort !== null) {
@@ -108,6 +104,28 @@ export async function createApp({
 
     app.use("/assets", cors());
     app.use("/assets", express.static(assetsPath));
+
+    // Prod admin plane (M5). OFF by default; opt-in via `--admin` /
+    // `ENPILINK_ADMIN=1`. When enabled, REFUSE to start without a token (never
+    // default-open). The same mounts as dev, but wrapped in `requireBearerAuth`
+    // using the in-process `ENPILINK_ADMIN_TOKEN` (read raw, never the masked
+    // config API). A storage adapter is initialized independent of analytics so
+    // the config + observability routers have a backing store to read/write.
+    if (adminEnabled()) {
+      const token = await readAdminToken();
+      if (!token) {
+        throw new AdminTokenMissingError();
+      }
+      const adminStorage = await ensureAdminStorage();
+      if (adminStorage) {
+        mcpServer.adoptStorage(adminStorage);
+      }
+      await mountAdmin(app, { auth: adminAuthMiddleware(token) });
+      serverLog(
+        "info",
+        "[enpilink] admin plane enabled at /__enpilink/* (behind bearer auth)",
+      );
+    }
   }
 
   app.use("/mcp", mcpMiddleware(mcpServer));

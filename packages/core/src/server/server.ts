@@ -520,6 +520,23 @@ export class McpServer<
   }
 
   /**
+   * Adopt a storage adapter the server should OWN for shutdown — used by the
+   * prod admin plane (M5), which initializes a storage adapter independent of
+   * analytics so the config + observability routers have a backing store even
+   * when `ENPILINK_ANALYTICS` is off. Closed on shutdown via {@link closeStorage}.
+   *
+   * No-op when analytics already set `activeStorage` (the admin reuses it and
+   * does not pass its own adapter here).
+   *
+   * @internal
+   */
+  adoptStorage(storage: StorageAdapter): void {
+    if (!this.activeStorage) {
+      this.activeStorage = storage;
+    }
+  }
+
+  /**
    * Register Express middleware on the underlying app. Mirrors `app.use` —
    * pass handlers directly or a path-prefixed handler list. Register before
    * {@link McpServer.run}; ordering matches Express.

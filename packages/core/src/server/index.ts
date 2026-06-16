@@ -1,4 +1,12 @@
 export {
+  AdminTokenMissingError,
+  adminAuthMiddleware,
+  adminEnabled,
+  ensureAdminStorage,
+  mountAdmin,
+  readAdminToken,
+} from "./admin.js";
+export {
   analyticsEnabled,
   type InstallAnalyticsOptions,
   installAnalytics,
