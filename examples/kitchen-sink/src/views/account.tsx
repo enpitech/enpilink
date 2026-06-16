@@ -2,7 +2,7 @@ import "@/index.css";
 
 import { useDownload, useFiles, useOpenExternal, useUser } from "enpilink/web";
 import { Download, ExternalLink, Upload } from "lucide-react";
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import { useToolInfo } from "@/helpers.js";
 import { Logo, PoweredByEnpitech } from "@/views/theme/Logo.js";
 import {
@@ -24,7 +24,7 @@ function Account() {
 
   const device = userAgent?.device?.type ?? "desktop";
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) {
       return;
