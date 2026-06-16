@@ -7,3 +7,12 @@ dist/
 
 # Playwright MCP browser artifacts (transient)
 .playwright-mcp/
+
+# Internal build journal / dark-factory specs — root only (keep public examples/*/specs/)
+/specs/
+
+# Local SQLite databases (dev/self-host data)
+*.db
+*.db-shm
+*.db-wal
+enpilink.db
