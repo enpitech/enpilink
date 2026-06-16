@@ -80,6 +80,12 @@ export async function createApp({
     const { viewsDevServer } = await import("./viewsDevServer.js");
     app.use(await viewsDevServer(httpServer));
 
+    // Observability read API (M3). Reads the active analytics storage
+    // per-request; returns a 200 empty payload when analytics is OFF. Dev-only
+    // for now — prod admin mounting is M5.
+    const { createObservabilityRouter } = await import("./observability.js");
+    app.use(createObservabilityRouter());
+
     const controlPort = parseControlPort(process.env.__TUNNEL_CONTROL_PORT);
     if (controlPort !== null) {
       const { createTunnelProxyRouter } = await import(

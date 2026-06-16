@@ -38,6 +38,16 @@ export type {
   McpTypedMiddlewareFn,
   McpWildcard,
 } from "./middleware.js";
+export {
+  createObservabilityRouter,
+  type ObservabilityDisabled,
+  type ObservabilitySummary,
+  percentile,
+  type SummarizeOptions,
+  summarize,
+  type TimeBucket,
+  type ToolStat,
+} from "./observability.js";
 export type {
   HandlerContent,
   KnownToolMeta,
