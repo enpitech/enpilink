@@ -97,6 +97,13 @@ export {
   type TimeBucket,
   type ToolStat,
 } from "./observability.js";
+export {
+  createOtelSink,
+  initOtel,
+  type OtelSink,
+  otelEnabled,
+  otelEndpoint,
+} from "./otel.js";
 export type {
   HandlerContent,
   KnownToolMeta,
@@ -119,7 +126,11 @@ export {
   DEFAULT_DB_PATH,
   DEFAULT_MEMORY_CAP,
   MemoryStorageAdapter,
+  type PgPoolLike,
+  PostgresStorageAdapter,
+  type PostgresStorageOptions,
   registerStorageAdapter,
+  resolvePostgresConnectionString,
   resolveStorageAdapter,
   SqliteStorageAdapter,
 } from "./storage/index.js";

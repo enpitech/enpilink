@@ -1,4 +1,5 @@
 import { MemoryStorageAdapter } from "./memory.js";
+import { PostgresStorageAdapter } from "./postgres.js";
 import { SqliteStorageAdapter } from "./sqlite.js";
 import type {
   StorageAdapter,
@@ -28,6 +29,7 @@ export function listStorageAdapters(): string[] {
 // Built-ins.
 registerStorageAdapter("memory", (opts) => new MemoryStorageAdapter(opts));
 registerStorageAdapter("sqlite", (opts) => new SqliteStorageAdapter(opts));
+registerStorageAdapter("postgres", (opts) => new PostgresStorageAdapter(opts));
 
 /**
  * Resolve the storage adapter from the environment.
@@ -58,6 +60,12 @@ export function resolveStorageAdapter(
 }
 
 export { DEFAULT_MEMORY_CAP, MemoryStorageAdapter } from "./memory.js";
+export {
+  type PgPoolLike,
+  PostgresStorageAdapter,
+  type PostgresStorageOptions,
+  resolvePostgresConnectionString,
+} from "./postgres.js";
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
 export type {
   AnalyticsEvent,

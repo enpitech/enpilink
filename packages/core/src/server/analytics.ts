@@ -1,6 +1,7 @@
 import { setActiveStorage } from "./log-sink.js";
 import type { McpMiddlewareEntry, McpMiddlewareFn } from "./middleware.js";
 import { seedMockData } from "./mock-seed.js";
+import { initOtel, type OtelSink } from "./otel.js";
 import { resolveStorageAdapter } from "./storage/index.js";
 import { MemoryStorageAdapter } from "./storage/memory.js";
 import type { StorageAdapter } from "./storage/types.js";
@@ -89,6 +90,7 @@ function toolNameOf(
 export function createAnalyticsMiddleware(
   storage: StorageAdapter,
   now: () => number = Date.now,
+  otel: OtelSink | null = null,
 ): McpMiddlewareFn {
   return async (request, _extra, next) => {
     const start = now();
@@ -114,8 +116,7 @@ export function createAnalyticsMiddleware(
       throw err;
     } finally {
       const ms = now() - start;
-      // Fire-and-forget; never block or throw into the request path.
-      void recordSafely(storage, {
+      const event = {
         ts: start,
         type: "tool_call",
         tool,
@@ -123,7 +124,17 @@ export function createAnalyticsMiddleware(
         ms,
         ok,
         error,
-      });
+      } as const;
+      // Fire-and-forget; never block or throw into the request path.
+      void recordSafely(storage, event);
+      // Optional OTel export — guarded, synchronous, error-swallowing.
+      if (otel) {
+        try {
+          otel.record(event);
+        } catch {
+          // OTel export must never break or slow a tool call.
+        }
+      }
     }
   };
 }
@@ -155,7 +166,11 @@ async function recordSafely(
  */
 export async function installAnalytics(
   opts: InstallAnalyticsOptions = {},
-): Promise<{ storage: StorageAdapter; entry: McpMiddlewareEntry } | null> {
+): Promise<{
+  storage: StorageAdapter;
+  entry: McpMiddlewareEntry;
+  otel: OtelSink | null;
+} | null> {
   // `--mock` (ENPILINK_MOCK) force-enables analytics for the session even when
   // the env-based gating is off, so demos work without setting both flags.
   const mock = mockEnabled();
@@ -190,12 +205,17 @@ export async function installAnalytics(
     }
   }
 
+  // Optional OTel export (M6): off by default, zero network/imports when unset.
+  // Initialized once here and fed by the middleware alongside storage. Mock mode
+  // never exports (it's dev-only demo data); requires the explicit env opt-in.
+  const otel = mock ? null : await initOtel();
+
   const entry: McpMiddlewareEntry = {
     // "request" matches every (non-notification) request so non-tool methods
     // are counted too; the handler captures the tool name for tools/call.
     filter: "request",
-    handler: createAnalyticsMiddleware(storage, opts.now),
+    handler: createAnalyticsMiddleware(storage, opts.now, otel),
   };
 
-  return { storage, entry };
+  return { storage, entry, otel };
 }

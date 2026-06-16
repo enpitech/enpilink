@@ -47,6 +47,7 @@ import type {
   McpWildcard,
 } from "./middleware.js";
 import { buildMiddlewareChain, getHandlerMaps } from "./middleware.js";
+import type { OtelSink } from "./otel.js";
 import type { StorageAdapter } from "./storage/types.js";
 import { templateHelper } from "./templateHelper.js";
 
@@ -479,6 +480,11 @@ export class McpServer<
    * closed on shutdown.
    */
   private activeStorage: StorageAdapter | null = null;
+  /**
+   * The optional OTel export sink (M6), set when `ENPILINK_OTEL` + an OTLP
+   * endpoint are configured. Shut down on server shutdown via {@link closeStorage}.
+   */
+  private otelSink: OtelSink | null = null;
   private claimedViews = new Map<string, string>();
   private viewMetaBuilders = new Map<
     string,
@@ -702,6 +708,7 @@ export class McpServer<
     const analytics = await installAnalytics();
     if (analytics) {
       this.activeStorage = analytics.storage;
+      this.otelSink = analytics.otel;
     }
 
     const entries = [
@@ -749,6 +756,15 @@ export class McpServer<
    * from a shutdown handler.
    */
   private async closeStorage(): Promise<void> {
+    const otel = this.otelSink;
+    if (otel) {
+      this.otelSink = null;
+      try {
+        await otel.shutdown();
+      } catch {
+        // Shutdown must not hang or throw on an OTel flush/close failure.
+      }
+    }
     const storage = this.activeStorage;
     if (!storage) {
       return;
