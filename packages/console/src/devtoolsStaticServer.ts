@@ -40,7 +40,14 @@ export const devtoolsStaticServer = async (): Promise<Router> => {
 
   router.use(cors());
   router.get("/__enpilink/devtools/project", (_req, res) => {
-    res.json({ packageManager: detectPackageManager() });
+    // `dev` reflects the server's NODE_ENV at request time: true under
+    // `enpilink dev`, false under a production/admin serve. The console uses it
+    // to gate dev-only affordances (e.g. the "Deploy — coming soon" button)
+    // since the SPA bundle itself is built once and served in BOTH modes.
+    res.json({
+      packageManager: detectPackageManager(),
+      dev: process.env.NODE_ENV !== "production",
+    });
   });
   router.use(express.static(distDir));
   router.get("/", (_req, res, next) => {

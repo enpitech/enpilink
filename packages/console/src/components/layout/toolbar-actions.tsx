@@ -18,33 +18,47 @@ import {
   PopoverContent,
 } from "@/components/ui/popover.js";
 import { Separator } from "@/components/ui/separator.js";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip.js";
 import { useCopyToClipboard } from "@/lib/copy.js";
 import { useTunnelStore } from "@/lib/tunnel-store.js";
 import { cn } from "@/lib/utils.js";
 
 type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 
-const RUN_PREFIX_BY_PM: Record<PackageManager, string> = {
-  pnpm: "pnpm run",
-  npm: "npm run",
-  yarn: "yarn",
-  bun: "bun run",
+type ProjectInfo = {
+  packageManager: PackageManager;
+  /** True under `enpilink dev`; false under a production/admin serve. */
+  dev: boolean;
 };
 
-function useDeployCommand(): string {
+/**
+ * Project metadata from the dev-only-aware `/__enpilink/devtools/project`
+ * endpoint. `dev` reflects the server's NODE_ENV at request time, so the
+ * console can gate dev-only affordances even though the SPA bundle is built
+ * once and served in both dev and prod-admin. Defaults to `dev: false` (the
+ * safe, hide-the-button default) when the request fails.
+ */
+function useProjectInfo(): ProjectInfo | undefined {
   const { data } = useQuery({
     queryKey: ["devtools-project"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProjectInfo> => {
       const res = await fetch("/__enpilink/devtools/project");
       if (!res.ok) {
-        return { packageManager: "npm" as PackageManager };
+        return { packageManager: "npm", dev: false };
       }
-      return (await res.json()) as { packageManager: PackageManager };
+      const json = (await res.json()) as Partial<ProjectInfo>;
+      return {
+        packageManager: json.packageManager ?? "npm",
+        dev: json.dev === true,
+      };
     },
     staleTime: Infinity,
   });
-  const pm = data?.packageManager ?? "npm";
-  return `${RUN_PREFIX_BY_PM[pm]} deploy`;
+  return data;
 }
 
 const DOT_BY_STATUS = {
@@ -136,51 +150,53 @@ function HoverPopover({
   );
 }
 
+/**
+ * Dev-only "Deploy" affordance — a coming-soon placeholder for one-click
+ * publishing to Enpitech servers. It is intentionally NON-functional: always
+ * disabled, with a "Coming soon" tooltip. It renders ONLY when the server
+ * reports `dev` (i.e. under `enpilink dev`), never in production/admin mode.
+ *
+ * Styling: even disabled it reads as a teal button (soft #3fb6a8 fill + teal
+ * text/border) to match the dashboard accent — scoped hexes only, so the
+ * global brand tokens stay untouched. The tooltip trigger wraps the button in
+ * a `<span>` because a `disabled` <button> doesn't emit pointer events, so
+ * Radix's TooltipTrigger would otherwise never see the hover.
+ */
 export function DeployButton() {
-  const command = useDeployCommand();
-  const { copied, copy } = useCopyToClipboard();
+  const project = useProjectInfo();
+
+  // Dev-only: hide entirely in prod/admin (and until the dev flag resolves).
+  if (!project?.dev) {
+    return null;
+  }
 
   return (
-    <HoverPopover
-      className="w-60"
-      trigger={
-        <Button
-          variant="cta"
-          className="h-8 px-2 gap-1"
-          icon={<RocketIcon className="size-3.5" />}
-          onClick={() => copy(command)}
-        >
-          Build
-        </Button>
-      }
-    >
-      <div className="space-y-3">
-        <p
-          className={cn(
-            "text-sm text-muted-foreground py-2 mx-auto text-center",
-            DESCRIPTION_MAX_W,
-          )}
-        >
-          Run this command to build your enpilink app, then self-host the output
-          ( <code className="font-mono text-xs">node dist/__entry.js</code>).
-        </p>
-        <button
-          type="button"
-          aria-label="Copy command"
-          onClick={() => copy(command)}
-          className="flex w-full items-center gap-2 rounded-md border bg-light-gray px-2 py-1.5 text-left hover:bg-background-hover"
-        >
-          <span className="flex-1 truncate font-mono text-xs">{command}</span>
-          <span className="text-quaternary-foreground">
-            {copied ? (
-              <Check className="size-3.5" />
-            ) : (
-              <Copy className="size-3.5" />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* Span wrapper so hover still reaches the tooltip over a disabled
+            button (disabled buttons swallow pointer events). */}
+        <span className="inline-flex cursor-not-allowed" data-testid="deploy">
+          <Button
+            type="button"
+            disabled
+            aria-disabled
+            icon={<RocketIcon className="size-3.5" />}
+            className={cn(
+              "h-8 px-2 gap-1 pointer-events-none",
+              // Soft teal fill + teal text/border (dashboard #3fb6a8 family).
+              // `disabled:opacity-50` from the base variant is overridden so it
+              // still reads teal, not dead grey.
+              "bg-[#3fb6a8]/10 text-[#2f9e91] border border-[#3fb6a8]/40",
+              "disabled:opacity-100",
+              "dark:bg-[#5fc7ba]/10 dark:text-[#5fc7ba] dark:border-[#5fc7ba]/40",
             )}
-          </span>
-        </button>
-      </div>
-    </HoverPopover>
+          >
+            Deploy
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Coming soon</TooltipContent>
+    </Tooltip>
   );
 }
 

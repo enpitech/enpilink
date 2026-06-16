@@ -24,18 +24,12 @@ function Chip({ children }: { children: React.ReactNode }) {
 function BrandChip() {
   const serverInfo = useServerInfo();
   const name = serverInfo?.name ?? "enpilink";
-  const version = serverInfo?.version;
+  // Show only the server/app name. The app's own package.json version was
+  // dropped from the chip (noisy/confusing — developers manage their own
+  // versioning); no version element or trailing separator remains.
   return (
     <Chip>
       <span>{name}</span>
-      {version && (
-        <>
-          <Separator orientation="vertical" className="h-4 self-center!" />
-          <span className="font-mono text-xs text-quaternary-foreground">
-            {version}
-          </span>
-        </>
-      )}
     </Chip>
   );
 }
