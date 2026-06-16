@@ -11,9 +11,9 @@ import { mockEnabled } from "./analytics.js";
 import { setActiveStorage } from "./log-sink.js";
 import { McpServer } from "./server.js";
 
-// The admin static UI imports @enpilink/devtools via a non-literal specifier;
+// The admin static UI imports @enpilink/console via a non-literal specifier;
 // stub it so these tests don't require the devtools dist (clean-build cycle).
-vi.mock("@enpilink/devtools", () => ({
+vi.mock("@enpilink/console", () => ({
   // Stand in for the static SPA shell: answer `/` with a shell marker, let
   // everything else fall through to the data routers.
   devtoolsStaticServer: () =>

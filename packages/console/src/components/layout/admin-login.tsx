@@ -62,8 +62,10 @@ export function AdminLogin() {
         data-testid="admin-login"
       >
         <div className="space-y-1.5 text-center">
-          <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-light-gray">
-            <KeyRound className="size-5 text-muted-foreground" />
+          {/* Teal accent chip (dashboard #3fb6a8 family) — scoped hexes keep the
+              global purple brand tokens untouched. */}
+          <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-[#3fb6a8]/10">
+            <KeyRound className="size-5 text-[#2f9e91] dark:text-[#5fc7ba]" />
           </div>
           <h2 className="text-base font-semibold text-foreground">
             Admin sign-in required
@@ -84,11 +86,21 @@ export function AdminLogin() {
           onChange={(e) => setValue(e.target.value)}
           error={error ?? undefined}
           data-testid="admin-token-input"
+          // Teal focus ring to match the dashboard accent (overrides the
+          // default purple `border-ring`). No-op when showing the error border.
+          className={
+            error
+              ? undefined
+              : "focus-visible:border-[#3fb6a8] dark:focus-visible:border-[#5fc7ba]"
+          }
         />
 
         <Button
           type="submit"
-          className="w-full justify-center"
+          // Teal submit button + teal focus ring to match the dashboard accent
+          // (overrides the default purple `bg-primary`/`ring-ring`). Scoped
+          // hexes only — the global brand tokens (header Build CTA) stay purple.
+          className="w-full justify-center bg-[#3fb6a8] text-white [@media(hover:hover)]:hover:bg-[#2f9e91] focus-visible:ring-[#3fb6a8] dark:bg-[#5fc7ba] dark:text-[#0b3b35] dark:[@media(hover:hover)]:hover:bg-[#4fb9ac]"
           disabled={verifying}
           data-testid="admin-token-submit"
         >

@@ -12,7 +12,7 @@ import {
 /**
  * Config admin API (M4). Pure core — reads the SAME active
  * {@link StorageAdapter} the analytics middleware writes to, via
- * {@link getActiveStorage}. Does NOT depend on `@enpilink/devtools`.
+ * {@link getActiveStorage}. Does NOT depend on `@enpilink/console`.
  *
  * Mounted dev-only (under the `NODE_ENV !== "production"` block in
  * `express.ts`) at `/__enpilink/config`. Prod admin mounting (behind bearer

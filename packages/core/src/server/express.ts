@@ -78,9 +78,9 @@ export async function createApp({
   if (process.env.NODE_ENV !== "production") {
     // Dev-only. The admin plane (devtools UI + observability + config API) is
     // mounted UNAUTHENTICATED on localhost — today's dev behavior. The mounts
-    // live in `mountAdmin`, which holds @enpilink/devtools behind a non-literal
-    // specifier so core type-checks WITHOUT devtools being built first (the
-    // core↔devtools workspace cycle; a clean checkout has no devtools `dist`).
+    // live in `mountAdmin`, which holds @enpilink/console behind a non-literal
+    // specifier so core type-checks WITHOUT the console being built first (the
+    // core↔console workspace cycle; a clean checkout has no console `dist`).
     // This whole block is dead-code-eliminated in production by the literal
     // `process.env.NODE_ENV` guard above (esbuild/wrangler substitution).
     await mountAdmin(app);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Update enpilink, @enpilink/devtools, and enpitech versions
+ * Update enpilink, @enpilink/console, and enpitech versions
  * in template and example apps
  *
  * Usage:
@@ -63,16 +63,16 @@ function getVersion(packageName, expectedVersion, timeoutMs = 10_000) {
 
 const explicitVersion = process.argv[2];
 const enpilinkVersion = getVersion("enpilink", explicitVersion);
-const devtoolsVersion = getVersion("@enpilink/devtools", explicitVersion);
+const consoleVersion = getVersion("@enpilink/console", explicitVersion);
 const enpitechVersion = getVersion("enpitech");
 
 const enpilinkRange = `^${enpilinkVersion}`;
-const devtoolsRange = devtoolsVersion ? `^${devtoolsVersion}` : null;
+const consoleRange = consoleVersion ? `^${consoleVersion}` : null;
 const enpitechRange = enpitechVersion ? `^${enpitechVersion}` : null;
 
 console.log(`enpilink:          ${enpilinkRange}`);
-if (devtoolsRange) {
-  console.log(`@enpilink/devtools: ${devtoolsRange}`);
+if (consoleRange) {
+  console.log(`@enpilink/console: ${consoleRange}`);
 }
 if (enpitechRange) {
   console.log(`enpitech:               ${enpitechRange}`);
@@ -95,14 +95,14 @@ const targets = [
   ...exampleTargets,
 ];
 
-// Update @enpilink/devtools peer dependency in core package
-if (devtoolsRange) {
+// Update @enpilink/console peer dependency in core package
+if (consoleRange) {
   const corePackagePath = join(rootDir, "packages/core/package.json");
   if (existsSync(corePackagePath)) {
     const corePkg = JSON.parse(readFileSync(corePackagePath, "utf8"));
-    if (corePkg.peerDependencies?.["@enpilink/devtools"]) {
+    if (corePkg.peerDependencies?.["@enpilink/console"]) {
       console.log("Updating: packages/core/package.json (peerDependencies)");
-      corePkg.peerDependencies["@enpilink/devtools"] = devtoolsRange;
+      corePkg.peerDependencies["@enpilink/console"] = consoleRange;
       writeFileSync(corePackagePath, JSON.stringify(corePkg, null, 2) + "\n");
     }
   }
@@ -128,11 +128,11 @@ for (const target of targets) {
   }
 
   if (
-    devtoolsRange &&
-    pkg.devDependencies?.["@enpilink/devtools"] &&
-    !pkg.devDependencies["@enpilink/devtools"].startsWith("workspace:")
+    consoleRange &&
+    pkg.devDependencies?.["@enpilink/console"] &&
+    !pkg.devDependencies["@enpilink/console"].startsWith("workspace:")
   ) {
-    pkg.devDependencies["@enpilink/devtools"] = devtoolsRange;
+    pkg.devDependencies["@enpilink/console"] = consoleRange;
   }
 
   if (enpitechRange && pkg.devDependencies?.enpitech) {

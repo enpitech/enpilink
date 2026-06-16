@@ -5,7 +5,7 @@ import type { AnalyticsEvent, StorageAdapter } from "./storage/types.js";
 /**
  * Observability read API (M3). Pure core — reads the SAME active
  * {@link StorageAdapter} the analytics middleware + log sink write to, via
- * {@link getActiveStorage}. It does NOT depend on `@enpilink/devtools`.
+ * {@link getActiveStorage}. It does NOT depend on `@enpilink/console`.
  *
  * Mounted dev-only (under the `NODE_ENV !== "production"` block in
  * `express.ts`) at `/__enpilink/observability/`. The `/__enpilink/` prefix

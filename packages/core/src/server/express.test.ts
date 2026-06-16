@@ -3,7 +3,7 @@ import type { ErrorRequestHandler, RequestHandler } from "express";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { McpServer } from "./server.js";
 
-vi.mock("@enpilink/devtools", () => ({
+vi.mock("@enpilink/console", () => ({
   devtoolsStaticServer: () =>
     ((_req: unknown, _res: unknown, next: () => void) =>
       next()) as RequestHandler,

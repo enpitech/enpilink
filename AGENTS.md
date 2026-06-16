@@ -23,7 +23,7 @@ packages/
     src/web/        #   React hooks, runtime adaptors, data-llm, Vite plugin, createStore
     src/cli/        #   CLI entry (oclif)
     src/commands/   #   dev / build / start commands
-  devtools/         # npm: @enpilink/devtools — local emulator UI
+  console/          # npm: @enpilink/console — dashboard / config / playground / docs web UI
   create-enpilink/ # npm create enpilink — project scaffolder
  
 examples/           # Showcase apps — good for understanding patterns

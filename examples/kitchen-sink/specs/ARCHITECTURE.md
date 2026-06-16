@@ -4,7 +4,7 @@ Mirrors the sibling-mock file pattern.
 
 ```
 examples/kitchen-sink/
-├── package.json          # type:module, node>=22; enpilink + @enpilink/devtools workspace deps
+├── package.json          # type:module, node>=22; enpilink + @enpilink/console workspace deps
 ├── tsconfig.json         # extends "enpilink/tsconfig", @/* path alias, includes .enpilink/**/*.d.ts
 ├── vite.config.ts        # enpilink() + react() + tailwindcss(); @ alias
 ├── vitest.config.ts      # node env, @ alias, src/**/*.test.ts

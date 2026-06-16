@@ -208,7 +208,7 @@ Then connect it to Claude:
 npm create enpilink@latest my-app
 ```
 
-> **POC distribution caveat.** `enpilink` and `@enpilink/devtools` are not yet
+> **POC distribution caveat.** `enpilink` and `@enpilink/console` are not yet
 > published to npm, so a freshly scaffolded app's `npm install` will fail on the
 > `workspace:*` ranges in the templates. For real distribution, publish both
 > packages to npm and run `node scripts/bump.js <version>` to rewrite the
@@ -257,7 +257,7 @@ build scripts.
 enpilink/
 ├── packages/
 │   ├── core/             → npm "enpilink": server framework + React hooks + Vite plugin + CLI (oclif + Ink)
-│   ├── devtools/         → "@enpilink/devtools": local emulator / playground UI
+│   ├── console/          → "@enpilink/console": dashboard / config / playground / docs web UI
 │   └── create-enpilink/  → "create-enpilink": scaffolder (templates: blank, demo)
 ├── examples/
 │   ├── kitchen-sink/     → the all-features showcase ("Northwind"); basis of the demo template
@@ -274,7 +274,7 @@ This is a POC fork. Today:
 - ✅ Local dev, devtools emulator, HMR, build, and self-host all work account-free.
 - ✅ The account-free **srv.us** tunnel is live-verified end-to-end (the printed
   `/mcp` URL round-trips over a real public tunnel and survives reconnects).
-- ⏳ **Real npm distribution** requires publishing `enpilink` + `@enpilink/devtools`
+- ⏳ **Real npm distribution** requires publishing `enpilink` + `@enpilink/console`
   to npm, then running `node scripts/bump.js <version>`. Until then,
   `npm create enpilink` is workspace-linked (works inside this repo / via local
   tarballs, not from a bare `npm install`).

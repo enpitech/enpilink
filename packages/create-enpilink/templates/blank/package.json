@@ -20,7 +20,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@enpilink/devtools": "workspace:*",
+    "@enpilink/console": "workspace:*",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",

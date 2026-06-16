@@ -17,9 +17,9 @@ import type { StorageAdapter } from "./storage/types.js";
  * `requireBearerAuth` using `ENPILINK_ADMIN_TOKEN`.
  *
  * This module centralizes BOTH the dev and prod mounts so the route surface is
- * identical and the auth wrapping lives in one place. The devtools static UI is
+ * identical and the auth wrapping lives in one place. The console static UI is
  * imported through a non-literal specifier so core type-checks WITHOUT
- * `@enpilink/devtools` being built first (the core↔devtools workspace cycle).
+ * `@enpilink/console` being built first (the core↔console workspace cycle).
  */
 
 /** Truthy env values that enable the admin plane. */
@@ -220,7 +220,7 @@ export async function ensureAdminStorage(): Promise<StorageAdapter | null> {
 }
 
 /** The non-literal specifier keeps the core↔devtools clean-build cycle intact. */
-const DEVTOOLS_SPECIFIER = "@enpilink/devtools";
+const DEVTOOLS_SPECIFIER = "@enpilink/console";
 
 async function loadDevtoolsStaticServer(): Promise<RequestHandler> {
   const { devtoolsStaticServer } = (await import(DEVTOOLS_SPECIFIER)) as {

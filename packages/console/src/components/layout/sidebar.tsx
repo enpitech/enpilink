@@ -74,7 +74,15 @@ export function Sidebar() {
     >
       <TabsList
         variant="default"
-        className="flex! w-full flex-none! items-center! justify-start! gap-1 bg-transparent! p-2"
+        className={cn(
+          "flex! w-full flex-none! items-center! justify-start! gap-1 bg-transparent!",
+          // The vendored default TabsList sets `p-0` via a
+          // `group-data-[orientation=vertical]/tabs:` prefix that tailwind-merge
+          // can't dedupe against a plain `pt-5`. Re-assert padding with the SAME
+          // variant prefix so the icon group starts ~20px below the top header
+          // border (clear breathing room) while staying centered + slim.
+          "group-data-[orientation=vertical]/tabs:px-2 group-data-[orientation=vertical]/tabs:pt-5 group-data-[orientation=vertical]/tabs:pb-2",
+        )}
       >
         {SIDEBAR_ITEMS.map((item) => {
           const Icon = item.icon;

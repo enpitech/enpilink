@@ -117,7 +117,7 @@ export default class Dev extends Command {
           <Box marginBottom={1}>
             <Text color="#20a832">→{"  "}</Text>
             <Text color="white" bold>
-              Test locally with DevTools:{" "}
+              Test locally with the Console:{" "}
             </Text>
             <Text color="green">{`http://localhost:${port}/`}</Text>
           </Box>
