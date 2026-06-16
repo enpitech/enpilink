@@ -1,6 +1,8 @@
 import { setActiveStorage } from "./log-sink.js";
 import type { McpMiddlewareEntry, McpMiddlewareFn } from "./middleware.js";
+import { seedMockData } from "./mock-seed.js";
 import { resolveStorageAdapter } from "./storage/index.js";
+import { MemoryStorageAdapter } from "./storage/memory.js";
 import type { StorageAdapter } from "./storage/types.js";
 
 /**
@@ -25,6 +27,15 @@ export interface InstallAnalyticsOptions {
   now?: () => number;
 }
 
+/**
+ * Resolve a storage adapter for the session. In `--mock` mode we force an
+ * in-memory adapter (the demo seed must never touch disk and must vanish on
+ * exit); otherwise the configured `ENPILINK_STORAGE` adapter is used.
+ */
+function resolveSessionStorage(mock: boolean): StorageAdapter {
+  return mock ? new MemoryStorageAdapter() : resolveStorageAdapter();
+}
+
 /** Truthy values that enable analytics via {@link analyticsEnabled}. */
 const TRUTHY = new Set(["1", "true", "yes", "on"]);
 
@@ -34,6 +45,17 @@ const TRUTHY = new Set(["1", "true", "yes", "on"]);
  */
 export function analyticsEnabled(): boolean {
   const raw = process.env.ENPILINK_ANALYTICS;
+  return raw !== undefined && TRUTHY.has(raw.trim().toLowerCase());
+}
+
+/**
+ * Whether the `--mock` demo seed is enabled (`ENPILINK_MOCK`=1/true/yes/on).
+ * Mock mode is opt-in only and IMPLIES analytics-on + in-memory storage for the
+ * session, so the Dashboard renders full demo data with NO real traffic. It
+ * NEVER touches disk and is never on by default.
+ */
+export function mockEnabled(): boolean {
+  const raw = process.env.ENPILINK_MOCK;
   return raw !== undefined && TRUTHY.has(raw.trim().toLowerCase());
 }
 
@@ -128,13 +150,16 @@ async function recordSafely(
 export async function installAnalytics(
   opts: InstallAnalyticsOptions = {},
 ): Promise<{ storage: StorageAdapter; entry: McpMiddlewareEntry } | null> {
-  if (!analyticsEnabled()) {
+  // `--mock` (ENPILINK_MOCK) force-enables analytics for the session even when
+  // the env-based gating is off, so demos work without setting both flags.
+  const mock = mockEnabled();
+  if (!mock && !analyticsEnabled()) {
     return null;
   }
 
   let storage: StorageAdapter;
   try {
-    storage = resolveStorageAdapter();
+    storage = resolveSessionStorage(mock);
     await storage.init();
   } catch (err) {
     // Never let an analytics/storage failure break server startup.
@@ -146,6 +171,18 @@ export async function installAnalytics(
   }
 
   setActiveStorage(storage);
+
+  // In `--mock` mode, seed the in-memory storage with a deterministic demo
+  // dataset so the Dashboard renders full immediately (no real traffic).
+  // Determinism: a fixed seed + a base timestamp captured once here.
+  if (mock) {
+    const now = (opts.now ?? Date.now)();
+    try {
+      await seedMockData(storage, { now });
+    } catch {
+      // A seeding failure must never break server startup.
+    }
+  }
 
   const entry: McpMiddlewareEntry = {
     // "request" matches every (non-notification) request so non-tool methods

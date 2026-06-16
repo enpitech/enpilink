@@ -31,6 +31,20 @@ const toolStatSchema = z.object({
   errorRate: z.number(),
   p50: z.number(),
   p95: z.number(),
+  p99: z.number().default(0),
+  avg: z.number().default(0),
+});
+
+const methodStatSchema = z.object({
+  method: z.string(),
+  count: z.number(),
+  errors: z.number(),
+});
+
+const latencyBucketSchema = z.object({
+  from: z.number(),
+  to: z.number().nullable(),
+  count: z.number(),
 });
 
 export const summarySchema = z.object({
@@ -40,14 +54,22 @@ export const summarySchema = z.object({
   errorRate: z.number(),
   p50: z.number(),
   p95: z.number(),
+  p99: z.number().default(0),
+  avg: z.number().default(0),
+  throughputPerMin: z.number().default(0),
   bucketMs: z.number(),
   callsOverTime: z.array(timeBucketSchema),
   topTools: z.array(toolStatSchema),
+  slowestTools: z.array(toolStatSchema).default([]),
+  byMethod: z.array(methodStatSchema).default([]),
+  latencyHistogram: z.array(latencyBucketSchema).default([]),
 });
 
 export type Summary = z.infer<typeof summarySchema>;
 export type ToolStat = z.infer<typeof toolStatSchema>;
 export type TimeBucket = z.infer<typeof timeBucketSchema>;
+export type MethodStat = z.infer<typeof methodStatSchema>;
+export type LatencyBucket = z.infer<typeof latencyBucketSchema>;
 
 export const analyticsEventSchema = z.object({
   ts: z.number(),

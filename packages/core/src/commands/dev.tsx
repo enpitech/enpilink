@@ -37,6 +37,11 @@ export default class Dev extends Command {
       description: "Show tunnel logs",
       default: false,
     }),
+    mock: Flags.boolean({
+      description:
+        "Seed the dashboard with deterministic DEMO analytics (no real traffic). Implies analytics-on + in-memory storage for this dev session so the Dashboard renders full for demos/screenshots. Opt-in; off by default.",
+      default: false,
+    }),
   };
 
   public async run(): Promise<void> {
@@ -71,6 +76,16 @@ export default class Dev extends Command {
       ...process.env,
       __PORT: String(port),
       __TUNNEL_CONTROL_PORT: String(controlPort),
+      // `--mock`: force analytics-on + in-memory storage for this dev session
+      // and trigger the deterministic demo seed in the spawned server process.
+      // These are scoped to the child env so a normal run is unaffected.
+      ...(flags.mock
+        ? {
+            ENPILINK_MOCK: "1",
+            ENPILINK_ANALYTICS: "1",
+            ENPILINK_STORAGE: "memory",
+          }
+        : {}),
     };
 
     const App = () => {
@@ -156,6 +171,16 @@ export default class Dev extends Command {
                 <Text color="#20a832">→{"  "}</Text>
                 <Text color="red">{`Try again with: enpilink dev --tunnel -p ${port}`}</Text>
               </Box>
+            </Box>
+          )}
+
+          {flags.mock && (
+            <Box marginBottom={1}>
+              <Text>🎭{"  "}</Text>
+              <Text color="magenta" bold>
+                Mock mode:{" "}
+              </Text>
+              <Text>dashboard seeded with deterministic demo analytics.</Text>
             </Box>
           )}
 

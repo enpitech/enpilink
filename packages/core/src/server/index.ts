@@ -2,6 +2,7 @@ export {
   analyticsEnabled,
   type InstallAnalyticsOptions,
   installAnalytics,
+  mockEnabled,
 } from "./analytics.js";
 export {
   type AuthInfo,
@@ -69,7 +70,17 @@ export type {
   McpWildcard,
 } from "./middleware.js";
 export {
+  generateMockEvents,
+  generateMockLogs,
+  MOCK_SEED,
+  type MockSeedOptions,
+  mulberry32,
+  seedMockData,
+} from "./mock-seed.js";
+export {
   createObservabilityRouter,
+  type LatencyBucket,
+  type MethodStat,
   type ObservabilityDisabled,
   type ObservabilitySummary,
   percentile,

@@ -97,9 +97,69 @@ describe("summarize", () => {
       errorRate: 0,
       p50: 0,
       p95: 0,
+      p99: 0,
+      avg: 0,
+      throughputPerMin: 0,
       callsOverTime: [],
       topTools: [],
+      slowestTools: [],
+      byMethod: [],
     });
+    // The histogram always has fixed buckets; they're just all zero.
+    expect(s.latencyHistogram.every((b) => b.count === 0)).toBe(true);
+  });
+
+  it("computes p99 + avg overall and per-tool", () => {
+    const events: AnalyticsEvent[] = [];
+    // echo: latencies 1..100 → avg 50.5, p99 ~99
+    for (let i = 1; i <= 100; i++) {
+      events.push(ev({ ts: i, tool: "echo", ms: i, ok: true }));
+    }
+    const s = summarize(events, { since: 0 });
+    expect(s.avg).toBeCloseTo(50.5, 5);
+    // nearest-rank: p99 of 1..100 → 99 + 0.01 interp
+    expect(s.p99).toBeCloseTo(99, 0);
+    const echo = s.topTools.find((t) => t.name === "echo");
+    expect(echo?.avg).toBeCloseTo(50.5, 5);
+    expect(echo?.p99).toBeGreaterThan(echo?.p95 ?? 0);
+  });
+
+  it("groups calls by method and ranks slowest tools by p95", () => {
+    const s = summarize(
+      [
+        ev({ ts: 1, tool: "fast", method: "tools/call", ms: 5, ok: true }),
+        ev({ ts: 2, tool: "fast", method: "tools/call", ms: 7, ok: true }),
+        ev({ ts: 3, tool: "slow", method: "tools/call", ms: 900, ok: true }),
+        ev({ ts: 4, method: "tools/list", ms: 2, ok: true }),
+      ],
+      { since: 0 },
+    );
+    // byMethod descending by count: tools/call (3) then tools/list (1)
+    expect(s.byMethod.map((m) => m.method)).toEqual([
+      "tools/call",
+      "tools/list",
+    ]);
+    expect(s.byMethod[0]?.count).toBe(3);
+    // slowest by p95: slow first
+    expect(s.slowestTools[0]?.name).toBe("slow");
+  });
+
+  it("buckets latencies into a fixed histogram", () => {
+    const s = summarize(
+      [
+        ev({ ts: 1, tool: "a", ms: 5, ok: true }), // [0,10)
+        ev({ ts: 2, tool: "a", ms: 5, ok: true }), // [0,10)
+        ev({ ts: 3, tool: "a", ms: 30, ok: true }), // [25,50)
+        ev({ ts: 4, tool: "a", ms: 3000, ok: true }), // >=2500
+      ],
+      { since: 0 },
+    );
+    const total = s.latencyHistogram.reduce((n, b) => n + b.count, 0);
+    expect(total).toBe(4);
+    const first = s.latencyHistogram.find((b) => b.from === 0);
+    expect(first?.count).toBe(2);
+    const top = s.latencyHistogram.find((b) => b.to === null);
+    expect(top?.count).toBe(1);
   });
 
   it("falls back to method then 'unknown' for the tool name", () => {

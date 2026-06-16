@@ -43,6 +43,30 @@ export interface ToolStat {
   p50: number;
   /** 95th-percentile latency (ms). */
   p95: number;
+  /** 99th-percentile latency (ms). */
+  p99: number;
+  /** Average latency (ms) over events with timing. */
+  avg: number;
+}
+
+/** Per-MCP-method aggregate row (e.g. `tools/call`, `tools/list`). */
+export interface MethodStat {
+  /** MCP method name, or `"unknown"`. */
+  method: string;
+  /** Total calls. */
+  count: number;
+  /** Errored calls. */
+  errors: number;
+}
+
+/** A single bar of the latency histogram. */
+export interface LatencyBucket {
+  /** Inclusive lower bound of the bucket (ms). */
+  from: number;
+  /** Exclusive upper bound of the bucket (ms), or `null` for the open top bin. */
+  to: number | null;
+  /** Number of events whose latency fell in this bucket. */
+  count: number;
 }
 
 /** The aggregate returned by `GET /summary` when analytics is enabled. */
@@ -60,12 +84,24 @@ export interface ObservabilitySummary {
   p50: number;
   /** 95th-percentile latency across all events (ms). */
   p95: number;
+  /** 99th-percentile latency across all events (ms). */
+  p99: number;
+  /** Average latency across all timed events (ms). */
+  avg: number;
+  /** Throughput: calls per minute over the window `[since, latest event]`. */
+  throughputPerMin: number;
   /** Bucket width used for {@link callsOverTime} (ms). */
   bucketMs: number;
   /** Calls-over-time series, oldest bucket first. */
   callsOverTime: TimeBucket[];
   /** Top tools/methods by call count (descending). */
   topTools: ToolStat[];
+  /** Slowest tools/methods by p95 latency (descending). Only timed tools. */
+  slowestTools: ToolStat[];
+  /** Calls grouped by MCP method (descending by count). */
+  byMethod: MethodStat[];
+  /** Latency distribution histogram (fixed buckets). */
+  latencyHistogram: LatencyBucket[];
 }
 
 /** The disabled/no-storage shape — a valid 200 payload, never a 500. */
@@ -76,9 +112,15 @@ export interface ObservabilityDisabled {
   errorRate: 0;
   p50: 0;
   p95: 0;
+  p99: 0;
+  avg: 0;
+  throughputPerMin: 0;
   bucketMs: number;
   callsOverTime: [];
   topTools: [];
+  slowestTools: [];
+  byMethod: [];
+  latencyHistogram: [];
 }
 
 /**
@@ -100,6 +142,41 @@ export function percentile(sorted: number[], p: number): number {
   const hiVal = sorted[hi] ?? loVal;
   const frac = rank - lo;
   return loVal + (hiVal - loVal) * frac;
+}
+
+/**
+ * Fixed latency-histogram bucket edges (ms). Each pair `[edges[i], edges[i+1])`
+ * is a bucket; the final bucket is open-ended (`>= last edge`). Chosen to span
+ * sub-ms lookups through multi-second LLM/report calls.
+ */
+const HISTOGRAM_EDGES = [0, 10, 25, 50, 100, 250, 500, 1000, 2500] as const;
+
+/** Bucket a sorted/unsorted latency sample into {@link HISTOGRAM_EDGES}. */
+function buildHistogram(latencies: number[]): LatencyBucket[] {
+  const edges: number[] = [...HISTOGRAM_EDGES];
+  const counts = new Array<number>(edges.length).fill(0);
+  for (const ms of latencies) {
+    let idx = 0;
+    for (let i = 0; i < edges.length; i++) {
+      if (ms >= (edges[i] as number)) {
+        idx = i;
+      }
+    }
+    counts[idx] = (counts[idx] ?? 0) + 1;
+  }
+  return edges.map((from, i) => ({
+    from,
+    to: i + 1 < edges.length ? (edges[i + 1] as number) : null,
+    count: counts[i] ?? 0,
+  }));
+}
+
+/** Mean of a numeric sample, or `0` when empty. */
+function mean(xs: number[]): number {
+  if (xs.length === 0) {
+    return 0;
+  }
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
 /** Options for {@link summarize}. */
@@ -139,6 +216,9 @@ export function summarize(
     string,
     { count: number; errors: number; latencies: number[] }
   >();
+  const methods = new Map<string, { count: number; errors: number }>();
+  let minTs = Number.POSITIVE_INFINITY;
+  let maxTs = Number.NEGATIVE_INFINITY;
 
   let errors = 0;
   for (const e of events) {
@@ -149,6 +229,20 @@ export function summarize(
     if (typeof e.ms === "number" && Number.isFinite(e.ms)) {
       allLatencies.push(e.ms);
     }
+    if (e.ts < minTs) {
+      minTs = e.ts;
+    }
+    if (e.ts > maxTs) {
+      maxTs = e.ts;
+    }
+
+    const methodName = e.method ?? "unknown";
+    const mStat = methods.get(methodName) ?? { count: 0, errors: 0 };
+    mStat.count += 1;
+    if (errored) {
+      mStat.errors += 1;
+    }
+    methods.set(methodName, mStat);
 
     const bucketTs = Math.floor(e.ts / bucketMs) * bucketMs;
     const bucket = buckets.get(bucketTs) ?? {
@@ -177,22 +271,43 @@ export function summarize(
   allLatencies.sort((a, b) => a - b);
   const total = events.length;
 
-  const topTools: ToolStat[] = [...tools.entries()]
-    .map(([name, s]) => {
-      const sorted = s.latencies.slice().sort((a, b) => a - b);
-      return {
-        name,
-        count: s.count,
-        errors: s.errors,
-        errorRate: s.count === 0 ? 0 : s.errors / s.count,
-        p50: percentile(sorted, 0.5),
-        p95: percentile(sorted, 0.95),
-      };
-    })
+  const toolStats: ToolStat[] = [...tools.entries()].map(([name, s]) => {
+    const sorted = s.latencies.slice().sort((a, b) => a - b);
+    return {
+      name,
+      count: s.count,
+      errors: s.errors,
+      errorRate: s.count === 0 ? 0 : s.errors / s.count,
+      p50: percentile(sorted, 0.5),
+      p95: percentile(sorted, 0.95),
+      p99: percentile(sorted, 0.99),
+      avg: mean(sorted),
+    };
+  });
+
+  const topTools = toolStats
+    .slice()
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, topLimit);
 
+  // Slowest by p95, considering only tools that actually have timing data.
+  const slowestTools = toolStats
+    .filter((t) => t.p95 > 0)
+    .sort((a, b) => b.p95 - a.p95 || a.name.localeCompare(b.name))
+    .slice(0, topLimit);
+
+  const byMethod: MethodStat[] = [...methods.entries()]
+    .map(([method, s]) => ({ method, count: s.count, errors: s.errors }))
+    .sort((a, b) => b.count - a.count || a.method.localeCompare(b.method));
+
   const callsOverTime = [...buckets.values()].sort((a, b) => a.ts - b.ts);
+
+  // Throughput: calls / minute over the observed span. Use the actual event
+  // span (since → newest event) so a long default window with little data
+  // doesn't dilute the rate to ~0. Falls back to 0 for empty input.
+  const spanMs = total === 0 ? 0 : Math.max(maxTs - opts.since, maxTs - minTs);
+  const throughputPerMin =
+    spanMs > 0 ? total / (spanMs / 60_000) : total > 0 ? total : 0;
 
   return {
     enabled: true,
@@ -202,9 +317,15 @@ export function summarize(
     errorRate: total === 0 ? 0 : errors / total,
     p50: percentile(allLatencies, 0.5),
     p95: percentile(allLatencies, 0.95),
+    p99: percentile(allLatencies, 0.99),
+    avg: mean(allLatencies),
+    throughputPerMin,
     bucketMs,
     callsOverTime,
     topTools,
+    slowestTools,
+    byMethod,
+    latencyHistogram: buildHistogram(allLatencies),
   };
 }
 
@@ -217,9 +338,15 @@ function disabledSummary(bucketMs: number): ObservabilityDisabled {
     errorRate: 0,
     p50: 0,
     p95: 0,
+    p99: 0,
+    avg: 0,
+    throughputPerMin: 0,
     bucketMs,
     callsOverTime: [],
     topTools: [],
+    slowestTools: [],
+    byMethod: [],
+    latencyHistogram: [],
   };
 }
 
