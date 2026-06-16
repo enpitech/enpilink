@@ -32,10 +32,11 @@ function baseOptions(theme: ChartTheme): ApexOptions {
     },
     grid: {
       borderColor: theme.grid,
-      strokeDashArray: 4,
+      strokeDashArray: 3,
       padding: { left: 8, right: 8 },
+      xaxis: { lines: { show: false } },
     },
-    tooltip: { theme: theme.mode },
+    tooltip: { theme: theme.mode, style: { fontSize: "12px" } },
     legend: { labels: { colors: theme.text } },
     dataLabels: { enabled: false },
     states: { hover: { filter: { type: "lighten" } } },
@@ -59,7 +60,7 @@ export function VolumeAreaChart({
       stroke: { curve: "smooth", width: 2 },
       fill: {
         type: "gradient",
-        gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 },
+        gradient: { shadeIntensity: 1, opacityFrom: 0.28, opacityTo: 0.02 },
       },
       xaxis: {
         type: "datetime",
@@ -148,7 +149,7 @@ export function TopToolsBar({
       chart: { ...baseOptions(theme).chart, type: "bar" },
       colors: [theme.brand],
       plotOptions: {
-        bar: { horizontal: true, borderRadius: 4, barHeight: "60%" },
+        bar: { horizontal: true, borderRadius: 3, barHeight: "60%" },
       },
       xaxis: {
         categories: tools.map((t) => t.name),
@@ -185,7 +186,7 @@ export function SlowestToolsBar({
       chart: { ...baseOptions(theme).chart, type: "bar" },
       colors: [theme.warning],
       plotOptions: {
-        bar: { horizontal: true, borderRadius: 4, barHeight: "60%" },
+        bar: { horizontal: true, borderRadius: 3, barHeight: "60%" },
       },
       xaxis: {
         categories: tools.map((t) => t.name),
@@ -228,7 +229,7 @@ export function LatencyHistogram({
       chart: { ...baseOptions(theme).chart, type: "bar" },
       colors: [theme.brandSoft],
       plotOptions: {
-        bar: { columnWidth: "70%", borderRadius: 4, distributed: false },
+        bar: { columnWidth: "70%", borderRadius: 3, distributed: false },
       },
       xaxis: {
         categories: labels,

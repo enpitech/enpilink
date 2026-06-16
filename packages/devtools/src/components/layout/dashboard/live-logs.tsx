@@ -17,12 +17,12 @@ const formatTimestamp = (ts: number) =>
 const LEVEL_STYLES: Record<LogEntry["level"], { badge: string; text: string }> =
   {
     debug: {
-      badge: "bg-muted text-muted-foreground",
+      badge: "bg-slate-100 text-slate-500",
       text: "text-muted-foreground",
     },
-    info: { badge: "bg-sky-100 text-sky-700", text: "text-sky-600" },
-    warning: { badge: "bg-amber-100 text-amber-700", text: "text-amber-700" },
-    error: { badge: "bg-red-100 text-red-700", text: "text-red-700" },
+    info: { badge: "bg-sky-50 text-sky-700", text: "text-sky-700" },
+    warning: { badge: "bg-amber-50 text-amber-700", text: "text-amber-700" },
+    error: { badge: "bg-rose-50 text-rose-700", text: "text-rose-700" },
   };
 
 /**
@@ -35,20 +35,20 @@ export const LiveLogs = () => {
   const clear = useObservabilityStream((s) => s.clear);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-canvas-border bg-background shadow-sm">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-canvas-border px-4">
         <h3 className="text-sm font-semibold text-foreground">Live logs</h3>
         <button
           type="button"
           aria-label="Clear live logs"
           onClick={clear}
           disabled={logs.length === 0}
-          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-light-gray hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-canvas hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Trash2 className="size-3.5" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-light-gray">
+      <div className="min-h-0 flex-1 overflow-auto bg-canvas/60">
         {logs.length === 0 ? (
           <p className="px-3 py-4 text-xs text-muted-foreground">
             Waiting for log activity… call a tool to see logs stream in.
@@ -60,7 +60,7 @@ export const LiveLogs = () => {
               <div
                 key={log.id}
                 data-testid="live-log-row"
-                className="flex items-start gap-2 border-b border-border bg-background px-2 py-1.5 font-mono text-xs"
+                className="flex items-start gap-2 border-b border-canvas-border bg-background px-3 py-1.5 font-mono text-xs"
               >
                 <span className="min-w-[80px] shrink-0 text-muted-foreground">
                   {formatTimestamp(log.ts)}

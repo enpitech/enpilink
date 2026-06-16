@@ -25,6 +25,10 @@
   --color-muted: #f8f8fc;
   --color-muted-foreground: #4b4170;
 
+  /* dashboard light canvas — airy slate-50 page behind white cards (MD2) */
+  --color-canvas: #f6f7f9;
+  --color-canvas-border: #e9edf2;
+
   --color-shadow: #4a00e01a;
 
   --color-inverted: #130c38;
@@ -192,6 +196,10 @@
 
   --color-muted: #130c38;
   --color-muted-foreground: #b6acdd;
+
+  /* dashboard canvas (dark) */
+  --color-canvas: #090715;
+  --color-canvas-border: #2a2156;
 
   --color-shadow: #00000040;
 

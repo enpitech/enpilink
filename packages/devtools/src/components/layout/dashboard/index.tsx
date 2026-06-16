@@ -32,20 +32,19 @@ const rateFmt = (n: number) =>
 
 type Tone = "default" | "success" | "warning" | "danger";
 
-const TONE_RING: Record<Tone, string> = {
-  default: "before:from-[#4A00E0] before:to-[#8E2DE2]",
-  success: "before:from-emerald-500 before:to-emerald-400",
-  warning: "before:from-amber-500 before:to-amber-400",
-  danger: "before:from-rose-600 before:to-rose-400",
-};
-
 const TONE_ICON: Record<Tone, string> = {
-  default: "bg-primary/10 text-primary",
+  default: "bg-primary/8 text-primary",
   success: "bg-emerald-500/10 text-emerald-600",
   warning: "bg-amber-500/10 text-amber-600",
   danger: "bg-rose-500/10 text-rose-600",
 };
 
+/**
+ * Clean light stat card (MD2): white card on a light-gray canvas, sharp
+ * corners (~6px), a thin 1px border + soft shadow, a small uppercase muted
+ * label, a big bold tabular number, and a subtle caption. The accent (purple)
+ * is reserved for the icon chip — no per-card gradient rails.
+ */
 function StatCard({
   icon: Icon,
   label,
@@ -60,25 +59,23 @@ function StatCard({
   tone?: Tone;
 }) {
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border border-border bg-background p-4 shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-gradient-to-r before:content-[''] ${TONE_RING[tone]}`}
-    >
-      <div className="flex items-start justify-between">
+    <div className="rounded-md border border-canvas-border bg-background p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-xs font-medium text-muted-foreground">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {label}
           </div>
           <div
-            className="mt-1 text-2xl font-semibold tabular-nums text-foreground"
+            className="mt-2 text-[1.75rem] font-bold leading-none tabular-nums text-foreground"
             data-testid={`stat-${label}`}
           >
             {value}
           </div>
           {hint ? (
-            <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>
+            <div className="mt-1.5 text-xs text-muted-foreground">{hint}</div>
           ) : null}
         </div>
-        <div className={`rounded-lg p-2 ${TONE_ICON[tone]}`}>
+        <div className={`rounded-md p-2 ${TONE_ICON[tone]}`}>
           <Icon className="size-4" />
         </div>
       </div>
@@ -101,15 +98,17 @@ function Card({
 }) {
   return (
     <div
-      className={`flex min-h-0 flex-col rounded-xl border border-border bg-background shadow-sm ${className ?? ""}`}
+      className={`flex min-h-0 flex-col rounded-md border border-canvas-border bg-background shadow-sm ${className ?? ""}`}
     >
-      <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
+      <div className="flex items-baseline justify-between gap-2 px-5 pt-4 pb-3">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {subtitle ? (
-          <span className="text-xs text-muted-foreground">{subtitle}</span>
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {subtitle}
+          </span>
         ) : null}
       </div>
-      <div className={`min-h-0 flex-1 p-3 ${bodyClassName ?? ""}`}>
+      <div className={`min-h-0 flex-1 px-3 pb-4 ${bodyClassName ?? ""}`}>
         {children}
       </div>
     </div>
@@ -126,20 +125,20 @@ function EmptyChart({ message }: { message: string }) {
 
 function ToolTable({ tools }: { tools: ToolStat[] }) {
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
-      <h3 className="border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-canvas-border bg-background shadow-sm">
+      <h3 className="px-5 pt-4 pb-3 text-sm font-semibold text-foreground">
         Per-tool / per-method breakdown
       </h3>
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full text-sm" data-testid="tool-table">
           <thead className="sticky top-0 bg-background">
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="px-4 py-2 font-medium">Tool / method</th>
+            <tr className="border-y border-canvas-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-5 py-2 font-medium">Tool / method</th>
               <th className="px-4 py-2 text-right font-medium">Calls</th>
               <th className="px-4 py-2 text-right font-medium">Err %</th>
               <th className="px-4 py-2 text-right font-medium">p50</th>
               <th className="px-4 py-2 text-right font-medium">p95</th>
-              <th className="px-4 py-2 text-right font-medium">p99</th>
+              <th className="px-5 py-2 text-right font-medium">p99</th>
             </tr>
           </thead>
           <tbody>
@@ -147,7 +146,7 @@ function ToolTable({ tools }: { tools: ToolStat[] }) {
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-6 text-center text-xs text-muted-foreground"
+                  className="px-5 py-6 text-center text-xs text-muted-foreground"
                 >
                   No tool calls recorded yet.
                 </td>
@@ -156,10 +155,10 @@ function ToolTable({ tools }: { tools: ToolStat[] }) {
               tools.map((t) => (
                 <tr
                   key={t.name}
-                  className="border-b border-border last:border-0 hover:bg-muted/40"
+                  className="border-b border-canvas-border last:border-0 hover:bg-canvas/60"
                   data-testid="tool-row"
                 >
-                  <td className="px-4 py-2 font-mono text-xs text-foreground">
+                  <td className="px-5 py-2 font-mono text-xs text-foreground">
                     {t.name}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
@@ -176,7 +175,7 @@ function ToolTable({ tools }: { tools: ToolStat[] }) {
                   <td className="px-4 py-2 text-right tabular-nums">
                     {msFmt(t.p95)}
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
+                  <td className="px-5 py-2 text-right tabular-nums">
                     {msFmt(t.p99)}
                   </td>
                 </tr>
@@ -192,11 +191,11 @@ function ToolTable({ tools }: { tools: ToolStat[] }) {
 function DisabledHint() {
   return (
     <div
-      className="flex h-full items-center justify-center p-8"
+      className="flex h-full items-center justify-center bg-canvas p-8"
       data-testid="analytics-disabled-hint"
     >
-      <div className="max-w-md space-y-3 rounded-xl border border-dashed border-border bg-background p-8 text-center shadow-sm">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10">
+      <div className="max-w-md space-y-3 rounded-md border border-canvas-border bg-background p-8 text-center shadow-sm">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-primary/10">
           <Activity className="size-6 text-primary" />
         </div>
         <h3 className="text-base font-semibold text-foreground">
@@ -269,12 +268,27 @@ export const Dashboard = () => {
 
   return (
     <div
-      className="h-full min-h-0 overflow-auto bg-muted/30 p-4"
+      className="h-full min-h-0 overflow-auto bg-canvas p-5"
       data-testid="dashboard"
     >
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-5">
+        {/* Page heading */}
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              Observability
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Tool-call analytics, latency, and live logs.
+            </p>
+          </div>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {numberFmt.format(s.total)} calls · {rateFmt(s.throughputPerMin)}
+          </span>
+        </div>
+
         {/* Counters */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           <StatCard
             icon={Hash}
             label="Total calls"
