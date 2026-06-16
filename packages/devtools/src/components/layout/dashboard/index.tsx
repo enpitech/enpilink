@@ -32,11 +32,14 @@ const rateFmt = (n: number) =>
 
 type Tone = "default" | "success" | "warning" | "danger";
 
+// MD3: gentle, unified icon chips — soft violet accent for neutral cards,
+// restrained muted pastels only where the metric carries success/error meaning
+// (no bright orange/amber; warning reuses the calm violet family).
 const TONE_ICON: Record<Tone, string> = {
-  default: "bg-primary/8 text-primary",
-  success: "bg-emerald-500/10 text-emerald-600",
-  warning: "bg-amber-500/10 text-amber-600",
-  danger: "bg-rose-500/10 text-rose-600",
+  default: "bg-[#8b80e6]/10 text-[#7a6fd6]",
+  success: "bg-emerald-400/10 text-emerald-500",
+  warning: "bg-[#8b80e6]/10 text-[#7a6fd6]",
+  danger: "bg-rose-400/10 text-rose-400",
 };
 
 /**

@@ -10,10 +10,11 @@ import type {
 import type { ChartTheme } from "@/lib/use-chart-theme.js";
 
 /**
- * ApexCharts-based charts for the polished Dashboard (MD). ApexCharts is
- * pure-JS (MIT) and renders SVG; we feed it an on-brand palette resolved from
- * {@link ChartTheme} so it stays light/dark aware and matches the enpitech
- * purple gradient. Each chart is a thin, memoized wrapper.
+ * ApexCharts-based charts for the Dashboard (MD3 — gentle/unified). ApexCharts
+ * is pure-JS (MIT) and renders SVG; we feed it the soft, unified violet palette
+ * resolved from {@link ChartTheme} so every series reads as tints/opacities of
+ * ONE hue (plus neutral slate) — gentle thin strokes, low-opacity fills, very
+ * light gridlines. Each chart is a thin, memoized wrapper.
  */
 
 const msFmt = (n: number) => `${Math.round(n)} ms`;
@@ -32,7 +33,7 @@ function baseOptions(theme: ChartTheme): ApexOptions {
     },
     grid: {
       borderColor: theme.grid,
-      strokeDashArray: 3,
+      strokeDashArray: 4,
       padding: { left: 8, right: 8 },
       xaxis: { lines: { show: false } },
     },
@@ -56,11 +57,14 @@ export function VolumeAreaChart({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "area", stacked: false },
-      colors: [theme.brand, theme.error],
+      // Unified: violet primary line + neutral slate for the errors series —
+      // differentiated by tint, not a second hue.
+      colors: [theme.brand, theme.neutral],
       stroke: { curve: "smooth", width: 2 },
       fill: {
         type: "gradient",
-        gradient: { shadeIntensity: 1, opacityFrom: 0.28, opacityTo: 0.02 },
+        // Gentle, low-opacity area fills (≈0.06–0.12).
+        gradient: { shadeIntensity: 1, opacityFrom: 0.12, opacityTo: 0.02 },
       },
       xaxis: {
         type: "datetime",
@@ -184,7 +188,8 @@ export function SlowestToolsBar({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "bar" },
-      colors: [theme.warning],
+      // Was a bright orange — now a soft lavender tint of the one accent.
+      colors: [theme.brandSoft],
       plotOptions: {
         bar: { horizontal: true, borderRadius: 3, barHeight: "60%" },
       },
@@ -227,7 +232,8 @@ export function LatencyHistogram({
     const opts: ApexOptions = {
       ...baseOptions(theme),
       chart: { ...baseOptions(theme).chart, type: "bar" },
-      colors: [theme.brandSoft],
+      // Lightest lavender tint — distinct from the other bars, same hue family.
+      colors: [theme.brandFaint],
       plotOptions: {
         bar: { columnWidth: "70%", borderRadius: 3, distributed: false },
       },
