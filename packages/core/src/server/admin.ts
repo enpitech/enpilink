@@ -99,24 +99,86 @@ function adminTokenVerifier(token: string): {
   };
 }
 
+/** Path prefixes for the admin DATA APIs (guarded). The shell is everything else. */
+const DATA_API_PREFIXES = [
+  "/__enpilink/observability",
+  "/__enpilink/config",
+] as const;
+
+/** The observability SSE stream route — the one endpoint that needs `?token=`. */
+const STREAM_PATH = "/__enpilink/observability/stream";
+
+/** Whether `path` belongs to a guarded data API. */
+function isDataApiPath(path: string): boolean {
+  return DATA_API_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
 /**
- * Build the bearer-auth middleware that guards the admin plane in prod.
+ * Remove the `token` query param from a URL (path + querystring), leaving the
+ * rest intact. Used to scrub the SSE bearer from `req.url`/`req.originalUrl`
+ * after promoting it to the Authorization header, so it never reaches logs or
+ * the route handler.
+ */
+function stripTokenParam(url: string): string {
+  const qIdx = url.indexOf("?");
+  if (qIdx === -1) {
+    return url;
+  }
+  const pathPart = url.slice(0, qIdx);
+  const params = new URLSearchParams(url.slice(qIdx + 1));
+  params.delete("token");
+  const rest = params.toString();
+  return rest.length > 0 ? `${pathPart}?${rest}` : pathPart;
+}
+
+/**
+ * Build the bearer-auth middleware that guards the admin **data APIs** in prod
+ * (`/__enpilink/observability/*` + `/__enpilink/config*`).
  *
- * The admin mounts are registered at the app root (the devtools SPA serves `/`),
- * so the guard must NOT intercept the public `/mcp` endpoint — it stays
- * unauthenticated regardless of admin. The returned middleware therefore passes
- * `/mcp` (and its subpaths) straight through; everything else requires the
- * bearer token.
+ * M6.5: this guard is mounted at the app root but enforces auth ONLY on the
+ * data-API paths — the devtools static SPA shell (and everything else,
+ * including `/mcp`) passes straight through unauthenticated, so a browser can
+ * always load the app and render its own token-login screen. The app then
+ * authenticates its own fetch/SSE calls; no data leaks without the token.
+ *
+ * **SSE auth (`?token=`):** browsers' `EventSource` cannot set an
+ * `Authorization` header, so for the observability `/stream` route ONLY we also
+ * accept the bearer via a `?token=` query param. We copy it into the
+ * `Authorization` header (so the SAME constant-time verifier enforces it — no
+ * separate compare path) and then delete the query param so it never reaches
+ * the route handler, logs, or any persisted request line. The header path stays
+ * the primary mechanism for every other route.
  */
 export function adminAuthMiddleware(token: string): RequestHandler {
   const required = requireBearerAuth({ verifier: adminTokenVerifier(token) });
   return (req, res, next) => {
-    // `req.path` is relative to the mount; since these are mounted at root it is
-    // the full path. Never guard `/mcp` — it's the public MCP transport.
-    if (req.path === "/mcp" || req.path.startsWith("/mcp/")) {
+    // `req.path` is the full path (guard mounted at root). Only the data APIs
+    // are guarded; the SPA shell, static assets, and `/mcp` pass through.
+    if (!isDataApiPath(req.path)) {
       next();
       return;
     }
+
+    // SSE-only: promote `?token=` to the Authorization header so EventSource
+    // can authenticate, then strip it from the URL so the secret never lands in
+    // the request log line, `req.query`, or the route handler. Only here, only
+    // where the header path is also enforced (prod admin).
+    if (req.path === STREAM_PATH && !req.headers.authorization) {
+      const queryToken = req.query.token;
+      if (typeof queryToken === "string" && queryToken.length > 0) {
+        req.headers.authorization = `Bearer ${queryToken}`;
+      }
+      // Rewrite req.url / req.originalUrl to drop the `token` param. Express's
+      // `req.query` is derived from `req.url`, so this removes it everywhere
+      // (query object + any downstream logging of the URL).
+      req.url = stripTokenParam(req.url);
+      if (typeof req.originalUrl === "string") {
+        req.originalUrl = stripTokenParam(req.originalUrl);
+      }
+    }
+
     return required(req, res, next);
   };
 }
@@ -171,15 +233,19 @@ async function loadDevtoolsStaticServer(): Promise<RequestHandler> {
  * Mount the admin plane (devtools static UI + observability API + config API)
  * onto `app`.
  *
- * - `auth`: when provided, every admin handler is guarded by this middleware
- *   (prod). When omitted, the handlers are mounted unauthenticated (dev on
- *   localhost — today's behavior).
- * - `includeStaticUi`: mount the devtools static UI. Always true; the dev path
- *   also mounts the views dev server separately (handled by the caller).
+ * **Shell vs data auth (M6.5).** The plane has two halves:
  *
- * The three mounts share the `/__enpilink/` route prefix (observability +
- * config) plus the devtools static UI; the auth guard, when present, is applied
- * uniformly so a single bearer token protects all of them.
+ * 1. The **devtools static SPA shell** (HTML/JS/CSS — non-sensitive app code).
+ *    Served WITHOUT auth so an unauthenticated browser can always load the app
+ *    and render its own token-login screen.
+ * 2. The **data APIs** (`/__enpilink/observability/*` + `/__enpilink/config*`),
+ *    which expose real analytics/config data. In prod these are guarded by
+ *    `opts.auth` (a single bearer token); the guard is applied ONLY in front of
+ *    these two routers, never the shell.
+ *
+ * In DEV (`auth` omitted) nothing is guarded — today's localhost behavior. The
+ * net result in prod: a browser with no token gets the app shell + a login
+ * screen, but no data leaks until the token is presented.
  */
 export async function mountAdmin(
   app: Express,
@@ -192,13 +258,18 @@ export async function mountAdmin(
   const observability = createObservabilityRouter();
   const config = createConfigRouter();
 
-  // Apply the auth guard ONCE in front of all three mounts (prod). In dev
-  // there is no guard. The guard itself lets `/mcp` through (see
-  // `adminAuthMiddleware`) so the public MCP transport stays unauthenticated.
+  // 1) Static SPA shell — ALWAYS unauthenticated so the browser can load the
+  //    app and show the login screen. It serves only non-sensitive app assets.
+  app.use(staticUi);
+
+  // 2) Data-API guard (prod only). Mounted at root, but `adminAuthMiddleware`
+  //    enforces auth ONLY on the `/__enpilink/observability|config` paths — the
+  //    shell above and `/mcp` pass through. It also accepts the SSE `?token=`
+  //    query param for the stream route. In dev (`opts.auth` omitted) there is
+  //    no guard at all.
   if (opts.auth) {
     app.use(opts.auth);
   }
-  app.use(staticUi);
   app.use(observability);
   app.use(config);
 }

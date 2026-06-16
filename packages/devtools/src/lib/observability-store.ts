@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { z } from "zod";
 import { create } from "zustand";
+import { authedFetch, withStreamToken } from "./admin-token-store.js";
 
 /**
  * Observability client (M3): TanStack Query hooks for the read API
@@ -103,7 +104,7 @@ export function useObservabilitySummary(bucketMs = 60_000) {
   return useQuery({
     queryKey: ["observability", "summary", bucketMs],
     queryFn: async (): Promise<Summary> => {
-      const res = await fetch(`${BASE}/summary?bucketMs=${bucketMs}`);
+      const res = await authedFetch(`${BASE}/summary?bucketMs=${bucketMs}`);
       if (!res.ok) {
         throw new Error(`summary failed (${res.status})`);
       }
@@ -117,7 +118,7 @@ export function useObservabilityEvents(limit = 100) {
   return useQuery({
     queryKey: ["observability", "events", limit],
     queryFn: async (): Promise<AnalyticsEvent[]> => {
-      const res = await fetch(`${BASE}/events?limit=${limit}`);
+      const res = await authedFetch(`${BASE}/events?limit=${limit}`);
       if (!res.ok) {
         throw new Error(`events failed (${res.status})`);
       }
@@ -151,7 +152,9 @@ export const useObservabilityStream = create<ObservabilityStreamStore>()(
     enabled: false,
 
     connect() {
-      const source = new EventSource(`${BASE}/stream`);
+      // EventSource can't set headers; append the admin token as `?token=`
+      // (no-op in dev where no token is set).
+      const source = new EventSource(withStreamToken(`${BASE}/stream`));
 
       source.addEventListener("status", (event) => {
         if (!(event instanceof MessageEvent)) {

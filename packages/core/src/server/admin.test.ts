@@ -14,9 +14,20 @@ import { McpServer } from "./server.js";
 // The admin static UI imports @enpilink/devtools via a non-literal specifier;
 // stub it so these tests don't require the devtools dist (clean-build cycle).
 vi.mock("@enpilink/devtools", () => ({
+  // Stand in for the static SPA shell: answer `/` with a shell marker, let
+  // everything else fall through to the data routers.
   devtoolsStaticServer: () =>
-    ((_req: unknown, _res: unknown, next: () => void) =>
-      next()) as RequestHandler,
+    ((
+      req: { path: string },
+      res: { json: (b: unknown) => void },
+      next: () => void,
+    ) => {
+      if (req.path === "/") {
+        res.json({ shell: true });
+        return;
+      }
+      next();
+    }) as unknown as RequestHandler,
 }));
 vi.mock("./viewsDevServer.js", () => ({
   viewsDevServer: (_httpServer: unknown) =>
@@ -86,24 +97,76 @@ describe("mockEnabled is dev-only", () => {
 describe("adminAuthMiddleware", () => {
   it("401s without a token and passes with the valid bearer token", async () => {
     const app = (await import("express")).default();
+    // Guard a DATA-API path (the guard only enforces auth on those).
     app.use(adminAuthMiddleware("topsecret"));
-    app.get("/probe", (_req, res) => res.json({ ok: true }));
+    app.get("/__enpilink/observability/summary", (_req, res) =>
+      res.json({ ok: true }),
+    );
     const { port, server } = await listen(app);
     openServer = server;
 
-    const noAuth = await fetch(`http://localhost:${port}/probe`);
+    const base = `http://localhost:${port}/__enpilink/observability/summary`;
+    const noAuth = await fetch(base);
     expect(noAuth.status).toBe(401);
 
-    const badAuth = await fetch(`http://localhost:${port}/probe`, {
+    const badAuth = await fetch(base, {
       headers: { Authorization: "Bearer wrong" },
     });
     expect(badAuth.status).toBe(401);
 
-    const ok = await fetch(`http://localhost:${port}/probe`, {
+    const ok = await fetch(base, {
       headers: { Authorization: "Bearer topsecret" },
     });
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ ok: true });
+  });
+
+  it("does NOT guard non-data paths (SPA shell, /mcp)", async () => {
+    const app = (await import("express")).default();
+    app.use(adminAuthMiddleware("topsecret"));
+    app.get("/", (_req, res) => res.json({ shell: true }));
+    app.get("/assets/app.js", (_req, res) => res.send("// js"));
+    const { port, server } = await listen(app);
+    openServer = server;
+
+    // No Authorization header, yet the shell + assets are reachable.
+    const shell = await fetch(`http://localhost:${port}/`);
+    expect(shell.status).toBe(200);
+    const asset = await fetch(`http://localhost:${port}/assets/app.js`);
+    expect(asset.status).toBe(200);
+  });
+
+  it("accepts the SSE ?token= query param on the stream route only", async () => {
+    const app = (await import("express")).default();
+    app.use(adminAuthMiddleware("topsecret"));
+    // Echo whether the token leaked into the parsed query (it must NOT).
+    app.get("/__enpilink/observability/stream", (req, res) =>
+      res.json({ ok: true, tokenInQuery: "token" in req.query }),
+    );
+    app.get("/__enpilink/observability/summary", (req, res) =>
+      res.json({ ok: true, tokenInQuery: "token" in req.query }),
+    );
+    const { port, server } = await listen(app);
+    openServer = server;
+
+    // Stream with valid ?token= → 200, and token stripped from req.query.
+    const okStream = await fetch(
+      `http://localhost:${port}/__enpilink/observability/stream?token=topsecret`,
+    );
+    expect(okStream.status).toBe(200);
+    expect(await okStream.json()).toEqual({ ok: true, tokenInQuery: false });
+
+    // Wrong ?token= on the stream → 401.
+    const badStream = await fetch(
+      `http://localhost:${port}/__enpilink/observability/stream?token=wrong`,
+    );
+    expect(badStream.status).toBe(401);
+
+    // ?token= is NOT honored on other data routes (header-only there).
+    const summaryViaQuery = await fetch(
+      `http://localhost:${port}/__enpilink/observability/summary?token=topsecret`,
+    );
+    expect(summaryViaQuery.status).toBe(401);
   });
 });
 
@@ -154,7 +217,12 @@ describe("createApp — prod admin mode", () => {
     const { port, server: listening } = await listen(server.express);
     openServer = listening;
 
-    // Unauthenticated → 401.
+    // SPA shell is reachable WITHOUT auth (so the browser can load the app).
+    const shell = await fetch(`http://localhost:${port}/`);
+    expect(shell.status).toBe(200);
+    expect(await shell.json()).toEqual({ shell: true });
+
+    // Unauthenticated data API → 401.
     const unauth = await fetch(`http://localhost:${port}${OBS}`);
     expect(unauth.status).toBe(401);
 
@@ -163,6 +231,17 @@ describe("createApp — prod admin mode", () => {
       headers: { Authorization: "Bearer letmein" },
     });
     expect(authed.status).toBe(200);
+
+    // SSE stream authenticates via ?token= (EventSource can't set headers).
+    const STREAM = "/__enpilink/observability/stream";
+    const streamUnauth = await fetch(`http://localhost:${port}${STREAM}`);
+    expect(streamUnauth.status).toBe(401);
+    const streamAuthed = await fetch(
+      `http://localhost:${port}${STREAM}?token=letmein`,
+    );
+    expect(streamAuthed.status).toBe(200);
+    // Close the open SSE connection so the server can shut down cleanly.
+    await streamAuthed.body?.cancel();
 
     // Admin storage was initialized independent of analytics (analytics OFF).
     expect(server.storage).not.toBeNull();

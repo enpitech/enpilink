@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
+import { authedFetch } from "./admin-token-store.js";
 
 /**
  * Configuration client (M4): TanStack Query hooks for the config admin API
@@ -48,7 +49,7 @@ export function useConfig() {
   return useQuery({
     queryKey: ["config", "settings"],
     queryFn: async (): Promise<Setting[]> => {
-      const res = await fetch(BASE);
+      const res = await authedFetch(BASE);
       if (!res.ok) {
         throw new Error(`config failed (${res.status})`);
       }
@@ -62,7 +63,7 @@ export function useConfigAudit() {
   return useQuery({
     queryKey: ["config", "audit"],
     queryFn: async (): Promise<AuditEntry[]> => {
-      const res = await fetch(`${BASE}/audit`);
+      const res = await authedFetch(`${BASE}/audit`);
       if (!res.ok) {
         throw new Error(`audit failed (${res.status})`);
       }
@@ -77,7 +78,7 @@ export function useSetConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
-      const res = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
+      const res = await authedFetch(`${BASE}/${encodeURIComponent(key)}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ value }),

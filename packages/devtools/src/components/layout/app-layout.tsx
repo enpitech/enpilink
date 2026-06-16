@@ -13,8 +13,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs.js";
+import { useAdminTokenStore } from "@/lib/admin-token-store.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { connectToServer } from "@/lib/mcp/index.js";
+import { AdminLogin } from "./admin-login.js";
 import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
 import { Header } from "./header.js";
@@ -101,6 +103,22 @@ function Playground() {
 }
 
 function AppLayout() {
+  // Prod admin gate (M6.5): when a data API has returned 401 and we don't yet
+  // have a token, show the login screen instead of the (empty) dashboard. In
+  // dev the server never 401s, so `authRequired` stays false and this is a
+  // no-op — the local dashboard is unchanged/frictionless.
+  const authRequired = useAdminTokenStore((s) => s.authRequired);
+  const token = useAdminTokenStore((s) => s.token);
+
+  if (authRequired && !token) {
+    return (
+      <div className="grid h-screen grid-rows-[auto_1fr] overflow-hidden bg-background text-foreground">
+        <Header />
+        <AdminLogin />
+      </div>
+    );
+  }
+
   return (
     <div className="grid h-screen grid-rows-[auto_1fr] overflow-hidden bg-background text-foreground">
       <Header />

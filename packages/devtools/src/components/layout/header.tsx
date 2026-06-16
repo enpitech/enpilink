@@ -1,6 +1,7 @@
-import { LogIn, LogOut } from "lucide-react";
+import { KeyRound, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Separator } from "@/components/ui/separator.js";
+import { useAdminTokenStore } from "@/lib/admin-token-store.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { logout, signIn, useServerInfo } from "@/lib/mcp/index.js";
 import { StatusBadge } from "./status-badge.js";
@@ -68,6 +69,8 @@ function BrandLockup() {
 export const Header = () => {
   const { status, requiresAuth, hasAuthRequiredTools, isSignedIn, error } =
     useAuthStore();
+  const adminToken = useAdminTokenStore((s) => s.token);
+  const clearAdminToken = useAdminTokenStore((s) => s.clearToken);
 
   const showSignIn =
     requiresAuth &&
@@ -105,6 +108,17 @@ export const Header = () => {
           <Button variant="tertiary" onClick={() => logout()}>
             <LogOut className="size-3.5" />
             Sign out
+          </Button>
+        )}
+        {adminToken && (
+          <Button
+            variant="tertiary"
+            onClick={() => clearAdminToken()}
+            title="Clear the admin token from this session"
+            data-testid="admin-sign-out"
+          >
+            <KeyRound className="size-3.5" />
+            Admin sign out
           </Button>
         )}
         <nav className="flex items-center gap-1 text-xs">
