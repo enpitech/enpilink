@@ -71,6 +71,46 @@ export const bootstrapSchema = z.object({
    * persisted to the DB nor returned in plaintext.
    */
   adminAuthToken: z.string().optional(),
+
+  // --- End-user auth (A1, resource-server foundation) ---
+  /**
+   * Master switch for end-user OAuth on `/mcp`. Off by default so existing
+   * no-auth apps are completely unaffected. When on, a bearer-auth guard is
+   * installed in front of `/mcp` and RFC 9728 Protected Resource Metadata is
+   * served. Bootstrap (env/file only) so it can't be toggled at runtime.
+   */
+  "auth.enabled": z.boolean().default(false),
+  /**
+   * The OAuth Authorization Server issuer URL. Listed in the PRM
+   * `authorization_servers[]` and used as the expected `iss` of inbound JWTs.
+   * In A2 enpilink co-hosts the AS; for A1 this points at whatever AS issues
+   * tokens (configurable).
+   */
+  "auth.issuer": z.string().optional(),
+  /**
+   * The RFC 8707 audience this resource server accepts (the `aud` claim
+   * inbound tokens must carry). Usually the public `/mcp` URL. Prevents
+   * confused-deputy token reuse across resources.
+   */
+  "auth.audience": z.string().optional(),
+  /**
+   * The JWKS URL used to fetch the AS's public signing keys for JWT signature
+   * verification. Required for the built-in JWT verifier (A1). A2's proxy AS
+   * may inject its own verifier instead.
+   */
+  "auth.jwksUrl": z.string().optional(),
+  /**
+   * SECRET — symmetric signing/encryption key for tokens/sessions enpilink
+   * mints (used in A2's proxy AS). Reserved here so A2 slots in cleanly.
+   * Env-only, never persisted to the DB nor returned in plaintext.
+   */
+  "auth.signingKey": z.string().optional(),
+  /**
+   * SECRET — the OAuth client secret for the upstream IdP (used in A2's proxy
+   * AS). Reserved here so A2 slots in cleanly. Env-only, never persisted to the
+   * DB nor returned in plaintext.
+   */
+  "auth.clientSecret": z.string().optional(),
 });
 
 /** Runtime (DB-editable) settings. */
@@ -184,6 +224,48 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Security",
     editable: "readonly",
   },
+  "auth.enabled": {
+    label: "End-user auth",
+    description:
+      "Require end users to sign in via OAuth before calling protected tools on /mcp. Off by default; enable only via environment/file. When off, /mcp stays open exactly as before.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.issuer": {
+    label: "OAuth issuer",
+    description:
+      "The authorization server issuer URL advertised in the protected-resource metadata and required as the token issuer (iss).",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.audience": {
+    label: "OAuth audience",
+    description:
+      "The audience (aud) inbound access tokens must be bound to — typically this server's public /mcp URL. Prevents tokens minted for another resource from being replayed here.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.jwksUrl": {
+    label: "JWKS URL",
+    description:
+      "URL of the authorization server's JSON Web Key Set, used to verify token signatures.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.signingKey": {
+    label: "Token signing key",
+    description:
+      "Secret key used to sign sessions/tokens enpilink mints. Set via environment only; never stored or shown in plaintext.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.clientSecret": {
+    label: "Upstream client secret",
+    description:
+      "Secret OAuth client secret for the upstream identity provider. Set via environment only; never stored or shown in plaintext.",
+    group: "Security",
+    editable: "readonly",
+  },
   // --- Analytics (runtime) ---
   "analytics.enabled": {
     label: "Analytics enabled",
@@ -243,6 +325,12 @@ export const BOOTSTRAP_KEYS = [
   "port",
   "admin",
   "adminAuthToken",
+  "auth.enabled",
+  "auth.issuer",
+  "auth.audience",
+  "auth.jwksUrl",
+  "auth.signingKey",
+  "auth.clientSecret",
 ] as const satisfies readonly BootstrapKey[];
 
 /** Runtime keys (DB-editable). */
@@ -258,6 +346,8 @@ export const RUNTIME_KEYS = [
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
 export const SECRET_KEYS = [
   "adminAuthToken",
+  "auth.signingKey",
+  "auth.clientSecret",
 ] as const satisfies readonly ConfigKey[];
 
 /**
@@ -283,6 +373,12 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   port: "PORT",
   admin: "ENPILINK_ADMIN",
   adminAuthToken: "ENPILINK_ADMIN_TOKEN",
+  "auth.enabled": "ENPILINK_AUTH",
+  "auth.issuer": "ENPILINK_AUTH_ISSUER",
+  "auth.audience": "ENPILINK_AUTH_AUDIENCE",
+  "auth.jwksUrl": "ENPILINK_AUTH_JWKS_URL",
+  "auth.signingKey": "ENPILINK_AUTH_SIGNING_KEY",
+  "auth.clientSecret": "ENPILINK_AUTH_CLIENT_SECRET",
   "analytics.enabled": "ENPILINK_ANALYTICS",
   "analytics.sampleRate": "ENPILINK_CFG_ANALYTICS_SAMPLE_RATE",
   "retention.events": "ENPILINK_CFG_RETENTION_EVENTS",

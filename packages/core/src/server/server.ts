@@ -33,6 +33,12 @@ import express, {
   type RequestHandler,
 } from "express";
 import { installAnalytics } from "./analytics.js";
+import type { AuthConfig } from "./auth.js";
+import {
+  type AuthRuntime,
+  buildAuthRuntime,
+  resolveAuthConfig,
+} from "./auth-runtime.js";
 import { createApp } from "./express.js";
 import { getActiveStorage, serverLog, setActiveStorage } from "./log-sink.js";
 import type {
@@ -493,11 +499,29 @@ export class McpServer<
   private viteManifest: Record<string, ViteManifestEntry> | null = null;
   private readonly serverInfo: Implementation;
   private readonly serverOptions?: ServerOptions;
+  /** Programmatic end-user auth config (A1), if supplied at construction. */
+  private readonly authConfig?: AuthConfig;
+  /**
+   * Per-tool declared `securitySchemes`, keyed by tool name. Used to enforce
+   * auth on the `/mcp` path when end-user auth is enabled (A1).
+   */
+  private readonly toolSecuritySchemes = new Map<string, SecurityScheme[]>();
+  /**
+   * Resolved end-user auth runtime, or `null` when auth is disabled (default).
+   * Set during `applyMcpMiddleware()`; read by the `/mcp` mount in `express.ts`.
+   */
+  private authRuntime: AuthRuntime | null = null;
+  private authRuntimeResolved = false;
 
-  constructor(serverInfo: Implementation, options?: ServerOptions) {
+  constructor(
+    serverInfo: Implementation,
+    options?: ServerOptions,
+    enpilinkOptions?: { auth?: AuthConfig },
+  ) {
     super(serverInfo, options);
     this.serverInfo = serverInfo;
     this.serverOptions = options;
+    this.authConfig = enpilinkOptions?.auth;
     this.express = express();
     this.express.use(express.json());
     // Pick up the manifest if `dist/__entry.js` primed it before importing
@@ -671,6 +695,46 @@ export class McpServer<
     }
 
     return this;
+  }
+
+  /**
+   * Resolve the end-user auth runtime (A1) once. Reads the programmatic
+   * {@link AuthConfig} (constructor) or falls back to the `auth.*` config keys.
+   * Returns `null` when auth is disabled (the default) — the caller then leaves
+   * `/mcp` open exactly as before. Throws only when auth is enabled but
+   * misconfigured (surfaced at boot, never silently open).
+   *
+   * @internal — used by the `/mcp` mount in `express.ts`.
+   */
+  async getAuthRuntime(): Promise<AuthRuntime | null> {
+    if (this.authRuntimeResolved) {
+      return this.authRuntime;
+    }
+    this.authRuntimeResolved = true;
+    const config = await resolveAuthConfig(this.authConfig);
+    if (!config.enabled) {
+      this.authRuntime = null;
+      return null;
+    }
+    // The resource-server URL anchors the PRM `resource` id + the
+    // `resource_metadata` challenge URL. Prefer an explicit
+    // `resourceServerUrl`; otherwise derive from the configured issuer host
+    // (A2 co-hosts the AS, so issuer == this origin). The well-known path is
+    // always anchored at the origin root inside `buildAuthRuntime`.
+    const fallback =
+      config.resourceServerUrl ?? config.issuer ?? "http://localhost";
+    this.authRuntime = buildAuthRuntime(config, fallback);
+    return this.authRuntime;
+  }
+
+  /**
+   * The declared `securitySchemes` for a registered tool, or `undefined` if the
+   * tool declared none. Used by the `/mcp` mount to enforce per-tool auth.
+   *
+   * @internal
+   */
+  getToolSecuritySchemes(toolName: string): SecurityScheme[] | undefined {
+    return this.toolSecuritySchemes.get(toolName);
   }
 
   private async applyMcpMiddleware(): Promise<void> {
@@ -1322,6 +1386,9 @@ export class McpServer<
       // `tools/list`. Use the `_meta` back-compat mirror documented in the
       // Apps SDK reference until SEP-1488 lands in the spec.
       toolMeta.securitySchemes = securitySchemes;
+      // Also retain them for ENFORCEMENT (A1): when end-user auth is enabled,
+      // the `/mcp` mount checks the call's principal against these schemes.
+      this.toolSecuritySchemes.set(name, securitySchemes);
     }
 
     if (view) {

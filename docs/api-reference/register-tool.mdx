@@ -92,8 +92,12 @@ type SecurityScheme =
 - **Within an `oauth2` entry's `scopes`: match ALL.** The validated token must carry every listed scope.
 - **Listing `noauth` + `oauth2`** means "works anonymously, but auth gives more features."
 
+<Note>
+**When [built-in auth](/api-reference/mcp-server#built-in-end-user-auth-opt-in) is enabled, `securitySchemes` is enforced automatically.** A tool declaring `{ type: "oauth2", scopes: [...] }` returns **401** (no token) or **403** `insufficient_scope` (token missing a scope) — with a `WWW-Authenticate` challenge — before the handler runs. A `{ type: "noauth" }` tool runs without a token even when auth is on (the seam for guest/public access on the same `/mcp` endpoint). See the [Authentication guide](/guides/auth).
+</Note>
+
 <Warning>
-This field is client-facing metadata. **Servers must still enforce auth on each call** — verify `extra.authInfo` and check `authInfo.scopes` in the handler (or use a tool-call middleware). The declaration is not self-enforcing.
+When built-in auth is **off** (the default), this field is client-facing metadata only. **Servers must then enforce auth on each call** — verify `extra.authInfo` and check `authInfo.scopes` in the handler (or use a tool-call middleware). The declaration is not self-enforcing without built-in auth or your own middleware.
 </Warning>
 
 #### Examples

@@ -422,6 +422,9 @@ importers:
       ink:
         specifier: ^7.0.0
         version: 7.0.6(@types/react@19.2.14)(react@19.2.7)
+      jose:
+        specifier: ^6.1.0
+        version: 6.2.3
       nodemon:
         specifier: '>=3.0.0'
         version: 3.1.14

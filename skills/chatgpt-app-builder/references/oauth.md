@@ -2,6 +2,17 @@
 
 Enable user authentication so tools can access user-specific data.
 
+> **Shortcut:** enpilink ships **built-in opt-in resource-server auth**. Instead
+> of hand-wiring the metadata router + `requireBearerAuth` below, pass an `auth`
+> config to `new McpServer(info, undefined, { auth: { enabled: true, issuer,
+> audience, jwksUrl } })` (or set `ENPILINK_AUTH=1` + `ENPILINK_AUTH_ISSUER` /
+> `_AUDIENCE` / `_JWKS_URL`). enpilink then installs `optionalBearerAuth` on
+> `/mcp`, serves the RFC 9728 metadata, builds a JWT verifier
+> (`createJwtVerifier`), and **enforces each tool's `securitySchemes`**
+> (`oauth2` → 401/403, `noauth` → runs tokenless). Read identity with
+> `getAuthInfo(extra)`. The manual wiring below is the lower-level path / for
+> custom verifiers. See the Authentication guide.
+
 ## How it works
 
 1. MCP server exposes OAuth discovery endpoints

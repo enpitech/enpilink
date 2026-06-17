@@ -13,14 +13,31 @@ export {
   mockEnabled,
 } from "./analytics.js";
 export {
+  type AuthConfig,
   type AuthInfo,
   type AuthMetadataOptions,
   type BearerAuthMiddlewareOptions,
+  createJwtVerifier,
+  getAuthInfo,
+  getOAuthProtectedResourceMetadataUrl,
+  type Identity,
+  InsufficientScopeError,
   InvalidTokenError,
+  type JwtVerifierOptions,
   mcpAuthMetadataRouter,
+  type OAuthTokenVerifier,
   optionalBearerAuth,
   requireBearerAuth,
 } from "./auth.js";
+export {
+  AuthRequiredError,
+  enforceSecuritySchemes,
+} from "./auth-enforce.js";
+export {
+  type AuthRuntime,
+  buildAuthRuntime,
+  resolveAuthConfig,
+} from "./auth-runtime.js";
 export {
   allKeyMeta,
   BOOTSTRAP_KEYS,

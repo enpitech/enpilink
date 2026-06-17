@@ -1,0 +1,128 @@
+---
+title: Authentication
+description: "Opt-in end-user OAuth for your enpilink app — the resource-server model: bearer auth on /mcp, RFC 9728 metadata, per-tool securityScheme enforcement, and reading the signed-in user in handlers."
+---
+
+enpilink can authenticate **end users** so your tools know who is calling and
+you can gate sensitive tools behind sign-in. It is **opt-in and off by
+default** — until you enable it, `/mcp` stays open exactly as before and
+existing apps are unaffected.
+
+<Note>
+This page covers the **resource-server foundation** (validating tokens,
+advertising where to sign in, enforcing per-tool scopes). enpilink does **not
+yet ship a hosted login page / authorization server** — that is on the
+roadmap. For now you point enpilink at an existing OAuth authorization server
+(your own, or a provider's) via its issuer + JWKS URL.
+</Note>
+
+## The model
+
+Following the [MCP Authorization spec](https://modelcontextprotocol.io/) and
+OAuth 2.1, your enpilink server is an **OAuth Resource Server**:
+
+- The chat host (ChatGPT, Claude, …) is the OAuth **client**. It obtains an
+  access token from your **authorization server** and attaches it as a
+  `Bearer` token on each `/mcp` request.
+- enpilink **validates** that token (signature via JWKS, plus `iss` / `aud` /
+  `exp`), then enforces each tool's [`securitySchemes`](/api-reference/register-tool#securityschemes).
+- A tokenless request to a protected tool gets **401** with a
+  `WWW-Authenticate` challenge carrying `resource_metadata=` — pointing the
+  host at your [RFC 9728 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728)
+  document (served at `/.well-known/oauth-protected-resource`), which lists the
+  authorization server to sign in at.
+
+`/mcp` is **not** route-locked. A token is validated *when present*; gating
+happens **per tool**, so public (`noauth`) and protected tools coexist on the
+same endpoint. This is the seam guest / lazy auth builds on.
+
+## Enabling it
+
+The minimal config is the authorization server's `issuer`, the `audience` your
+tokens are bound to (usually your public `/mcp` URL — RFC 8707), and the
+`jwksUrl` to verify signatures.
+
+```typescript
+const server = new McpServer(
+  { name: "my-app", version: "1.0.0" },
+  undefined,
+  {
+    auth: {
+      enabled: true,
+      issuer: "https://auth.example.com",
+      audience: "https://my-app.example.com/mcp",
+      jwksUrl: "https://auth.example.com/.well-known/jwks.json",
+    },
+  },
+);
+```
+
+Or entirely via environment (no code change):
+
+```bash
+ENPILINK_AUTH=1
+ENPILINK_AUTH_ISSUER=https://auth.example.com
+ENPILINK_AUTH_AUDIENCE=https://my-app.example.com/mcp
+ENPILINK_AUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+```
+
+See the full key/env table in the [`McpServer` reference](/api-reference/mcp-server#built-in-end-user-auth-opt-in).
+
+## Gating tools
+
+Declare each tool's auth requirement with
+[`securitySchemes`](/api-reference/register-tool#securityschemes). When auth is
+enabled these are **enforced automatically** — no handler boilerplate:
+
+```typescript
+server
+  // Public — runs without a token, even when auth is on.
+  .registerTool(
+    { name: "search-public", securitySchemes: [{ type: "noauth" }] },
+    async () => ({ content: "anyone can call me" }),
+  )
+  // Protected — requires a valid token carrying the `orders.read` scope,
+  // else 401 (no token) / 403 insufficient_scope (missing scope).
+  .registerTool(
+    {
+      name: "my-orders",
+      securitySchemes: [{ type: "oauth2", scopes: ["orders.read"] }],
+    },
+    async (_args, extra) => {
+      const id = getAuthInfo(extra);
+      return { content: `Orders for ${id?.sub}` };
+    },
+  );
+```
+
+## Reading the signed-in user
+
+The validated principal reaches handlers via `extra.authInfo`. Use the typed
+[`getAuthInfo`](/api-reference/mcp-server#getauthinfo) helper:
+
+```typescript
+import { getAuthInfo } from "enpilink/server";
+
+async (_args, extra) => {
+  const id = getAuthInfo(extra); // undefined for guests
+  // id?.sub     — stable per-user id (the JWT `sub` claim)
+  // id?.scopes  — granted scopes
+  // id?.claims  — the full token claim set (email, etc.)
+};
+```
+
+The `sub` claim is your stable per-user tracking key.
+
+## Custom verifiers
+
+The built-in verifier ([`createJwtVerifier`](/api-reference/mcp-server#createjwtverifier))
+validates standard JWTs against a JWKS URL. To use token introspection or a
+provider SDK instead, pass your own `verifier` (any `OAuthTokenVerifier`) in
+the `auth` config — it overrides the built-in one.
+
+## Secrets
+
+Any auth secret (`ENPILINK_AUTH_SIGNING_KEY`, `ENPILINK_AUTH_CLIENT_SECRET`)
+is **env-only**: shown masked + read-only in the Configuration UI, never
+persisted to the database, never returned in plaintext by any API — the same
+treatment as the admin token.

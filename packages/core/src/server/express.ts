@@ -11,6 +11,13 @@ import {
   mountAdmin,
   readAdminToken,
 } from "./admin.js";
+import {
+  InsufficientScopeError,
+  InvalidTokenError,
+  optionalBearerAuth,
+} from "./auth.js";
+import { AuthRequiredError, enforceSecuritySchemes } from "./auth-enforce.js";
+import type { AuthRuntime } from "./auth-runtime.js";
 import { serverLog } from "./log-sink.js";
 import type { McpServer } from "./server.js";
 
@@ -128,7 +135,24 @@ export async function createApp({
     }
   }
 
-  app.use("/mcp", mcpMiddleware(mcpServer));
+  // End-user auth (A1). OFF by default — `getAuthRuntime()` returns null and
+  // `/mcp` stays open exactly as before. When enabled, serve RFC 9728 Protected
+  // Resource Metadata at `/.well-known/oauth-protected-resource` and install a
+  // bearer-auth guard in front of `/mcp` (lazy/optional so `noauth` tools still
+  // run tokenless; each tool's `securitySchemes` are then enforced per-call).
+  const authRuntime = await mcpServer.getAuthRuntime();
+  if (authRuntime) {
+    app.use(authRuntime.metadataRouter);
+    app.use(
+      "/mcp",
+      optionalBearerAuth({
+        verifier: authRuntime.verifier,
+        resourceMetadataUrl: authRuntime.resourceMetadataUrl,
+      }),
+    );
+  }
+
+  app.use("/mcp", mcpMiddleware(mcpServer, authRuntime));
 
   applyMiddlewares(app, errorMiddleware);
 
@@ -137,7 +161,140 @@ export async function createApp({
   return app;
 }
 
-const mcpMiddleware = (server: McpServer): express.RequestHandler => {
+/**
+ * Build a `WWW-Authenticate: Bearer` header value, optionally carrying the
+ * `resource_metadata` URL (per RFC 9728) and a required `scope` list (for
+ * 403 insufficient_scope step-up challenges).
+ */
+function wwwAuthenticate(
+  errorCode: string,
+  message: string,
+  resourceMetadataUrl?: string,
+  scope?: string[],
+): string {
+  let header = `Bearer error="${errorCode}", error_description="${message}"`;
+  if (scope && scope.length > 0) {
+    header += `, scope="${scope.join(" ")}"`;
+  }
+  if (resourceMetadataUrl) {
+    header += `, resource_metadata="${resourceMetadataUrl}"`;
+  }
+  return header;
+}
+
+/**
+ * Enforce a `tools/call`'s `securitySchemes` at the HTTP layer, before the call
+ * reaches the transport, so we can return a proper RFC-shaped 401/403 with a
+ * `WWW-Authenticate` header. Returns `true` when it has already responded (the
+ * caller must stop); `false` to continue.
+ *
+ * Errors are mapped to HTTP status:
+ * - missing/required token → 401 + `WWW-Authenticate: Bearer ... resource_metadata=`
+ * - insufficient scope → 403 + `WWW-Authenticate: Bearer ... scope=`
+ *
+ * Any UNEXPECTED error is swallowed (logged) and the call is allowed to proceed
+ * to the handler rather than 500ing the transport — a verifier/enforcement bug
+ * must never break a tool call beyond the intended 401/403.
+ */
+function enforceToolAuth(
+  req: express.Request,
+  res: express.Response,
+  server: McpServer,
+  authRuntime: AuthRuntime,
+): boolean {
+  try {
+    const body = req.body as
+      | { method?: unknown; params?: { name?: unknown } }
+      | undefined;
+    if (body?.method !== "tools/call") {
+      return false;
+    }
+    const toolName =
+      typeof body.params?.name === "string" ? body.params.name : undefined;
+    if (!toolName) {
+      return false;
+    }
+    const schemes = server.getToolSecuritySchemes(toolName);
+    enforceSecuritySchemes(schemes, req.auth);
+    return false;
+  } catch (err) {
+    if (err instanceof AuthRequiredError || err instanceof InvalidTokenError) {
+      res
+        .status(401)
+        .set(
+          "WWW-Authenticate",
+          wwwAuthenticate(
+            "invalid_token",
+            err.message,
+            authRuntime.resourceMetadataUrl,
+          ),
+        )
+        .json({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: err.message },
+          id: null,
+        });
+      return true;
+    }
+    if (err instanceof InsufficientScopeError) {
+      // Recompute the declared scopes for the challenge's `scope=`.
+      const body = req.body as { params?: { name?: unknown } };
+      const toolName =
+        typeof body?.params?.name === "string" ? body.params.name : undefined;
+      const scopes = collectOauth2Scopes(
+        toolName ? server.getToolSecuritySchemes(toolName) : undefined,
+      );
+      res
+        .status(403)
+        .set(
+          "WWW-Authenticate",
+          wwwAuthenticate(
+            "insufficient_scope",
+            err.message,
+            authRuntime.resourceMetadataUrl,
+            scopes,
+          ),
+        )
+        .json({
+          jsonrpc: "2.0",
+          error: { code: -32002, message: err.message },
+          id: null,
+        });
+      return true;
+    }
+    // Unexpected — never break the tool call beyond the intended 401/403.
+    serverLog("error", "Unexpected error during tool auth enforcement", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
+/** Union of scopes declared by a tool's `oauth2` security schemes. */
+function collectOauth2Scopes(
+  schemes:
+    | Array<{ type: string; scopes?: string[] }>
+    | undefined
+    | readonly { type: string; scopes?: string[] }[],
+): string[] {
+  if (!schemes) {
+    return [];
+  }
+  const out = new Set<string>();
+  for (const s of schemes) {
+    if (s.type === "oauth2" && s.scopes) {
+      for (const scope of s.scopes) {
+        out.add(scope);
+      }
+    }
+  }
+  return [...out];
+}
+
+const mcpMiddleware = (
+  server: McpServer,
+  authRuntime: AuthRuntime | null,
+): express.RequestHandler => {
   return async (
     req: express.Request,
     res: express.Response,
@@ -154,6 +311,12 @@ const mcpMiddleware = (server: McpServer): express.RequestHandler => {
           id: null,
         }),
       );
+      return;
+    }
+
+    // Per-tool `securitySchemes` enforcement (A1). Only when auth is enabled;
+    // `noauth` tools still run tokenless. Returns true once it has responded.
+    if (authRuntime && enforceToolAuth(req, res, server, authRuntime)) {
       return;
     }
 

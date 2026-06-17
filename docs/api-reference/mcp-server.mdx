@@ -342,6 +342,98 @@ async function verifyAccessToken(token: string): Promise<AuthInfo> {
 }
 ```
 
+## Built-in end-user auth (opt-in)
+
+Instead of wiring the middlewares above by hand, you can turn on enpilink's
+built-in resource-server auth with a single config object. It is **off by
+default** — existing apps are completely unaffected and `/mcp` stays open
+exactly as before. See the [Authentication guide](/guides/auth) for the full
+model.
+
+When enabled, enpilink:
+
+- installs `optionalBearerAuth` in front of `/mcp` (a token is validated when
+  present; `/mcp` is **not** route-locked — gating is per-tool),
+- serves RFC 9728 Protected Resource Metadata at
+  `/.well-known/oauth-protected-resource` listing your authorization server,
+- enforces each tool's [`securitySchemes`](/api-reference/register-tool#securityschemes):
+  an `oauth2` tool without a valid token/scope returns **401 / 403** (with
+  `WWW-Authenticate` carrying `resource_metadata` and, for scope failures,
+  `scope`), while a `{ type: "noauth" }` tool runs without a token.
+
+Enable it programmatically:
+
+```typescript
+const server = new McpServer(
+  { name: "my-app", version: "1.0.0" },
+  undefined,
+  {
+    auth: {
+      enabled: true,
+      issuer: "https://auth.example.com",
+      audience: "https://my-app.example.com/mcp",
+      jwksUrl: "https://auth.example.com/.well-known/jwks.json",
+    },
+  },
+);
+```
+
+Or via environment / config file (no programmatic config needed):
+
+| Env var | Config key | Notes |
+|---------|-----------|-------|
+| `ENPILINK_AUTH` | `auth.enabled` | Master switch (off by default). |
+| `ENPILINK_AUTH_ISSUER` | `auth.issuer` | Authorization server issuer URL. |
+| `ENPILINK_AUTH_AUDIENCE` | `auth.audience` | RFC 8707 audience (`aud`) to bind tokens to — usually your `/mcp` URL. |
+| `ENPILINK_AUTH_JWKS_URL` | `auth.jwksUrl` | JWKS URL for the built-in JWT verifier. |
+| `ENPILINK_AUTH_SIGNING_KEY` | `auth.signingKey` | **Secret** — env-only, masked, never DB-persisted. Reserved for the hosted authorization server. |
+| `ENPILINK_AUTH_CLIENT_SECRET` | `auth.clientSecret` | **Secret** — env-only, masked, never DB-persisted. Reserved for the upstream IdP. |
+
+`AuthConfig` also accepts a custom `verifier` (any `OAuthTokenVerifier`) — when
+set it overrides the built-in JWKS verifier.
+
+### createJwtVerifier
+
+Builds an `OAuthTokenVerifier` that validates a real OAuth 2.1 access token
+(a JWT): signature via JWKS, plus `iss` / `aud` / `exp` checks (RFC 8707
+audience binding). This is what the built-in auth uses when you don't supply
+your own verifier.
+
+```typescript
+import { createJwtVerifier } from "enpilink/server";
+
+const verifier = createJwtVerifier({
+  issuer: "https://auth.example.com",
+  audience: "https://my-app.example.com/mcp",
+  jwksUrl: "https://auth.example.com/.well-known/jwks.json",
+});
+```
+
+`verifyAccessToken` throws on any failure (so the bearer middleware maps it to
+a 401) and never returns a partial principal. The resolved `AuthInfo` carries
+the full claim set under `extra` with the `sub` claim surfaced — read it in a
+handler with [`getAuthInfo`](#getauthinfo).
+
+### getAuthInfo
+
+A typed helper to read the authenticated principal from a tool handler's
+`extra`. Returns `undefined` for unauthenticated (guest) calls.
+
+```typescript
+import { getAuthInfo } from "enpilink/server";
+
+server.registerTool(
+  { name: "me", securitySchemes: [{ type: "oauth2", scopes: ["read"] }] },
+  async (_args, extra) => {
+    const id = getAuthInfo(extra);
+    // id?.sub      — stable per-user id (the JWT `sub` claim)
+    // id?.scopes   — granted scopes
+    // id?.claims   — the full token claim set
+    return { content: `Hello ${id?.sub ?? "guest"}` };
+  },
+);
+```
+
 ### mcpAuthMetadataRouter
 
 Express router that serves the OAuth 2.0 [Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728) document at `/.well-known/oauth-protected-resource`, so clients can discover the authorization server programmatically.

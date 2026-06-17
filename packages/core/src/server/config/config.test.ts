@@ -132,6 +132,31 @@ describe("secret masking", () => {
       expect(s?.envLocked).toBe(false);
     }
   });
+
+  it("auth secrets (signing key / client secret) are env-only + masked (A1)", async () => {
+    process.env.ENPILINK_AUTH_SIGNING_KEY = "signing-secret-abc";
+    process.env.ENPILINK_AUTH_CLIENT_SECRET = "client-secret-def";
+    const { settings, values } = await resolveConfig(null, cwd);
+    for (const key of ["auth.signingKey", "auth.clientSecret"]) {
+      const s = settings.find((x) => x.key === key);
+      expect(s?.secret).toBe(true);
+      expect(s?.editable).toBe("readonly");
+      expect(s?.envLocked).toBe(true);
+      expect(s?.value).toBe(MASKED);
+    }
+    // Never leak in the serialized settings the API returns.
+    expect(JSON.stringify(settings)).not.toContain("signing-secret-abc");
+    expect(JSON.stringify(settings)).not.toContain("client-secret-def");
+    // But the in-process raw values ARE available (for A2's signer).
+    expect(values["auth.signingKey"]).toBe("signing-secret-abc");
+    delete process.env.ENPILINK_AUTH_SIGNING_KEY;
+    delete process.env.ENPILINK_AUTH_CLIENT_SECRET;
+  });
+
+  it("auth.enabled defaults to false (auth is opt-in) (A1)", async () => {
+    const { values } = await resolveConfig(null, cwd);
+    expect(values["auth.enabled"]).toBe(false);
+  });
 });
 
 describe("validateRuntimeWrite", () => {
