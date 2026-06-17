@@ -132,8 +132,19 @@ In resource-server-only mode the host still has to find an authorization server
 to sign in at. With a **co-hosted Authorization Server**, enpilink *is* that
 server: it serves the OAuth discovery + endpoints, shows a **branded login
 page**, and delegates the real credential check to a configurable **upstream
-identity provider**. This is the most robust path to completing OAuth from a
-real ChatGPT/Claude connector, and it lets enpilink **track every sign-in**.
+identity provider**. This is the standards-based (MCP Authorization spec) path
+designed for real chat hosts (ChatGPT, Claude, …) and it lets enpilink
+**track every sign-in**.
+
+<Note>
+The end-to-end OAuth loop with a live ChatGPT/Claude connector has **not yet
+been verified in production** — this follows the MCP Authorization spec
+(2025-11-25) and is designed to interoperate with spec-compliant hosts. If you
+encounter an issue completing the loop from a real host, please open an issue.
+Use a JWT-issuing upstream (Auth0, Okta, Entra ID) for the most reliable
+token-validation path; Google/GitHub's opaque-token flows require an upstream
+that re-issues JWTs (not raw access tokens) for enpilink's JWKS verifier.
+</Note>
 
 ### The login flow
 

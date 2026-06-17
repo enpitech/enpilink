@@ -39,9 +39,11 @@ resolved setting:
   immediately. These live in the DB (`analytics.*`, `retention.*`, `flags.*`,
   `display.*`).
 - **`restart`** — DB-editable, but the change only takes effect after a process
-  **restart**. These are the non-secret bootstrap keys `port`, `storage`, and
-  `dbPath`. The running process keeps using the value it booted with; the UI
-  shows a **"requires restart"** badge and, once you change one, a
+  **restart**. These are non-secret bootstrap keys: `port`, `storage`, `dbPath`,
+  and all non-secret end-user-auth keys (`auth.enabled`, `auth.issuer`,
+  `auth.audience`, `auth.jwksUrl`, `auth.upstream.*`, `auth.redirectUris`,
+  `auth.branding.*`). The running process keeps using the value it booted with;
+  the UI shows a **"requires restart"** badge and, once you change one, a
   "takes effect after restart" note.
 - **`readonly`** — environment-only, never web-editable. These are the `admin`
   gate and the `adminAuthToken` secret.
@@ -60,8 +62,24 @@ All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 | `port` | `PORT` | `3000` | restart | Server | HTTP port (restart to apply) |
 | `storage` | `ENPILINK_STORAGE` | `memory` | restart | Storage | Storage engine (`memory`/`sqlite`/`postgres`/custom) |
 | `dbPath` | `ENPILINK_DB_PATH` | `./enpilink.db` | restart | Storage | SQLite database path |
+| `auth.enabled` | `ENPILINK_AUTH` | `false` | restart | Security | Enable end-user OAuth on `/mcp` (restart to apply) |
+| `auth.issuer` | `ENPILINK_AUTH_ISSUER` | — | restart | Security | Authorization server issuer URL |
+| `auth.audience` | `ENPILINK_AUTH_AUDIENCE` | — | restart | Security | RFC 8707 audience (`aud`) tokens must carry |
+| `auth.jwksUrl` | `ENPILINK_AUTH_JWKS_URL` | — | restart | Security | JWKS URL for token-signature verification |
+| `auth.upstream.clientId` | `ENPILINK_AUTH_UPSTREAM_CLIENT_ID` | — | restart | Security | Upstream IdP OAuth client id (co-hosted AS) |
+| `auth.upstream.authorizationUrl` | `ENPILINK_AUTH_UPSTREAM_AUTHORIZATION_URL` | — | restart | Security | Upstream authorize endpoint |
+| `auth.upstream.tokenUrl` | `ENPILINK_AUTH_UPSTREAM_TOKEN_URL` | — | restart | Security | Upstream token endpoint |
+| `auth.upstream.revocationUrl` | `ENPILINK_AUTH_UPSTREAM_REVOCATION_URL` | — | restart | Security | Optional upstream revocation endpoint |
+| `auth.upstream.scopes` | `ENPILINK_AUTH_UPSTREAM_SCOPES` | — | restart | Security | Space-delimited scopes requested upstream |
+| `auth.redirectUris` | `ENPILINK_AUTH_REDIRECT_URIS` | — | restart | Security | Host callback URLs allowed as redirect targets |
+| `auth.branding.appName` | `ENPILINK_AUTH_BRANDING_APP_NAME` | — | restart | Security | Login-page app name |
+| `auth.branding.logoUrl` | `ENPILINK_AUTH_BRANDING_LOGO_URL` | — | restart | Security | Login-page logo image URL |
+| `auth.branding.accentColor` | `ENPILINK_AUTH_BRANDING_ACCENT_COLOR` | — | restart | Security | Login-page accent color (CSS hex) |
+| `auth.branding.tagline` | `ENPILINK_AUTH_BRANDING_TAGLINE` | — | restart | Security | Login-page tagline |
 | `admin` | `ENPILINK_ADMIN` | `false` | readonly | Security | Enable the prod admin plane |
 | `adminAuthToken` | `ENPILINK_ADMIN_TOKEN` | — | readonly | Security | **Secret** — admin bearer token |
+| `auth.signingKey` | `ENPILINK_AUTH_SIGNING_KEY` | — | readonly | Security | **Secret** — federating AS token signing key (enables guest mode) |
+| `auth.clientSecret` | `ENPILINK_AUTH_CLIENT_SECRET` | — | readonly | Security | **Secret** — upstream IdP client secret |
 
 Runtime keys use the `ENPILINK_CFG_*` convention so pinning one via env never
 collides with the bootstrap vars.
@@ -126,11 +144,13 @@ were applied vs skipped.
 
 ## Secrets are env-only and masked
 
-Secret keys (currently `adminAuthToken`) are **never persisted to the database
-and never returned in plaintext** by any API. In the UI they render as masked
-(`••••••••` when set, "(not set)" otherwise) with a secret badge and are
-read-only — the only way to set a secret is its environment variable
-(`ENPILINK_ADMIN_TOKEN`). The DB layer never reads or stores them.
+Secret keys (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`) are
+**never persisted to the database and never returned in plaintext** by any API.
+In the UI they render as masked (`••••••••` when set, "(not set)" otherwise)
+with a secret badge and are read-only — the only way to set a secret is its
+environment variable (`ENPILINK_ADMIN_TOKEN`, `ENPILINK_AUTH_SIGNING_KEY`, or
+`ENPILINK_AUTH_CLIENT_SECRET`). The config API returns `403` on any attempt to
+write a secret key. The DB layer never reads or stores them.
 
 ## The config audit log
 

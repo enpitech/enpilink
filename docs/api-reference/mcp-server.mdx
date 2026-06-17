@@ -17,7 +17,8 @@ import { McpServer } from "enpilink/server";
 ```typescript
 const server = new McpServer(
   serverInfo: { name: string; version: string },
-  options: McpServerOptions
+  options?: McpServerOptions,
+  enpilinkOptions?: { auth?: AuthConfig },
 );
 ```
 
@@ -27,7 +28,8 @@ const server = new McpServer(
 |-----------|------|-------------|
 | `serverInfo.name` | `string` | Name of your MCP server |
 | `serverInfo.version` | `string` | Version of your server |
-| `options` | `McpServerOptions` | Configuration options |
+| `options` | `McpServerOptions` | MCP SDK options (capabilities, etc.). Pass `undefined` to use defaults. |
+| `enpilinkOptions.auth` | `AuthConfig` | Optional. Enable built-in end-user auth (see [Built-in end-user auth](#built-in-end-user-auth-opt-in)). |
 
 ### Options
 
@@ -386,7 +388,7 @@ Or via environment / config file (no programmatic config needed):
 | `ENPILINK_AUTH_ISSUER` | `auth.issuer` | Authorization server issuer URL. |
 | `ENPILINK_AUTH_AUDIENCE` | `auth.audience` | RFC 8707 audience (`aud`) to bind tokens to — usually your `/mcp` URL. |
 | `ENPILINK_AUTH_JWKS_URL` | `auth.jwksUrl` | JWKS URL for the built-in JWT verifier. |
-| `ENPILINK_AUTH_SIGNING_KEY` | `auth.signingKey` | **Secret** — env-only, masked, never DB-persisted. Reserved for future guest-token minting. |
+| `ENPILINK_AUTH_SIGNING_KEY` | `auth.signingKey` | **Secret** — env-only, masked, never DB-persisted. When set (alongside an upstream IdP), enpilink becomes a **federating Authorization Server** that mints + signs its own tokens (Ed25519, key derived from this secret) and enables guest mode + lazy/step-up auth. Without it, enpilink stays in transparent-proxy mode (upstream-issued tokens). |
 | `ENPILINK_AUTH_CLIENT_SECRET` | `auth.clientSecret` | **Secret** — env-only, masked, never DB-persisted. The upstream IdP client secret. |
 | `ENPILINK_AUTH_UPSTREAM_CLIENT_ID` | `auth.upstream.clientId` | Upstream IdP OAuth client id (non-secret). Enables the co-hosted AS. |
 | `ENPILINK_AUTH_UPSTREAM_AUTHORIZATION_URL` | `auth.upstream.authorizationUrl` | Upstream provider authorize endpoint. |
