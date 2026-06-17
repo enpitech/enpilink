@@ -1,4 +1,5 @@
 import express, { type Router } from "express";
+import { refreshCaptureGate } from "../capture-gate.js";
 import { getActiveStorage } from "../log-sink.js";
 import type { ConfigAuditEntry, StorageAdapter } from "../storage/types.js";
 import { getPreset, PRESETS } from "./presets.js";
@@ -130,6 +131,9 @@ export function createConfigRouter(
       }
     }
 
+    // A preset may have changed analytics.enabled/sampleRate — refresh the live
+    // capture gate so it takes effect without a restart.
+    await refreshCaptureGate();
     res.json({ ok: true, preset: preset.name, applied, skipped });
   });
 
@@ -151,6 +155,9 @@ export function createConfigRouter(
 
     try {
       await guard.storage.setConfig(key, check.value, actorOf(req));
+      // Refresh the live capture gate so a toggle of analytics.enabled /
+      // analytics.sampleRate takes effect immediately (no restart).
+      await refreshCaptureGate();
       res.json({
         ok: true,
         key,
@@ -173,6 +180,9 @@ export function createConfigRouter(
     }
     try {
       await guard.storage.clearConfig(guard.key, actorOf(req));
+      // Resetting analytics.enabled / sampleRate to default also re-gates
+      // capture live.
+      await refreshCaptureGate();
       res.json({
         ok: true,
         key: guard.key,

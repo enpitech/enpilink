@@ -18,19 +18,37 @@ unless you explicitly turn on [OTel export](/guides/storage#opentelemetry-export
 
 ## Enabling analytics
 
-Set one environment variable:
+There are two ways to turn analytics on, and they compose with the usual
+**env > file > db > default** [precedence](/guides/configuration):
+
+**1. Live, from the Configuration tab (no restart).** In `enpilink dev` and in
+the production admin plane, toggle **`analytics.enabled`** on. The change
+persists (with an audit row) and takes effect immediately — subsequent tool
+calls are captured without restarting the process. Toggle it off to stop
+capturing new events (existing data is kept). The same live toggle governs
+**`analytics.sampleRate`**.
+
+**2. Pinned via environment.** Set:
 
 ```bash
 ENPILINK_ANALYTICS=1
 ```
 
 Accepted truthy values are `1`, `true`, `yes`, and `on` (case-insensitive).
-When set, enpilink resolves a storage adapter (see [Storage](/guides/storage)),
-initializes it, and installs a small middleware that records one event per MCP
-request.
+Because env **overrides** the database, setting this env var pins analytics on
+(or off, with a falsy value) and the Configuration UI renders `analytics.enabled`
+read-only ("set via `ENPILINK_ANALYTICS`"). Unset it to hand control back to the
+live toggle.
 
-When it is **unset**, none of that happens — no adapter is resolved, no database
-file is created, and no middleware runs.
+In `enpilink dev`, a storage adapter is **always** activated so the Configuration
+and Dashboard tabs work out of the box — by default an in-memory adapter, which
+creates **no** database file and makes **no** network calls (set
+`ENPILINK_STORAGE`/`ENPILINK_DB_PATH` to use SQLite or Postgres). Whether tool
+calls are *recorded* is governed by the live `analytics.enabled` gate above;
+storage being active does not by itself capture anything.
+
+There is **no backfill**: turning analytics on starts capturing forward only; it
+does not synthesize events for calls made while it was off.
 
 ### What gets recorded
 
@@ -127,9 +145,15 @@ production (it can never seed a real deployment).
 
 ## Disabling
 
-Unset `ENPILINK_ANALYTICS` (and don't pass `--mock`). With both off, enpilink
-resolves no adapter, creates no database, registers no middleware, and makes no
-network calls.
+Turn off the **`analytics.enabled`** toggle in the Configuration tab (or set
+`ENPILINK_ANALYTICS` to a falsy value to pin it off). New tool calls stop being
+recorded immediately; previously captured data is retained until it ages out per
+the retention caps.
+
+In **production without the admin plane**, analytics is off and no storage is
+activated unless you set `ENPILINK_ANALYTICS=1` — with both off, enpilink
+resolves no adapter, creates no database, registers no capturing middleware, and
+makes no network calls.
 
 ## Related
 

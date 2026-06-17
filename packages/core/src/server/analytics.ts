@@ -1,4 +1,10 @@
-import { setActiveStorage } from "./log-sink.js";
+import {
+  type CaptureGate,
+  getCaptureGate,
+  refreshCaptureGate,
+  setCaptureGate,
+} from "./capture-gate.js";
+import { getActiveStorage, setActiveStorage } from "./log-sink.js";
 import type { McpMiddlewareEntry, McpMiddlewareFn } from "./middleware.js";
 import { seedMockData } from "./mock-seed.js";
 import { initOtel, type OtelSink } from "./otel.js";
@@ -7,17 +13,28 @@ import { MemoryStorageAdapter } from "./storage/memory.js";
 import type { StorageAdapter } from "./storage/types.js";
 
 /**
- * Analytics + log capture (M2). Opt-in, env-gated, zero overhead when off.
+ * Analytics + log capture (M2) — now with a LIVE runtime toggle (bugfix).
  *
- * When enabled, a single {@link StorageAdapter} is resolved + `init()`ed at
- * server startup and shared in-process: the analytics middleware writes
- * `tool_call` events to it, the log sink mirrors server logs to it, and (M3)
- * the observability API reads from the very same instance via the
- * `server.storage` getter or {@link getActiveStorage}.
+ * A single {@link StorageAdapter} is shared in-process: the analytics
+ * middleware writes `tool_call` events to it, the log sink mirrors server logs
+ * to it, and the observability/config APIs read from the very same instance via
+ * the `server.storage` getter or {@link getActiveStorage}.
  *
- * Gating: OFF unless `ENPILINK_ANALYTICS` is `1` or `true` (case-insensitive).
- * When OFF, no adapter is resolved or initialized (so no `enpilink.db` is
- * created), no middleware is registered, and there is zero network activity.
+ * Storage activation (so the Configuration + observability UI always has a
+ * backing store) vs. capture gating (whether tool calls are recorded) are now
+ * DECOUPLED:
+ *
+ * - **Storage** is activated whenever the admin/config UI is reachable: always
+ *   in dev (default `memory`, honoring `ENPILINK_STORAGE`/`ENPILINK_DB_PATH`),
+ *   and in prod-admin (handled separately in `admin.ts`). It reuses any already
+ *   active adapter — never double-inits.
+ * - **Capture** is governed at runtime by the resolved `analytics.enabled`
+ *   config value (env > file > db > default) via the {@link CaptureGate}, so
+ *   toggling it in the UI takes effect WITHOUT a restart. `ENPILINK_ANALYTICS`
+ *   still works as an env override (env > db).
+ *
+ * The default `memory` adapter creates NO `enpilink.db` file and does zero
+ * network; OTel stays independently gated and off by default.
  */
 
 /** Options for {@link installAnalytics}. */
@@ -35,6 +52,11 @@ export interface InstallAnalyticsOptions {
  */
 function resolveSessionStorage(mock: boolean): StorageAdapter {
   return mock ? new MemoryStorageAdapter() : resolveStorageAdapter();
+}
+
+/** Whether the process is running in production (no dev admin plane). */
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
 }
 
 /** Truthy values that enable analytics via {@link analyticsEnabled}. */
@@ -81,17 +103,36 @@ function toolNameOf(
   return typeof name === "string" ? name : undefined;
 }
 
+/** Options controlling the live capture gate (injectable for tests). */
+export interface AnalyticsMiddlewareOptions {
+  /** Read the live capture gate. Defaults to the shared {@link getCaptureGate}. */
+  gate?: () => CaptureGate;
+  /** RNG for sampling `[0, 1)`. Defaults to `Math.random`. */
+  rng?: () => number;
+}
+
 /**
  * Build the analytics middleware entry. Times each request around `next()`,
- * records a `tool_call`-typed event (capturing the tool name for `tools/call`),
- * and ALWAYS swallows storage errors so a storage failure can never break or
- * slow a tool call. Recording is fire-and-forget (non-blocking).
+ * and — ONLY when the live capture gate says so — records a `tool_call`-typed
+ * event (capturing the tool name for `tools/call`). Always swallows storage
+ * errors so a storage failure can never break or slow a tool call. Recording is
+ * fire-and-forget (non-blocking).
+ *
+ * The gate is a cheap, synchronous in-memory snapshot of the resolved
+ * `analytics.enabled` / `analytics.sampleRate` config (see `capture-gate.ts`),
+ * so toggling analytics in the UI takes effect live without a restart and the
+ * hot path does no DB read. `next()` is ALWAYS awaited so the tool call runs
+ * identically whether capture is on or off; only the record/export at the end is
+ * gated.
  */
 export function createAnalyticsMiddleware(
   storage: StorageAdapter,
   now: () => number = Date.now,
   otel: OtelSink | null = null,
+  opts: AnalyticsMiddlewareOptions = {},
 ): McpMiddlewareFn {
+  const readGate = opts.gate ?? getCaptureGate;
+  const rng = opts.rng ?? Math.random;
   return async (request, _extra, next) => {
     const start = now();
     const tool = toolNameOf(request.method, request.params);
@@ -115,24 +156,30 @@ export function createAnalyticsMiddleware(
       error = err instanceof Error ? err.message : String(err);
       throw err;
     } finally {
-      const ms = now() - start;
-      const event = {
-        ts: start,
-        type: "tool_call",
-        tool,
-        method: request.method,
-        ms,
-        ok,
-        error,
-      } as const;
-      // Fire-and-forget; never block or throw into the request path.
-      void recordSafely(storage, event);
-      // Optional OTel export — guarded, synchronous, error-swallowing.
-      if (otel) {
-        try {
-          otel.record(event);
-        } catch {
-          // OTel export must never break or slow a tool call.
+      // Live gate: skip recording entirely when analytics is off, or when this
+      // call falls outside the sample rate. Cheap + synchronous + never throws.
+      const { enabled, sampleRate } = readGate();
+      const sampled = sampleRate >= 1 || (sampleRate > 0 && rng() < sampleRate);
+      if (enabled && sampled) {
+        const ms = now() - start;
+        const event = {
+          ts: start,
+          type: "tool_call",
+          tool,
+          method: request.method,
+          ms,
+          ok,
+          error,
+        } as const;
+        // Fire-and-forget; never block or throw into the request path.
+        void recordSafely(storage, event);
+        // Optional OTel export — guarded, synchronous, error-swallowing.
+        if (otel) {
+          try {
+            otel.record(event);
+          } catch {
+            // OTel export must never break or slow a tool call.
+          }
         }
       }
     }
@@ -152,17 +199,30 @@ async function recordSafely(
 }
 
 /**
- * Install analytics on a server, ONLY when enabled (`ENPILINK_ANALYTICS`).
+ * Install analytics on a server.
  *
- * When enabled: resolves a {@link StorageAdapter} via `resolveStorageAdapter()`
- * (`ENPILINK_STORAGE` / `ENPILINK_DB_PATH`), `init()`s it, registers it as the
- * active storage for the log sink + `getActiveStorage()`, and returns the
- * built analytics middleware entry to splice into the chain.
+ * STORAGE activation (decoupled from capture):
+ * - Reuse any already-active adapter ({@link getActiveStorage}) — never
+ *   double-init.
+ * - In `--mock` mode, force a fresh in-memory adapter and seed it.
+ * - Otherwise, in DEV activate the configured adapter (default `memory`,
+ *   honoring `ENPILINK_STORAGE` / `ENPILINK_DB_PATH`) so the Configuration +
+ *   observability UI always has a backing store — removing the "no active
+ *   storage" 409 on the first config write. `memory` creates NO file and does
+ *   zero network.
+ * - In PRODUCTION WITHOUT mock, activate NOTHING here (the config UI isn't
+ *   reachable; prod-admin activates its own store in `admin.ts`). This preserves
+ *   the "no db / no network when off in prod" guarantee.
  *
- * When disabled: resolves/initializes NOTHING and returns `null` — zero
- * overhead, zero network, no `enpilink.db` created.
+ * CAPTURE gating: the returned middleware records events only when the live
+ * {@link CaptureGate} (resolved `analytics.enabled`/`analytics.sampleRate`, env
+ * > file > db > default) allows it — so the toggle is live (no restart). The
+ * gate is resolved once here and refreshed on config writes by the router. In
+ * `--mock` mode capture is force-enabled for the session.
  *
- * @returns the active storage + middleware entry, or `null` when disabled.
+ * @returns the active storage + middleware entry + otel sink, or `null` when no
+ * storage was activated (prod without mock/admin) — zero overhead, no file, no
+ * network, no middleware.
  */
 export async function installAnalytics(
   opts: InstallAnalyticsOptions = {},
@@ -171,32 +231,43 @@ export async function installAnalytics(
   entry: McpMiddlewareEntry;
   otel: OtelSink | null;
 } | null> {
-  // `--mock` (ENPILINK_MOCK) force-enables analytics for the session even when
-  // the env-based gating is off, so demos work without setting both flags.
+  // `--mock` (ENPILINK_MOCK) force-enables capture for the session and uses a
+  // throwaway in-memory store so demos work with no real traffic and no disk.
   const mock = mockEnabled();
-  if (!mock && !analyticsEnabled()) {
-    return null;
+
+  // Reuse an already-active adapter if one exists (e.g. set elsewhere); never
+  // double-init. Otherwise decide whether to activate one.
+  let storage = getActiveStorage();
+  let ownedHere = false;
+  if (!storage) {
+    // In prod we don't activate storage here UNLESS analytics is explicitly
+    // enabled via env (the historical M2 behavior — capture to a resolved
+    // store). Otherwise the config UI isn't reachable (prod-admin handles its
+    // own store), so activating nothing preserves the "no db / no network when
+    // off" guarantee. In dev (or mock) we always activate so the UI works.
+    if (!mock && isProduction() && !analyticsEnabled()) {
+      return null;
+    }
+    try {
+      storage = resolveSessionStorage(mock);
+      await storage.init();
+      ownedHere = true;
+    } catch (err) {
+      // Never let a storage failure break server startup.
+      console.error(
+        "[enpilink] analytics storage init failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return null;
+    }
+    setActiveStorage(storage);
   }
 
-  let storage: StorageAdapter;
-  try {
-    storage = resolveSessionStorage(mock);
-    await storage.init();
-  } catch (err) {
-    // Never let an analytics/storage failure break server startup.
-    console.error(
-      "[enpilink] analytics disabled: storage init failed:",
-      err instanceof Error ? err.message : err,
-    );
-    return null;
-  }
-
-  setActiveStorage(storage);
-
-  // In `--mock` mode, seed the in-memory storage with a deterministic demo
+  // In `--mock` mode, seed the (in-memory) storage with a deterministic demo
   // dataset so the Dashboard renders full immediately (no real traffic).
-  // Determinism: a fixed seed + a base timestamp captured once here.
-  if (mock) {
+  // Determinism: a fixed seed + a base timestamp captured once here. Only seed a
+  // store we just created here, never an adopted/pre-existing one.
+  if (mock && ownedHere) {
     const now = (opts.now ?? Date.now)();
     try {
       await seedMockData(storage, { now });
@@ -205,9 +276,18 @@ export async function installAnalytics(
     }
   }
 
+  // Initialize the live capture gate. `--mock` force-enables capture for the
+  // session (full sample); otherwise resolve from env/file/db/default so the UI
+  // toggle (and any env override) governs capture live.
+  if (mock) {
+    setCaptureGate({ enabled: true, sampleRate: 1 });
+  } else {
+    await refreshCaptureGate();
+  }
+
   // Optional OTel export (M6): off by default, zero network/imports when unset.
-  // Initialized once here and fed by the middleware alongside storage. Mock mode
-  // never exports (it's dev-only demo data); requires the explicit env opt-in.
+  // Mock mode never exports (it's dev-only demo data); requires the explicit env
+  // opt-in.
   const otel = mock ? null : await initOtel();
 
   const entry: McpMiddlewareEntry = {

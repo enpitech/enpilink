@@ -5,6 +5,7 @@ import {
   createAnalyticsMiddleware,
   installAnalytics,
 } from "./analytics.js";
+import { getCaptureGate, setCaptureGate } from "./capture-gate.js";
 import { getActiveStorage, serverLog, setActiveStorage } from "./log-sink.js";
 import { MemoryStorageAdapter } from "./storage/memory.js";
 import type { AnalyticsEvent } from "./storage/types.js";
@@ -49,6 +50,9 @@ describe("analyticsEnabled", () => {
   });
 });
 
+/** A gate that always records (analytics on, full sample) — for capture tests. */
+const onGate = () => ({ enabled: true, sampleRate: 1 });
+
 describe("createAnalyticsMiddleware", () => {
   let store: MemoryStorageAdapter;
   beforeEach(async () => {
@@ -57,7 +61,9 @@ describe("createAnalyticsMiddleware", () => {
   });
 
   it("records a tool_call event on success with tool, ms, ok", async () => {
-    const mw = createAnalyticsMiddleware(store, fixedClock());
+    const mw = createAnalyticsMiddleware(store, fixedClock(), null, {
+      gate: onGate,
+    });
     const result = { content: [{ type: "text", text: "hi" }] };
     const ret = await mw(
       { method: "tools/call", params: { name: "greet" } },
@@ -80,7 +86,9 @@ describe("createAnalyticsMiddleware", () => {
   });
 
   it("records ok=false when the result has isError", async () => {
-    const mw = createAnalyticsMiddleware(store, fixedClock());
+    const mw = createAnalyticsMiddleware(store, fixedClock(), null, {
+      gate: onGate,
+    });
     await mw(
       { method: "tools/call", params: { name: "boom" } },
       undefined,
@@ -92,7 +100,9 @@ describe("createAnalyticsMiddleware", () => {
   });
 
   it("records the event AND rethrows on a thrown error", async () => {
-    const mw = createAnalyticsMiddleware(store, fixedClock());
+    const mw = createAnalyticsMiddleware(store, fixedClock(), null, {
+      gate: onGate,
+    });
     await expect(
       mw(
         { method: "tools/call", params: { name: "kaboom" } },
@@ -108,7 +118,9 @@ describe("createAnalyticsMiddleware", () => {
   });
 
   it("captures the method but no tool for non-tools/call requests", async () => {
-    const mw = createAnalyticsMiddleware(store, fixedClock());
+    const mw = createAnalyticsMiddleware(store, fixedClock(), null, {
+      gate: onGate,
+    });
     await mw({ method: "tools/list", params: {} }, undefined, async () => ({
       tools: [],
     }));
@@ -124,7 +136,9 @@ describe("createAnalyticsMiddleware", () => {
     broken.recordEvent = async () => {
       throw new Error("storage down");
     };
-    const mw = createAnalyticsMiddleware(broken, fixedClock());
+    const mw = createAnalyticsMiddleware(broken, fixedClock(), null, {
+      gate: onGate,
+    });
     const result = { content: [] };
     await expect(
       mw(
@@ -140,12 +154,14 @@ describe("createAnalyticsMiddleware", () => {
 describe("installAnalytics gating", () => {
   const originalAnalytics = process.env.ENPILINK_ANALYTICS;
   const originalStorage = process.env.ENPILINK_STORAGE;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     setActiveStorage(null);
   });
   afterEach(() => {
     setActiveStorage(null);
+    setCaptureGate({ enabled: false, sampleRate: 1 });
     if (originalAnalytics === undefined) {
       delete process.env.ENPILINK_ANALYTICS;
     } else {
@@ -156,35 +172,72 @@ describe("installAnalytics gating", () => {
     } else {
       process.env.ENPILINK_STORAGE = originalStorage;
     }
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
   });
 
-  it("returns null and creates no adapter when disabled", async () => {
+  it("activates a default (memory) storage in dev even when analytics is OFF", async () => {
     delete process.env.ENPILINK_ANALYTICS;
+    delete process.env.ENPILINK_STORAGE; // default = memory in dev
+    delete process.env.NODE_ENV; // dev
+    const result = await installAnalytics();
+    // Storage is activated (so the config/observability UI can persist) ...
+    expect(result).not.toBeNull();
+    expect(getActiveStorage()).toBe(result?.storage);
+    // ... but capture stays OFF until the runtime toggle / env enables it.
+    expect(getCaptureGate().enabled).toBe(false);
+    await result?.storage.close();
+  });
+
+  it("does NOT create a sqlite db file in dev when storage is the default (memory)", async () => {
+    delete process.env.ENPILINK_ANALYTICS;
+    delete process.env.ENPILINK_STORAGE; // default = memory => no file
+    delete process.env.NODE_ENV;
+    const dbPath = `${process.cwd()}/enpilink.db`;
+    const preexisting = existsSync(dbPath);
+    const result = await installAnalytics();
+    if (!preexisting) {
+      expect(existsSync(dbPath)).toBe(false);
+    }
+    await result?.storage.close();
+  });
+
+  it("activates NOTHING in prod when analytics is OFF (no admin)", async () => {
+    delete process.env.ENPILINK_ANALYTICS;
+    process.env.NODE_ENV = "production";
     const result = await installAnalytics();
     expect(result).toBeNull();
     expect(getActiveStorage()).toBeNull();
   });
 
-  it("does NOT create a sqlite db file when disabled", async () => {
-    delete process.env.ENPILINK_ANALYTICS;
-    process.env.ENPILINK_STORAGE = "sqlite";
-    const dbPath = `${process.cwd()}/enpilink.db`;
-    const preexisting = existsSync(dbPath);
-    await installAnalytics();
-    if (!preexisting) {
-      expect(existsSync(dbPath)).toBe(false);
-    }
-  });
-
-  it("resolves + inits + registers the active storage when enabled", async () => {
+  it("sets capture ON from env (env override) when ENPILINK_ANALYTICS=1", async () => {
     process.env.ENPILINK_ANALYTICS = "1";
     process.env.ENPILINK_STORAGE = "memory";
+    delete process.env.NODE_ENV;
     const result = await installAnalytics();
     expect(result).not.toBeNull();
     expect(result?.entry.filter).toBe("request");
     expect(typeof result?.entry.handler).toBe("function");
     expect(getActiveStorage()).toBe(result?.storage);
+    // env override -> gate enabled regardless of any DB value.
+    expect(getCaptureGate().enabled).toBe(true);
     await result?.storage.close();
+  });
+
+  it("REUSES an already-active storage and never double-inits", async () => {
+    const existing = new MemoryStorageAdapter();
+    await existing.init();
+    setActiveStorage(existing);
+    process.env.ENPILINK_ANALYTICS = "1";
+    delete process.env.NODE_ENV;
+    const result = await installAnalytics();
+    // Same instance reused; no second adapter created.
+    expect(result?.storage).toBe(existing);
+    expect(getActiveStorage()).toBe(existing);
+    await existing.close();
   });
 });
 
