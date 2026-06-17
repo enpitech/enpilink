@@ -252,6 +252,9 @@ export function buildAuthRuntime(
       scopesSupported: config.upstream.scopes,
       upstreamClientSecret: secrets.clientSecret,
       appName: secrets.appName,
+      // Validate every host `redirect_uri` against the registered allowlist
+      // before redirecting to it (open-redirect / code-exfil prevention).
+      redirectUris: secrets.redirectUris ?? [],
     });
   } else if (config.upstream) {
     // A2 TRANSPARENT-PROXY mode (no signing key): tokens are upstream-issued.

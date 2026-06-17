@@ -1,4 +1,5 @@
-import type { Router } from "express";
+import crypto from "node:crypto";
+import type { Request, Router } from "express";
 import express from "express";
 import type { JWK } from "jose";
 import {
@@ -39,38 +40,192 @@ export interface FederationRouterOptions {
   scopesSupported?: string[];
   /** The env-only upstream client secret (used for the upstream token exchange). */
   upstreamClientSecret?: string;
-  /** The redirect URIs the host may use (for upstream `redirect_uri` = our callback). */
+  /** Display name for the branded login page. */
   appName?: string;
+  /**
+   * The redirect URIs the host (OAuth client) is registered to use. The
+   * effective `redirectUri` is validated against this allowlist BEFORE we ever
+   * redirect to it (open-redirect / code-exfiltration prevention). When empty,
+   * no host redirect is accepted (fail closed).
+   */
+  redirectUris?: string[];
   /** Injectable fetch for the upstream token exchange (tests stub it). */
   fetchImpl?: typeof fetch;
+  /**
+   * Server-side pending-auth store. Defaults to a fresh in-memory TTL store.
+   * Injectable so tests can control the id generator + clock.
+   */
+  pendingStore?: PendingAuthStore;
 }
 
 /**
- * Encode the host's authorization request (the bits we must carry across the
- * upstream round-trip) into an opaque `state` we hand to the upstream, so the
- * callback can rebuild the host redirect. Base64url JSON — no secrets.
+ * The host's authorization request (the bits we must carry across the upstream
+ * round-trip). This is kept SERVER-SIDE only — it is NEVER serialized into the
+ * upstream `state` or any URL/cookie the browser can read or tamper with. The
+ * browser only ever sees an opaque random id (see {@link PendingAuthStore}).
  */
-interface PendingAuth {
+export interface PendingAuth {
   redirectUri: string;
   codeChallenge: string;
   scope?: string;
   state?: string;
 }
 
-function encodePending(p: PendingAuth): string {
-  return Buffer.from(JSON.stringify(p), "utf8").toString("base64url");
+/**
+ * The cookie that binds the federation flow to the user's browser session. Its
+ * value MUST equal the `state`/`id` query param at the callback / guest step,
+ * which blocks cross-session replay and CSRF (an attacker cannot set a
+ * `HttpOnly` cookie in the victim's browser).
+ */
+const FLOW_COOKIE = "enpilink_auth_flow";
+
+/** How long a pending-auth entry (and the binding cookie) lives. */
+const PENDING_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Server-side store for {@link PendingAuth} entries, keyed by an opaque random
+ * id. Single-use (`take` deletes) + short TTL. In-memory only — consistent with
+ * A3's in-memory code/refresh state for the single-instance model; a
+ * multi-instance deploy needs a shared store (see specs/AUTH.md).
+ */
+export class PendingAuthStore {
+  private readonly entries = new Map<
+    string,
+    { pending: PendingAuth; expiresAt: number }
+  >();
+  private readonly now: () => number;
+  private readonly newId: () => string;
+  private readonly ttl: number;
+
+  constructor(
+    opts: {
+      now?: () => number;
+      newId?: () => string;
+      ttlMs?: number;
+    } = {},
+  ) {
+    this.now = opts.now ?? Date.now;
+    this.newId =
+      opts.newId ?? (() => crypto.randomBytes(32).toString("base64url"));
+    this.ttl = opts.ttlMs ?? PENDING_TTL_MS;
+  }
+
+  /** Store a pending auth, returning the opaque id to bind it to. */
+  create(pending: PendingAuth): string {
+    this.sweep();
+    const id = this.newId();
+    this.entries.set(id, { pending, expiresAt: this.now() + this.ttl });
+    return id;
+  }
+
+  /** Read WITHOUT consuming (the upstream-redirect step still needs it). */
+  peek(id: string): PendingAuth | undefined {
+    const rec = this.entries.get(id);
+    if (!rec) {
+      return undefined;
+    }
+    if (this.now() > rec.expiresAt) {
+      this.entries.delete(id);
+      return undefined;
+    }
+    return rec.pending;
+  }
+
+  /** Read AND consume (single-use) — for the terminal callback/guest steps. */
+  take(id: string): PendingAuth | undefined {
+    const pending = this.peek(id);
+    if (pending) {
+      this.entries.delete(id);
+    }
+    return pending;
+  }
+
+  private sweep(): void {
+    const t = this.now();
+    for (const [id, rec] of this.entries) {
+      if (t > rec.expiresAt) {
+        this.entries.delete(id);
+      }
+    }
+  }
 }
-function decodePending(raw: string): PendingAuth | undefined {
-  try {
-    return JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
-  } catch {
+
+/** Parse a single cookie value from the raw `Cookie` header (no deps). */
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.cookie;
+  if (!header) {
     return undefined;
   }
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) {
+      continue;
+    }
+    if (part.slice(0, eq).trim() === name) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Validate an effective `redirectUri` against the registered allowlist. Exact
+ * string match (the host always uses its registered connector callback). Fails
+ * closed: an empty allowlist accepts nothing.
+ */
+function isRegisteredRedirect(
+  redirectUri: string,
+  registered: string[] | undefined,
+): boolean {
+  if (!redirectUri || !registered || registered.length === 0) {
+    return false;
+  }
+  return registered.includes(redirectUri);
 }
 
 export function buildFederationRouter(opts: FederationRouterOptions): Router {
   const router = express.Router();
   const provider = opts.provider;
+  const pendingStore = opts.pendingStore ?? new PendingAuthStore();
+  const registeredRedirectUris = opts.redirectUris ?? [];
+  // The cookie is `Secure` whenever this AS is served over HTTPS (the public
+  // issuer URL is authoritative — works behind a tunnel where `req.protocol`
+  // may be http). Locally over http, `Secure` is omitted so the cookie still
+  // sets/sends. Always `HttpOnly` + `SameSite=Lax` (the host redirect is a
+  // top-level GET navigation, so Lax still sends the cookie on the callback).
+  const cookieSecure = (() => {
+    try {
+      return new URL(opts.issuerUrl).protocol === "https:";
+    } catch {
+      return false;
+    }
+  })();
+  const flowCookie = (id: string): string => {
+    const attrs = [
+      `${FLOW_COOKIE}=${encodeURIComponent(id)}`,
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/authorize",
+      `Max-Age=${Math.floor(PENDING_TTL_MS / 1000)}`,
+    ];
+    if (cookieSecure) {
+      attrs.push("Secure");
+    }
+    return attrs.join("; ");
+  };
+  const clearFlowCookie = (): string => {
+    const attrs = [
+      `${FLOW_COOKIE}=`,
+      "HttpOnly",
+      "SameSite=Lax",
+      "Path=/authorize",
+      "Max-Age=0",
+    ];
+    if (cookieSecure) {
+      attrs.push("Secure");
+    }
+    return attrs.join("; ");
+  };
 
   // Our JWKS — the public half of the signing key. The A1 verifier (or any
   // client) fetches this to validate OUR tokens.
@@ -98,29 +253,45 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
 
   // Branded entry page: the SDK `/authorize` handler redirected here (via the
   // provider's `authorize()`). Offers Sign in (upstream) or Continue as guest.
+  //
+  // SECURITY: we do NOT serialize the auth params into any URL/`state` the
+  // browser carries. Instead we store them SERVER-SIDE keyed by a random opaque
+  // id, set that id as an HttpOnly binding cookie, and pass only the id forward.
   router.get("/authorize/branded", (req, res) => {
     const q = req.query as Record<string, string>;
+    const redirectUri = String(q.redirect_uri ?? "");
+    // Validate the host redirect_uri against the registered allowlist BEFORE
+    // showing any continuation that would later redirect to it.
+    if (!isRegisteredRedirect(redirectUri, registeredRedirectUris)) {
+      res.status(400).send("Invalid or unregistered redirect_uri");
+      return;
+    }
     const pending: PendingAuth = {
-      redirectUri: String(q.redirect_uri ?? ""),
+      redirectUri,
       codeChallenge: String(q.code_challenge ?? ""),
       scope: q.scope ? String(q.scope) : undefined,
       state: q.state ? String(q.state) : undefined,
     };
-    const token = encodePending(pending);
-    const signInUrl = `${req.baseUrl}/authorize/upstream?p=${encodeURIComponent(token)}`;
-    const guestUrl = `${req.baseUrl}/authorize/guest?p=${encodeURIComponent(token)}`;
+    const id = pendingStore.create(pending);
+    const signInUrl = `${req.baseUrl}/authorize/upstream?id=${encodeURIComponent(id)}`;
+    const guestUrl = `${req.baseUrl}/authorize/guest?id=${encodeURIComponent(id)}`;
     res
       .status(200)
       .set("Content-Type", "text/html; charset=utf-8")
       .set("Cache-Control", "no-store")
+      .set("Set-Cookie", flowCookie(id))
       .send(renderEntryHtml(signInUrl, guestUrl, opts.appName ?? "this app"));
   });
 
   // "Sign in" → federate to the upstream IdP. The upstream returns to OUR
   // callback (not the host directly), so we can mint our own token.
   router.get("/authorize/upstream", (req, res) => {
-    const pending = decodePending(String(req.query.p ?? ""));
-    if (!pending) {
+    const id = String(req.query.id ?? "");
+    const pending = pendingStore.peek(id);
+    if (
+      !pending ||
+      !isRegisteredRedirect(pending.redirectUri, registeredRedirectUris)
+    ) {
       res.status(400).send("Invalid authorization request");
       return;
     }
@@ -133,18 +304,38 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
       "scope",
       (opts.upstream.scopes ?? opts.scopesSupported ?? []).join(" "),
     );
-    // We carry the host's request in `state` so the callback can rebuild it.
-    url.searchParams.set("state", encodePending(pending));
+    // The upstream `state` is ONLY the opaque id — the auth params stay
+    // server-side. The callback re-reads them by this id (+ the binding cookie).
+    url.searchParams.set("state", id);
     res.redirect(302, url.href);
   });
 
-  // Upstream returns here with a `code`. We exchange it server-side, resolve the
-  // real `sub`, mint OUR auth code, and bounce back to the host's redirect_uri.
+  // Upstream returns here with a `code` + our opaque `state` (the id). We
+  // require the binding cookie to ALSO carry that id (CSRF / cross-session
+  // replay defense), look up the server-side pending auth (single-use), then
+  // exchange the upstream code, mint OUR auth code, and bounce to the host.
   router.get("/authorize/callback", async (req, res) => {
-    const pending = decodePending(String(req.query.state ?? ""));
+    const id = String(req.query.state ?? "");
+    const cookieId = readCookie(req, FLOW_COOKIE);
     const upstreamCode = String(req.query.code ?? "");
-    if (!pending || !upstreamCode) {
-      res.status(400).send("Invalid upstream callback");
+    if (!id || !cookieId || cookieId !== id) {
+      res
+        .status(400)
+        .set("Set-Cookie", clearFlowCookie())
+        .send("Invalid or missing session binding");
+      return;
+    }
+    // Single-use: consume the pending entry so a replayed callback fails.
+    const pending = pendingStore.take(id);
+    if (
+      !pending ||
+      !upstreamCode ||
+      !isRegisteredRedirect(pending.redirectUri, registeredRedirectUris)
+    ) {
+      res
+        .status(400)
+        .set("Set-Cookie", clearFlowCookie())
+        .send("Invalid upstream callback");
       return;
     }
     try {
@@ -166,7 +357,8 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
         email: profile.email,
         name: profile.name,
       });
-      res.redirect(302, redirect);
+      // The flow is complete — clear the binding cookie.
+      res.set("Set-Cookie", clearFlowCookie()).redirect(302, redirect);
     } catch (err) {
       serverLog("error", "upstream callback exchange failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -176,10 +368,27 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
   });
 
   // "Continue as guest" → mint a guest subject + code, no upstream round-trip.
+  // Same binding as the callback: require the HttpOnly cookie to equal the `id`
+  // query param, then consume the single-use server-side pending auth.
   router.get("/authorize/guest", (req, res) => {
-    const pending = decodePending(String(req.query.p ?? ""));
-    if (!pending) {
-      res.status(400).send("Invalid authorization request");
+    const id = String(req.query.id ?? "");
+    const cookieId = readCookie(req, FLOW_COOKIE);
+    if (!id || !cookieId || cookieId !== id) {
+      res
+        .status(400)
+        .set("Set-Cookie", clearFlowCookie())
+        .send("Invalid or missing session binding");
+      return;
+    }
+    const pending = pendingStore.take(id);
+    if (
+      !pending ||
+      !isRegisteredRedirect(pending.redirectUri, registeredRedirectUris)
+    ) {
+      res
+        .status(400)
+        .set("Set-Cookie", clearFlowCookie())
+        .send("Invalid authorization request");
       return;
     }
     const redirect = provider.issueCode({
@@ -191,7 +400,7 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
       isGuest: true,
       state: pending.state,
     });
-    res.redirect(302, redirect);
+    res.set("Set-Cookie", clearFlowCookie()).redirect(302, redirect);
   });
 
   // The SDK AS endpoints (authorize/token/register/metadata), wired to OUR

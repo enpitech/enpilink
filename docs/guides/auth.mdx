@@ -167,6 +167,38 @@ The branded page is **server-rendered and out-of-band** (the browser tab the
 host opens), not the chat iframe. It is enpilink-teal and consistent with the
 console; deeper customization arrives with the Auth tab.
 
+### Login-flow security model (state binding + cookie + redirect allowlist)
+
+The federation flow is hardened against authorization-code injection, CSRF, and
+open-redirect:
+
+- **Server-side pending state + opaque id.** The authorization parameters
+  (`redirect_uri`, PKCE `code_challenge`, scopes, host `state`) are stored
+  **server-side**, keyed by a random opaque id, with a short TTL (10 min) and
+  **single-use** semantics. Only that opaque id is ever placed in the upstream
+  OAuth `state` — the parameters are never serialized into a URL the browser
+  carries, so they cannot be forged or tampered with.
+- **Browser binding via an HttpOnly cookie.** When the flow starts, enpilink
+  sets a short-lived `HttpOnly; SameSite=Lax; Secure` cookie holding that id.
+  `/authorize/callback` and `/authorize/guest` require **both** the cookie and
+  the `state`/`id` query param, and they must be **equal**, before the stored
+  pending state is looked up and consumed. A missing/mismatched cookie, or an id
+  with no matching (or expired/already-used) server-side entry, is rejected with
+  `400`. This blocks cross-session replay and CSRF (an attacker cannot set an
+  `HttpOnly` cookie in the victim's browser).
+- **`redirect_uri` allowlist.** The effective `redirect_uri` is validated
+  against the registered `ENPILINK_AUTH_REDIRECT_URIS` at **every** step before
+  any redirect — unregistered URIs are rejected (code-exfiltration / open
+  redirect prevention).
+
+<Note>
+The `Secure` cookie attribute is set automatically when the public issuer
+(`ENPILINK_AUTH_ISSUER`) is `https://…` (it works behind a tunnel and locally
+over `http`). The pending-auth store is **in-memory** for the single-instance
+model — a multi-instance deployment needs a shared store (or sticky sessions),
+the same caveat as the in-memory code/refresh state.
+</Note>
+
 ### Two provider modes
 
 enpilink picks one of two Authorization-Server provider modes, **based on

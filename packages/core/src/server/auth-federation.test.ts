@@ -11,7 +11,10 @@ import {
   type SigningKeys,
   verifyEnpilinkToken,
 } from "./auth-federation.js";
-import { buildFederationRouter } from "./auth-federation-router.js";
+import {
+  buildFederationRouter,
+  PendingAuthStore,
+} from "./auth-federation-router.js";
 import { createApp } from "./express.js";
 import { McpServer } from "./server.js";
 import { MemoryStorageAdapter } from "./storage/memory.js";
@@ -233,18 +236,18 @@ describe("A3 — continue-as-guest → full guest token via /token", () => {
     const { verifier, challenge } = await pkce();
 
     // Authorize with a real S256 challenge → branded → guest link → code.
-    const auth = await fetch(
-      `${base}/authorize?client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+    const { html, cookie } = await startFlow(
+      base,
+      `client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
         redirectUri,
       )}&scope=read&state=s1`,
-      { redirect: "manual" },
     );
-    const html = await (await fetch(auth.headers.get("location") ?? "")).text();
     const guestUrl = decodeHtml(
       (/href="([^"]*\/authorize\/guest[^"]*)"/.exec(html)?.[1] as string) ?? "",
     );
     const guestRes = await fetch(new URL(guestUrl, base).href, {
       redirect: "manual",
+      headers: { cookie },
     });
     const code = new URL(
       guestRes.headers.get("location") ?? "",
@@ -311,13 +314,12 @@ describe("A3 — full login loop (federated upstream) mints OUR token", () => {
     expect((await callTool(base, "public")).status).toBe(200);
 
     // Authorize → branded → "Sign in" link → upstream.
-    const auth = await fetch(
-      `${base}/authorize?client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+    const { html, cookie } = await startFlow(
+      base,
+      `client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
         redirectUri,
       )}&scope=read&state=s2`,
-      { redirect: "manual" },
     );
-    const html = await (await fetch(auth.headers.get("location") ?? "")).text();
     const signInUrl = decodeHtml(
       (/href="([^"]*\/authorize\/upstream[^"]*)"/.exec(html)?.[1] as string) ??
         "",
@@ -325,6 +327,7 @@ describe("A3 — full login loop (federated upstream) mints OUR token", () => {
     // "Sign in" → our /authorize/upstream → 302 to the upstream authorize.
     const toUpstream = await fetch(new URL(signInUrl, base).href, {
       redirect: "manual",
+      headers: { cookie },
     });
     expect(toUpstream.status).toBe(302);
     const upstreamAuthorize = toUpstream.headers.get("location") ?? "";
@@ -335,8 +338,11 @@ describe("A3 — full login loop (federated upstream) mints OUR token", () => {
     const ourCallback = upstreamRes.headers.get("location") ?? "";
     expect(ourCallback).toContain("/authorize/callback");
 
-    // Our callback exchanges the upstream code, mints OUR code, → host redirect.
-    const cbRes = await fetch(ourCallback, { redirect: "manual" });
+    // Our callback REQUIRES the binding cookie (CSRF defense) — replay it.
+    const cbRes = await fetch(ourCallback, {
+      redirect: "manual",
+      headers: { cookie },
+    });
     expect(cbRes.status).toBe(302);
     const hostRedirect = new URL(cbRes.headers.get("location") ?? "");
     expect(hostRedirect.origin + hostRedirect.pathname).toBe(redirectUri);
@@ -386,18 +392,18 @@ describe("A3 — PKCE is validated at /token", () => {
     }));
     const redirectUri = "http://localhost:9999/cb";
     const { challenge } = await pkce();
-    const auth = await fetch(
-      `${base}/authorize?client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+    const { html, cookie } = await startFlow(
+      base,
+      `client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
         redirectUri,
       )}&scope=read`,
-      { redirect: "manual" },
     );
-    const html = await (await fetch(auth.headers.get("location") ?? "")).text();
     const guestUrl = decodeHtml(
       (/href="([^"]*\/authorize\/guest[^"]*)"/.exec(html)?.[1] as string) ?? "",
     );
     const guestRes = await fetch(new URL(guestUrl, base).href, {
       redirect: "manual",
+      headers: { cookie },
     });
     const code = new URL(
       guestRes.headers.get("location") ?? "",
@@ -522,6 +528,9 @@ describe("A3 — federation router unit with injected upstream resolver", () => 
         },
       },
     );
+    // Deterministic pending store so we can seed an id directly (skipping the
+    // branded page) and bind the callback's cookie to that exact id.
+    const pendingStore = new PendingAuthStore();
     const router = buildFederationRouter({
       issuerUrl: "https://as.local",
       resourceServerUrl: "https://as.local/mcp",
@@ -532,6 +541,8 @@ describe("A3 — federation router unit with injected upstream resolver", () => 
         authorizationUrl: "http://up/authorize",
         tokenUrl: "http://up/token",
       },
+      redirectUris: ["http://localhost:9999/cb"],
+      pendingStore,
     });
     const app = express();
     app.use(router);
@@ -541,18 +552,24 @@ describe("A3 — federation router unit with injected upstream resolver", () => 
     const port = (srv.address() as { port: number }).port;
     const b = `http://localhost:${port}`;
 
-    // Simulate the upstream callback with a good code + pending state.
-    const pending = Buffer.from(
-      JSON.stringify({
+    // Seed a server-side pending entry + its opaque id (what the branded page
+    // would have stored), then simulate the upstream callback with the matching
+    // binding cookie.
+    const seed = () =>
+      pendingStore.create({
         redirectUri: "http://localhost:9999/cb",
         codeChallenge: "ch",
         scope: "read",
         state: "z",
-      }),
-    ).toString("base64url");
+      });
+
+    const goodId = seed();
     const cb = await fetch(
-      `${b}/authorize/callback?code=good-code&state=${pending}`,
-      { redirect: "manual" },
+      `${b}/authorize/callback?code=good-code&state=${goodId}`,
+      {
+        redirect: "manual",
+        headers: { cookie: `enpilink_auth_flow=${goodId}` },
+      },
     );
     expect(cb.status).toBe(302);
     const code = new URL(cb.headers.get("location") ?? "").searchParams.get(
@@ -566,11 +583,253 @@ describe("A3 — federation router unit with injected upstream resolver", () => 
     expect(getAuthInfo({ authInfo: info })?.sub).toBe("resolved-9");
 
     // A bad upstream code → 502 (no identity resolved).
+    const badId = seed();
     const bad = await fetch(
-      `${b}/authorize/callback?code=nope&state=${pending}`,
-      { redirect: "manual" },
+      `${b}/authorize/callback?code=nope&state=${badId}`,
+      {
+        redirect: "manual",
+        headers: { cookie: `enpilink_auth_flow=${badId}` },
+      },
     );
     expect(bad.status).toBe(502);
+  });
+});
+
+/**
+ * A4.5 — state-binding / CSRF security regression suite.
+ *
+ * Each test maps to a specific attack flagged by the security review:
+ * forgeable upstream `state`, missing/mismatched browser cookie, unregistered
+ * `redirect_uri`, and expired/already-used pending auth. The happy path is
+ * proven above (the A3 full-loop + guest tests, now cookie-bound).
+ */
+describe("A4.5 — federation state binding + cookie + redirect allowlist", () => {
+  const REDIRECT = "http://localhost:9999/cb";
+  const AUTHZ = (extra = "") =>
+    `client_id=host-client&response_type=code&code_challenge=abc&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+      REDIRECT,
+    )}&scope=read${extra}`;
+
+  /** Run authorize → branded, follow "Sign in" → our /authorize/callback URL. */
+  async function reachCallback(
+    base: string,
+    cookie: string,
+    signInUrl: string,
+  ): Promise<string> {
+    const toUpstream = await fetch(new URL(signInUrl, base).href, {
+      redirect: "manual",
+      headers: { cookie },
+    });
+    const upstreamAuthorize = toUpstream.headers.get("location") ?? "";
+    const upstreamRes = await fetch(upstreamAuthorize, { redirect: "manual" });
+    return upstreamRes.headers.get("location") ?? "";
+  }
+
+  function signInUrlFrom(html: string): string {
+    return decodeHtml(
+      (/href="([^"]*\/authorize\/upstream[^"]*)"/.exec(html)?.[1] as string) ??
+        "",
+    );
+  }
+  function guestUrlFrom(html: string): string {
+    return decodeHtml(
+      (/href="([^"]*\/authorize\/guest[^"]*)"/.exec(html)?.[1] as string) ?? "",
+    );
+  }
+
+  // ATTACK 1: forged/tampered upstream `state` (id not backed by a stored
+  // pending auth) → callback rejected, no token, no session for a forged sub.
+  it("rejects a forged upstream state (no matching server-side pending auth)", async () => {
+    const upstream = await startUpstream("attacker-sub");
+    const { base, server } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+      register: registerTools,
+    }));
+    // The attacker invents an id and supplies it as BOTH state + cookie (so the
+    // cookie==state check passes) — but no server-side pending entry exists.
+    const forgedId = "forged-opaque-id-not-in-store";
+    const res = await fetch(
+      `${base}/authorize/callback?code=upstream-code&state=${forgedId}`,
+      {
+        redirect: "manual",
+        headers: { cookie: `enpilink_auth_flow=${forgedId}` },
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+    await new Promise((r) => setTimeout(r, 20));
+    const sessions = await listSessionsOf(server);
+    expect(sessions.some((s) => s.sub === "attacker-sub")).toBe(false);
+  });
+
+  // ATTACK 2a: callback with the right state but NO browser cookie → rejected.
+  it("rejects a callback with a missing browser cookie", async () => {
+    const upstream = await startUpstream();
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const { html, cookie } = await startFlow(base, AUTHZ("&state=s"));
+    const ourCallback = await reachCallback(base, cookie, signInUrlFrom(html));
+    // Replay the callback WITHOUT the cookie.
+    const res = await fetch(ourCallback, { redirect: "manual" });
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  // ATTACK 2b: callback with a MISMATCHED cookie (cross-session replay) →
+  // rejected even though both cookie and state are present.
+  it("rejects a callback whose cookie does not match the state", async () => {
+    const upstream = await startUpstream();
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const { html, cookie } = await startFlow(base, AUTHZ("&state=s"));
+    const ourCallback = await reachCallback(base, cookie, signInUrlFrom(html));
+    const res = await fetch(ourCallback, {
+      redirect: "manual",
+      headers: { cookie: "enpilink_auth_flow=some-other-session-id" },
+    });
+    expect(res.status).toBe(400);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  // ATTACK 2c: guest path requires the cookie too (missing → rejected).
+  it("rejects the guest path with a missing/mismatched cookie", async () => {
+    const upstream = await startUpstream();
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const { html } = await startFlow(base, AUTHZ("&state=s"));
+    const guestUrl = new URL(guestUrlFrom(html), base).href;
+    // No cookie.
+    const noCookie = await fetch(guestUrl, { redirect: "manual" });
+    expect(noCookie.status).toBe(400);
+    // Wrong cookie.
+    const wrong = await fetch(guestUrl, {
+      redirect: "manual",
+      headers: { cookie: "enpilink_auth_flow=nope" },
+    });
+    expect(wrong.status).toBe(400);
+  });
+
+  // ATTACK 3: unregistered redirect_uri rejected at flow start (branded), so it
+  // never reaches the upstream / guest steps.
+  it("rejects an unregistered redirect_uri at the branded entry", async () => {
+    const upstream = await startUpstream();
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const evil = "http://evil.example.com/steal";
+    const authRes = await fetch(
+      `${base}/authorize?client_id=host-client&response_type=code&code_challenge=abc&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+        evil,
+      )}`,
+      { redirect: "manual" },
+    );
+    // The SDK /authorize itself rejects an unregistered redirect_uri before our
+    // branded page; if it does redirect, our branded page must 400.
+    if (authRes.status === 302) {
+      const branded = await fetch(authRes.headers.get("location") ?? "");
+      expect(branded.status).toBe(400);
+    } else {
+      expect(authRes.status).toBeGreaterThanOrEqual(400);
+    }
+  });
+
+  // ATTACK 4: an already-used (single-use) pending auth → second callback fails.
+  it("rejects an already-used pending auth (single-use)", async () => {
+    const upstream = await startUpstream("real-user-1");
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const { html, cookie } = await startFlow(base, AUTHZ("&state=s"));
+    const ourCallback = await reachCallback(base, cookie, signInUrlFrom(html));
+    // First callback succeeds (consumes the pending entry).
+    const first = await fetch(ourCallback, {
+      redirect: "manual",
+      headers: { cookie },
+    });
+    expect(first.status).toBe(302);
+    // Replaying the SAME callback + cookie now fails (single-use).
+    const replay = await fetch(ourCallback, {
+      redirect: "manual",
+      headers: { cookie },
+    });
+    expect(replay.status).toBe(400);
+    expect(replay.headers.get("location")).toBeNull();
+  });
+
+  // EXPIRY: an expired pending entry is rejected (deterministic clock).
+  it("rejects an expired pending auth", async () => {
+    const k = await keys();
+    let clock = 1_000_000;
+    const provider = new FederatingOAuthProvider(
+      {
+        issuer: "https://as.local",
+        audience: "https://as.local/mcp",
+        keys: k,
+        now: () => clock,
+        resolveUpstream: async () => ({ sub: "u" }),
+      },
+      {
+        async getClient() {
+          return { client_id: "host", redirect_uris: [REDIRECT] };
+        },
+      },
+    );
+    const pendingStore = new PendingAuthStore({
+      now: () => clock,
+      newId: () => "fixed-id",
+    });
+    const router = buildFederationRouter({
+      issuerUrl: "https://as.local",
+      resourceServerUrl: "https://as.local/mcp",
+      provider,
+      publicJwk: k.publicJwk,
+      upstream: {
+        clientId: "host",
+        authorizationUrl: "http://up/authorize",
+        tokenUrl: "http://up/token",
+      },
+      redirectUris: [REDIRECT],
+      pendingStore,
+    });
+    const app = express();
+    app.use(router);
+    const srv = http.createServer(app);
+    await new Promise<void>((r) => srv.listen(0, r));
+    servers.push(srv);
+    const port = (srv.address() as { port: number }).port;
+    const b = `http://localhost:${port}`;
+
+    const id = pendingStore.create({
+      redirectUri: REDIRECT,
+      codeChallenge: "c",
+    });
+    // Advance the clock past the 10-minute TTL.
+    clock += 11 * 60 * 1000;
+    const res = await fetch(`${b}/authorize/callback?code=ok&state=${id}`, {
+      redirect: "manual",
+      headers: { cookie: `enpilink_auth_flow=${id}` },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  // SECURITY PROPERTY: the branded page sets an HttpOnly, SameSite=Lax binding
+  // cookie (the browser-binding seam).
+  it("sets an HttpOnly SameSite binding cookie on flow start", async () => {
+    const upstream = await startUpstream();
+    const { base } = await startEnpilink((b) => ({
+      auth: authConfig(b, upstream),
+    }));
+    const authRes = await fetch(`${base}/authorize?${AUTHZ()}`, {
+      redirect: "manual",
+    });
+    const branded = await fetch(authRes.headers.get("location") ?? "");
+    const setCookie = branded.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("enpilink_auth_flow=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Lax");
   });
 });
 
@@ -601,6 +860,36 @@ function decodeHtml(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
+}
+
+/** Extract the `enpilink_auth_flow` cookie value from a Set-Cookie header. */
+function flowCookieValue(res: Response): string | undefined {
+  const setCookie = res.headers.get("set-cookie");
+  if (!setCookie) {
+    return undefined;
+  }
+  const m = /enpilink_auth_flow=([^;]*)/.exec(setCookie);
+  return m?.[1] ? decodeURIComponent(m[1]) : undefined;
+}
+
+/**
+ * Drive the start of a federation flow: hit `/authorize`, follow to the branded
+ * page, and return the page HTML + the binding cookie header to replay on the
+ * callback / guest step (browsers do this automatically; fetch does not).
+ */
+async function startFlow(
+  base: string,
+  query: string,
+): Promise<{ html: string; cookie: string }> {
+  const auth = await fetch(`${base}/authorize?${query}`, {
+    redirect: "manual",
+  });
+  const branded = await fetch(auth.headers.get("location") ?? "");
+  const cookieVal = flowCookieValue(branded);
+  return {
+    html: await branded.text(),
+    cookie: `enpilink_auth_flow=${cookieVal ?? ""}`,
+  };
 }
 
 /** Generate a real PKCE S256 pair using jose-free node crypto. */
