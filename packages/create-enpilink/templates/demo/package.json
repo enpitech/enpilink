@@ -10,7 +10,7 @@
     "build": "enpilink build",
     "start": "enpilink start",
     "deploy": "enpilink build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "enpilink codegen && tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

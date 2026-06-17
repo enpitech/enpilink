@@ -9,7 +9,8 @@
     "dev:tunnel": "enpilink dev --tunnel",
     "build": "enpilink build",
     "start": "enpilink start",
-    "deploy": "enpilink build"
+    "deploy": "enpilink build",
+    "typecheck": "enpilink codegen && tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

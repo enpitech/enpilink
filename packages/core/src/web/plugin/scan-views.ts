@@ -75,7 +75,12 @@ export function discoverViewsSync(viewsDir: string): DiscoveredView[] {
 }
 
 export function generateViewsDts(views: DiscoveredView[]): string {
-  const entries = views.map((v) => `    "${v.name}": true;`).join("\n");
+  // Sort by name so the emitted declaration is deterministic regardless of the
+  // platform's filesystem/glob ordering (stable diffs, reproducible codegen).
+  const entries = [...views]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((v) => `    "${v.name}": true;`)
+    .join("\n");
   return [
     "export {};",
     "",

@@ -72,6 +72,28 @@ The output is placed in the `dist/` directory, ready for production deployment.
 
 ---
 
+### enpilink codegen
+
+Regenerate the view/tool type declarations (`.enpilink/views.d.ts`) without running a full build.
+
+```bash
+enpilink codegen
+```
+
+**What it does:**
+- Scans your view components under `src/views/`
+- Writes `.enpilink/views.d.ts` (creating the `.enpilink/` directory if missing), which augments `enpilink/server`'s `ViewNameRegistry` with your view names so view-name generics like `useToolInfo<"checkout">()` resolve
+
+This is the same artifact `enpilink build` and `enpilink dev` produce, factored out as a fast, standalone step. It is idempotent, deterministic (view names are sorted), and always succeeds — a fresh project with **zero views** still emits a valid empty registry.
+
+<Note>
+Generated projects wire this into the `typecheck` script (`enpilink codegen && tsc --noEmit`) so a freshly scaffolded project type-checks cleanly **without** needing a prior build. If you run `tsc --noEmit` directly on a fresh checkout (before any `build`/`dev`/`codegen`), view-name generics fall back to `never` until `.enpilink/views.d.ts` exists — run `enpilink codegen` first.
+</Note>
+
+`.enpilink/` is generated output and should stay gitignored (the scaffolded `.gitignore` already excludes it).
+
+---
+
 ### enpilink start
 
 Start the production server.
@@ -184,6 +206,7 @@ When you create a new enpilink project, the `package.json` includes these script
 | `dev` | `enpilink dev` | Start development server |
 | `build` | `enpilink build` | Build for production |
 | `start` | `enpilink start` | Start production server |
+| `typecheck` | `enpilink codegen && tsc --noEmit` | Regenerate view type declarations, then type-check (works on a fresh project with no prior build) |
 
 Run them with your package manager:
 

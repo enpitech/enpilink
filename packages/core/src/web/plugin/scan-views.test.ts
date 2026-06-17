@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   discoverViewsSync,
+  generateViewsDts,
   scanAndWriteViewsDts,
   scanViewsSync,
   writeViewsDts,
@@ -150,5 +151,57 @@ describe("scanAndWriteViewsDts", () => {
     const content = readFileSync(join(root, ".enpilink/views.d.ts"), "utf-8");
     expect(content).toContain('declare module "enpilink/server"');
     expect(content).toContain('"hello": true;');
+  });
+
+  it("creates the .enpilink dir and emits a valid empty registry for zero views (fresh project)", () => {
+    const empty = mkdtempSync(join(tmpdir(), "enpilink-empty-"));
+    mkdirSync(join(empty, "src/views"), { recursive: true });
+    try {
+      // No view files at all — must still succeed and create the artifact.
+      scanAndWriteViewsDts(empty);
+
+      const content = readFileSync(
+        join(empty, ".enpilink/views.d.ts"),
+        "utf-8",
+      );
+      expect(content).toBe(generateViewsDts([]));
+      expect(content).toContain("interface ViewNameRegistry");
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("generateViewsDts", () => {
+  it("emits a valid (empty) ViewNameRegistry for zero views", () => {
+    const out = generateViewsDts([]);
+    expect(out).toContain('declare module "enpilink/server"');
+    expect(out).toContain("interface ViewNameRegistry {");
+    expect(out).not.toMatch(/": true;/);
+  });
+
+  it("declares each discovered view name", () => {
+    const out = generateViewsDts([
+      { name: "checkout", filePath: "/x/checkout.tsx" },
+      { name: "product", filePath: "/x/product.tsx" },
+    ]);
+    expect(out).toContain('"checkout": true;');
+    expect(out).toContain('"product": true;');
+  });
+
+  it("is deterministic — sorts view names regardless of input order", () => {
+    const ordered = generateViewsDts([
+      { name: "alpha", filePath: "/x/alpha.tsx" },
+      { name: "beta", filePath: "/x/beta.tsx" },
+      { name: "gamma", filePath: "/x/gamma.tsx" },
+    ]);
+    const shuffled = generateViewsDts([
+      { name: "gamma", filePath: "/x/gamma.tsx" },
+      { name: "alpha", filePath: "/x/alpha.tsx" },
+      { name: "beta", filePath: "/x/beta.tsx" },
+    ]);
+    expect(shuffled).toBe(ordered);
+    expect(ordered.indexOf("alpha")).toBeLessThan(ordered.indexOf("beta"));
+    expect(ordered.indexOf("beta")).toBeLessThan(ordered.indexOf("gamma"));
   });
 });
