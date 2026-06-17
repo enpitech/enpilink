@@ -13,7 +13,10 @@ import {
   type SigningKeys,
   verifyEnpilinkToken,
 } from "./auth-federation.js";
-import { buildFederationRouter } from "./auth-federation-router.js";
+import {
+  buildFederationRouter,
+  type LoginBranding,
+} from "./auth-federation-router.js";
 import { revocableVerifier } from "./auth-revocation.js";
 import {
   buildAuthServerRouter,
@@ -60,6 +63,8 @@ export interface AuthRuntimeSecrets {
   redirectUris?: string[];
   /** Display name for the branded login page. */
   appName?: string;
+  /** Login-page branding (A6, presentational only — logo/accent/tagline). */
+  branding?: LoginBranding;
   /**
    * The env-only token signing keypair (A3), derived from `auth.signingKey`.
    * When present, enpilink runs as a FEDERATING AS that mints + signs its own
@@ -82,16 +87,19 @@ export interface AuthRuntimeSecrets {
  */
 export async function resolveAuthConfig(
   programmatic: AuthConfig | undefined,
+  storage: StorageAdapter | null = null,
 ): Promise<AuthConfig> {
   // Programmatic config is authoritative when present.
   if (programmatic) {
     return programmatic;
   }
-  // Otherwise derive from config (env > file). Secrets are not needed here —
-  // A1 only reads the non-secret discovery fields.
+  // Otherwise derive from config (env > file > db). The non-secret auth keys
+  // (enabled/issuer/audience/jwks/upstream/redirects) are restart-tier and may
+  // be persisted in the DB via the console Setup screen, so read them through
+  // the active storage. Secrets are never read here (read env-only later).
   let values: Record<string, unknown> = {};
   try {
-    const resolved = await resolveConfig(null);
+    const resolved = await resolveConfig(storage);
     values = resolved.values as Record<string, unknown>;
   } catch {
     values = {};
@@ -257,6 +265,7 @@ export function buildAuthRuntime(
       scopesSupported: config.upstream.scopes,
       upstreamClientSecret: secrets.clientSecret,
       appName: secrets.appName,
+      branding: secrets.branding,
       // Validate every host `redirect_uri` against the registered allowlist
       // before redirecting to it (open-redirect / code-exfil prevention).
       redirectUris: secrets.redirectUris ?? [],

@@ -20,7 +20,10 @@ Enable user authentication so tools can access user-specific data.
 > set the env-only `ENPILINK_AUTH_CLIENT_SECRET`. enpilink then mounts
 > `/.well-known/oauth-authorization-server`, `/authorize`, `/token`, `/register`
 > and **records a user + session (keyed by `sub`) on every sign-in** — storing
-> only an opaque token reference, never the raw token.
+> only an opaque token reference, never the raw token. **Brand the login page**
+> (non-secret, presentational) via `auth.branding.{appName,logoUrl,accentColor,tagline}`
+> (env `ENPILINK_AUTH_BRANDING_*`); configure it all from the console's **Auth →
+> Setup** tab (secrets stay env-only / read-only there).
 >
 > **Guest mode + lazy/step-up (federating issuer):** also set the env-only
 > `ENPILINK_AUTH_SIGNING_KEY` (a strong, stable secret). enpilink then becomes a

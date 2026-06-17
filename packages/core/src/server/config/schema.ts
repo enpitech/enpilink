@@ -135,6 +135,30 @@ export const bootstrapSchema = z.object({
    * inbound `redirect_uri`.
    */
   "auth.redirectUris": z.string().optional(),
+
+  // --- Login-page branding (A6, NON-secret, presentational only) ---
+  /**
+   * Display name shown on the branded login page ("Sign in to continue to
+   * <appName>"). Falls back to the MCP server name, then "this app". Purely
+   * presentational — never affects the OAuth security model.
+   */
+  "auth.branding.appName": z.string().optional(),
+  /**
+   * URL of a logo image rendered at the top of the branded login page. Should
+   * be an https URL to a small square-ish PNG/SVG. Falls back to the enpilink
+   * monogram. Presentational only.
+   */
+  "auth.branding.logoUrl": z.string().optional(),
+  /**
+   * Accent color (CSS hex like `#3fb6a8`) for the login page's primary button
+   * and logo monogram. Falls back to enpilink teal. Presentational only.
+   */
+  "auth.branding.accentColor": z.string().optional(),
+  /**
+   * Short tagline shown under the heading on the branded login page. Falls back
+   * to the default enpilink sign-in copy. Presentational only.
+   */
+  "auth.branding.tagline": z.string().optional(),
 });
 
 /** Runtime (DB-editable) settings. */
@@ -251,30 +275,30 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
   "auth.enabled": {
     label: "End-user auth",
     description:
-      "Require end users to sign in via OAuth before calling protected tools on /mcp. Off by default; enable only via environment/file. When off, /mcp stays open exactly as before.",
+      "Require end users to sign in via OAuth before calling protected tools on /mcp. Off by default. Editable here; takes effect after a restart. When off, /mcp stays open exactly as before.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.issuer": {
     label: "OAuth issuer",
     description:
-      "The authorization server issuer URL advertised in the protected-resource metadata and required as the token issuer (iss).",
+      "The authorization server issuer URL advertised in the protected-resource metadata and required as the token issuer (iss). Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.audience": {
     label: "OAuth audience",
     description:
-      "The audience (aud) inbound access tokens must be bound to — typically this server's public /mcp URL. Prevents tokens minted for another resource from being replayed here.",
+      "The audience (aud) inbound access tokens must be bound to — typically this server's public /mcp URL. Prevents tokens minted for another resource from being replayed here. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.jwksUrl": {
     label: "JWKS URL",
     description:
-      "URL of the authorization server's JSON Web Key Set, used to verify token signatures.",
+      "URL of the authorization server's JSON Web Key Set, used to verify token signatures. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.signingKey": {
     label: "Token signing key",
@@ -293,44 +317,73 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
   "auth.upstream.clientId": {
     label: "Upstream client id",
     description:
-      "The OAuth client id registered with the upstream identity provider. Enables the co-hosted authorization server when set with the authorize/token URLs.",
+      "The OAuth client id registered with the upstream identity provider. Enables the co-hosted authorization server when set with the authorize/token URLs. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.upstream.authorizationUrl": {
     label: "Upstream authorize URL",
     description:
-      "The upstream identity provider's OAuth authorization endpoint the login flow redirects to.",
+      "The upstream identity provider's OAuth authorization endpoint the login flow redirects to. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.upstream.tokenUrl": {
     label: "Upstream token URL",
     description:
-      "The upstream identity provider's OAuth token endpoint used to exchange the authorization code.",
+      "The upstream identity provider's OAuth token endpoint used to exchange the authorization code. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.upstream.revocationUrl": {
     label: "Upstream revoke URL",
     description:
-      "Optional upstream identity provider token revocation endpoint.",
+      "Optional upstream identity provider token revocation endpoint. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.upstream.scopes": {
     label: "Upstream scopes",
     description:
-      "Space-delimited scopes requested from the upstream identity provider during login.",
+      "Space-delimited scopes requested from the upstream identity provider during login. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
   },
   "auth.redirectUris": {
     label: "Allowed redirect URIs",
     description:
-      "Comma- or space-delimited redirect URIs the OAuth client (host connector) is allowed to use, e.g. the ChatGPT/Claude callback URLs.",
+      "Comma- or space-delimited redirect URIs the OAuth client (host connector) is allowed to use, e.g. the ChatGPT/Claude callback URLs. Takes effect after a restart.",
     group: "Security",
-    editable: "readonly",
+    editable: "restart",
+  },
+  // --- Auth login-page branding (runtime — restart, presentational) ---
+  "auth.branding.appName": {
+    label: "Login page app name",
+    description:
+      'Display name shown on the branded login page ("Sign in to continue to <name>"). Defaults to the server name. Takes effect after a restart.',
+    group: "Security",
+    editable: "restart",
+  },
+  "auth.branding.logoUrl": {
+    label: "Login page logo URL",
+    description:
+      "URL of a logo image shown on the branded login page. Defaults to the enpilink monogram. Takes effect after a restart.",
+    group: "Security",
+    editable: "restart",
+  },
+  "auth.branding.accentColor": {
+    label: "Login page accent color",
+    description:
+      "Accent color (CSS hex, e.g. #3fb6a8) for the login page's button and logo. Defaults to enpilink teal. Takes effect after a restart.",
+    group: "Security",
+    editable: "restart",
+  },
+  "auth.branding.tagline": {
+    label: "Login page tagline",
+    description:
+      "Short tagline shown under the heading on the branded login page. Defaults to the enpilink sign-in copy. Takes effect after a restart.",
+    group: "Security",
+    editable: "restart",
   },
   // --- Analytics (runtime) ---
   "analytics.enabled": {
@@ -403,6 +456,10 @@ export const BOOTSTRAP_KEYS = [
   "auth.upstream.revocationUrl",
   "auth.upstream.scopes",
   "auth.redirectUris",
+  "auth.branding.appName",
+  "auth.branding.logoUrl",
+  "auth.branding.accentColor",
+  "auth.branding.tagline",
 ] as const satisfies readonly BootstrapKey[];
 
 /** Runtime keys (DB-editable). */
@@ -426,11 +483,31 @@ export const SECRET_KEYS = [
  * Restart-tier keys: non-secret bootstrap keys that ARE DB-editable but only
  * take effect after a process restart. Resolution still honours env>file>db so
  * an env/file pin locks them (read-only).
+ *
+ * The non-secret end-user-auth keys are restart-tier: the auth runtime
+ * (verifier, co-hosted AS, branded login page) is built once at boot, so a
+ * change persists to the DB and applies on the next restart. The two SECRETS
+ * (`auth.signingKey`, `auth.clientSecret`) are intentionally NOT here — they
+ * stay env-only / read-only (see {@link SECRET_KEYS}).
  */
 export const RESTART_KEYS = [
   "port",
   "storage",
   "dbPath",
+  "auth.enabled",
+  "auth.issuer",
+  "auth.audience",
+  "auth.jwksUrl",
+  "auth.upstream.clientId",
+  "auth.upstream.authorizationUrl",
+  "auth.upstream.tokenUrl",
+  "auth.upstream.revocationUrl",
+  "auth.upstream.scopes",
+  "auth.redirectUris",
+  "auth.branding.appName",
+  "auth.branding.logoUrl",
+  "auth.branding.accentColor",
+  "auth.branding.tagline",
 ] as const satisfies readonly BootstrapKey[];
 
 /**
@@ -457,6 +534,10 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "auth.upstream.revocationUrl": "ENPILINK_AUTH_UPSTREAM_REVOCATION_URL",
   "auth.upstream.scopes": "ENPILINK_AUTH_UPSTREAM_SCOPES",
   "auth.redirectUris": "ENPILINK_AUTH_REDIRECT_URIS",
+  "auth.branding.appName": "ENPILINK_AUTH_BRANDING_APP_NAME",
+  "auth.branding.logoUrl": "ENPILINK_AUTH_BRANDING_LOGO_URL",
+  "auth.branding.accentColor": "ENPILINK_AUTH_BRANDING_ACCENT_COLOR",
+  "auth.branding.tagline": "ENPILINK_AUTH_BRANDING_TAGLINE",
   "analytics.enabled": "ENPILINK_ANALYTICS",
   "analytics.sampleRate": "ENPILINK_CFG_ANALYTICS_SAMPLE_RATE",
   "retention.events": "ENPILINK_CFG_RETENTION_EVENTS",

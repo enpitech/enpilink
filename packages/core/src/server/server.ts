@@ -721,7 +721,7 @@ export class McpServer<
       return this.authRuntime;
     }
     this.authRuntimeResolved = true;
-    const config = await resolveAuthConfig(this.authConfig);
+    const config = await resolveAuthConfig(this.authConfig, this.activeStorage);
     if (!config.enabled) {
       this.authRuntime = null;
       return null;
@@ -790,12 +790,26 @@ export class McpServer<
     // in dev, generate an ephemeral key with a loud warning (never default-open
     // a real deployment with a predictable key).
     const signingKeys = await this.resolveSigningKeys(values);
+    // Login-page branding (A6, non-secret, presentational). Read from the
+    // resolved config (env > file > db). All optional — the page falls back to
+    // enpilink defaults / the server name.
+    const str = (k: string): string | undefined =>
+      typeof values[k] === "string" && (values[k] as string).length > 0
+        ? (values[k] as string)
+        : undefined;
+    const branding = {
+      appName: str("auth.branding.appName"),
+      logoUrl: str("auth.branding.logoUrl"),
+      accentColor: str("auth.branding.accentColor"),
+      tagline: str("auth.branding.tagline"),
+    };
     return {
       getStorage: () => this.activeStorage,
       clientSecret,
       redirectUris,
       signingKeys,
-      appName: this.serverInfo.name,
+      appName: branding.appName ?? this.serverInfo.name,
+      branding,
     };
   }
 

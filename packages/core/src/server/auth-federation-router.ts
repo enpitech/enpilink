@@ -43,6 +43,12 @@ export interface FederationRouterOptions {
   /** Display name for the branded login page. */
   appName?: string;
   /**
+   * Login-page branding (A6). All fields optional + presentational only; the
+   * login page falls back to enpilink defaults. NEVER affects the OAuth security
+   * model (redirect allowlist, cookie/state binding, PKCE are untouched).
+   */
+  branding?: LoginBranding;
+  /**
    * The redirect URIs the host (OAuth client) is registered to use. The
    * effective `redirectUri` is validated against this allowlist BEFORE we ever
    * redirect to it (open-redirect / code-exfiltration prevention). When empty,
@@ -57,6 +63,29 @@ export interface FederationRouterOptions {
    */
   pendingStore?: PendingAuthStore;
 }
+
+/**
+ * Login-page branding (A6). Customizes the server-rendered branded login page
+ * (Auth0-style). Every field is OPTIONAL and PRESENTATIONAL ONLY — the login
+ * page falls back to enpilink defaults, and branding never changes the OAuth
+ * security model (redirect allowlist, the HttpOnly state-binding cookie, PKCE).
+ */
+export interface LoginBranding {
+  /** App name in the heading ("Sign in to continue to <appName>"). */
+  appName?: string;
+  /** URL of a logo image rendered above the heading. */
+  logoUrl?: string;
+  /** Accent color (CSS hex, e.g. `#3fb6a8`) for the button + monogram. */
+  accentColor?: string;
+  /** Tagline shown under the heading. */
+  tagline?: string;
+}
+
+/** enpilink default login-page branding (the baseline teal look). */
+export const DEFAULT_LOGIN_BRANDING = {
+  accentColor: "#3fb6a8",
+  accentHover: "#2f9e91",
+} as const;
 
 /**
  * The host's authorization request (the bits we must carry across the upstream
@@ -280,7 +309,14 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
       .set("Content-Type", "text/html; charset=utf-8")
       .set("Cache-Control", "no-store")
       .set("Set-Cookie", flowCookie(id))
-      .send(renderEntryHtml(signInUrl, guestUrl, opts.appName ?? "this app"));
+      .send(
+        renderEntryHtml(signInUrl, guestUrl, {
+          appName: opts.branding?.appName ?? opts.appName,
+          logoUrl: opts.branding?.logoUrl,
+          accentColor: opts.branding?.accentColor,
+          tagline: opts.branding?.tagline,
+        }),
+      );
   });
 
   // "Sign in" → federate to the upstream IdP. The upstream returns to OUR
@@ -486,15 +522,61 @@ function decodeJwtPayload(jwt?: string): Record<string, unknown> | undefined {
   }
 }
 
-/** Branded entry page with BOTH Sign in and Continue as guest. */
+/**
+ * Validate + normalize a user-supplied accent color. Only accepts a 3/6/8-digit
+ * CSS hex so a branding value can NEVER inject arbitrary CSS into the inline
+ * style block. Returns `undefined` for anything else (→ falls back to teal).
+ */
+function safeHexColor(raw: string | undefined): string | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw.trim())
+    ? raw.trim()
+    : undefined;
+}
+
+/** Darken a #rrggbb hex by a factor (for the button hover state). */
+function darkenHex(hex: string, factor = 0.85): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m?.[1]) {
+    return hex;
+  }
+  const n = Number.parseInt(m[1], 16);
+  const r = Math.round(((n >> 16) & 0xff) * factor);
+  const g = Math.round(((n >> 8) & 0xff) * factor);
+  const b = Math.round((n & 0xff) * factor);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+/**
+ * Branded entry page with BOTH Sign in and Continue as guest. Honors A6 login
+ * branding (app name / logo / accent / tagline) with enpilink defaults. All
+ * branding inputs are escaped (text) or hex-validated (color) — branding is
+ * presentational and can never inject markup/CSS or change the flow.
+ */
 function renderEntryHtml(
   signInUrl: string,
   guestUrl: string,
-  appName: string,
+  branding: LoginBranding = {},
 ): string {
   const s = escapeHtml(signInUrl);
   const g = escapeHtml(guestUrl);
-  const app = escapeHtml(appName);
+  const app = escapeHtml(branding.appName ?? "this app");
+  const accent =
+    safeHexColor(branding.accentColor) ?? DEFAULT_LOGIN_BRANDING.accentColor;
+  const accentHover =
+    safeHexColor(branding.accentColor) && /^#[0-9a-fA-F]{6}$/.test(accent)
+      ? darkenHex(accent)
+      : DEFAULT_LOGIN_BRANDING.accentHover;
+  const tagline = escapeHtml(
+    branding.tagline ??
+      `${branding.appName ?? "This app"} uses enpilink to keep your sign-in secure. Sign in with your identity provider, or continue as a guest with limited access.`,
+  );
+  const logoUrl = safeUrl(branding.logoUrl);
+  const mark = logoUrl
+    ? `<img class="mark" src="${escapeHtml(logoUrl)}" alt="" />`
+    : `<div class="mark">${app.charAt(0).toUpperCase() || "e"}</div>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -503,7 +585,7 @@ function renderEntryHtml(
 <meta name="robots" content="noindex" />
 <title>Sign in</title>
 <style>
-  :root { --teal: #3fb6a8; --teal-hover: #2f9e91; --ink: #1e1645; --muted: #6b7280; }
+  :root { --accent: ${accent}; --accent-hover: ${accentHover}; --ink: #1e1645; --muted: #6b7280; }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center;
@@ -518,19 +600,20 @@ function renderEntryHtml(
   }
   .mark {
     width: 48px; height: 48px; border-radius: 12px; margin: 0 auto 20px;
-    background: linear-gradient(135deg, var(--teal), var(--teal-hover));
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
     display: flex; align-items: center; justify-content: center;
-    color: #fff; font-weight: 700; font-size: 22px;
+    color: #fff; font-weight: 700; font-size: 22px; object-fit: contain;
   }
+  img.mark { background: #fff; border: 1px solid #e5e7eb; }
   h1 { font-size: 20px; margin: 0 0 8px; }
   p { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 0 0 28px; }
   .btn {
     display: block; width: 100%; padding: 12px 16px; border: none;
-    border-radius: 8px; background: var(--teal); color: #fff; font-size: 15px;
+    border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px;
     font-weight: 600; text-decoration: none; cursor: pointer;
     transition: background 0.15s ease;
   }
-  .btn:hover { background: var(--teal-hover); }
+  .btn:hover { background: var(--accent-hover); }
   .btn.secondary {
     background: #fff; color: var(--ink); border: 1px solid #e5e7eb;
     margin-top: 12px;
@@ -541,15 +624,30 @@ function renderEntryHtml(
 </head>
 <body>
   <main class="card">
-    <div class="mark">e</div>
-    <h1>Sign in to continue</h1>
-    <p>${app} uses enpilink to keep your sign-in secure. Sign in with your identity provider, or continue as a guest with limited access.</p>
+    ${mark}
+    <h1>Sign in to continue${branding.appName ? ` to ${app}` : ""}</h1>
+    <p>${tagline}</p>
     <a class="btn" href="${s}">Sign in</a>
     <a class="btn secondary" href="${g}">Continue as guest</a>
     <div class="footer">Powered by enpilink</div>
   </main>
 </body>
 </html>`;
+}
+
+/** Allow only http(s) logo URLs (no `javascript:`/`data:` schemes). */
+function safeUrl(raw: string | undefined): string | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:"
+      ? u.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function escapeHtml(s: string): string {

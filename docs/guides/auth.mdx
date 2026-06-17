@@ -449,6 +449,56 @@ Custom storage adapters made before this feature keep working: `deleteSession` /
 unsupported (`501`) rather than failing when an adapter lacks them.
 </Warning>
 
+### Configuring auth in the console (Setup tab)
+
+The **Auth → Setup** section is the place to configure end-user auth from the
+console. It reuses the Configuration API and field components, so editing here is
+identical to the Configuration tab — and the same guardrails apply.
+
+It groups the auth keys for a setup-focused workflow:
+
+1. **Enable & upstream identity provider** — `auth.enabled`, `auth.issuer`,
+   `auth.audience`, `auth.jwksUrl`, the `auth.upstream.*` endpoints, and
+   `auth.redirectUris`. These are **non-secret** and **editable** here; because
+   the auth runtime is built once at boot, a change persists to the database and
+   **takes effect after a restart** (shown with a "requires restart" badge). When
+   auth is off, this is also where you turn it on.
+2. **Secrets** — `auth.signingKey` and `auth.clientSecret`. These are
+   **environment-only**: rendered masked + read-only with a "set via `ENV_VAR`"
+   hint. The console can never write them (the config API returns `403` on any
+   `PUT`), and they are never returned in plaintext. Setting `auth.signingKey`
+   switches enpilink into federating mode (it mints its own tokens + enables
+   guest sign-in).
+3. **Login-page branding** — see below — with a **live preview** of the branded
+   login page.
+
+<Warning>
+The two auth **secrets stay environment-only**. The Setup screen renders them
+read-only and the config API rejects any attempt to write them — they can only
+be set via `ENPILINK_AUTH_SIGNING_KEY` / `ENPILINK_AUTH_CLIENT_SECRET`. Branding
+and the non-secret upstream config are safe to edit from the console.
+</Warning>
+
+### Branding the login page
+
+The server-rendered login page (the "Sign in / Continue as guest" interstitial)
+is customizable, Auth0-style, via four **non-secret** keys:
+
+| Key | Env var | Effect |
+| --- | --- | --- |
+| `auth.branding.appName` | `ENPILINK_AUTH_BRANDING_APP_NAME` | Heading ("Sign in to continue to *name*"). Defaults to the MCP server name. |
+| `auth.branding.logoUrl` | `ENPILINK_AUTH_BRANDING_LOGO_URL` | A logo image (http/https only) shown above the heading. Defaults to a monogram. |
+| `auth.branding.accentColor` | `ENPILINK_AUTH_BRANDING_ACCENT_COLOR` | Accent color (CSS hex, e.g. `#3fb6a8`) for the button + monogram. Defaults to enpilink teal. |
+| `auth.branding.tagline` | `ENPILINK_AUTH_BRANDING_TAGLINE` | Short copy under the heading. Defaults to the enpilink sign-in copy. |
+
+Set them via env/file or edit them in the **Auth → Setup → Login-page branding**
+group (they take effect after a restart, like the other auth keys). The login
+page consumes them and **falls back to enpilink defaults** for any value that is
+unset. Branding is **presentational only** — values are escaped (text) or
+hex/URL-validated (color/logo), so they can never inject markup or CSS, and they
+never change the OAuth flow (the redirect allowlist, the `HttpOnly` state-binding
+cookie, and PKCE are untouched).
+
 ### Tokens at rest
 
 enpilink **never stores the raw access or refresh token** (upstream or its own).

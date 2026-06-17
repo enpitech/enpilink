@@ -225,6 +225,38 @@ describe("A3 — federating AS discovery + branded page with guest option", () =
   });
 });
 
+describe("A6 — branded login page reflects auth.branding.* config", () => {
+  it("renders the configured app name, accent, tagline + falls back when unset", async () => {
+    process.env.ENPILINK_AUTH_BRANDING_APP_NAME = "Acme Booking";
+    process.env.ENPILINK_AUTH_BRANDING_ACCENT_COLOR = "#ff5722";
+    process.env.ENPILINK_AUTH_BRANDING_TAGLINE = "Book your next trip.";
+    try {
+      const upstream = await startUpstream();
+      const { base } = await startEnpilink((b) => ({
+        auth: authConfig(b, upstream),
+      }));
+      const auth = await fetch(
+        `${base}/authorize?client_id=host-client&response_type=code&code_challenge=abc&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+          "http://localhost:9999/cb",
+        )}`,
+        { redirect: "manual" },
+      );
+      const branded = await fetch(auth.headers.get("location") ?? "");
+      const html = await branded.text();
+      expect(html).toContain("Acme Booking");
+      expect(html).toContain("Sign in to continue to Acme Booking");
+      expect(html).toContain("#ff5722");
+      expect(html).toContain("Book your next trip.");
+      // Both flow choices remain (branding is presentational only).
+      expect(html).toContain("Continue as guest");
+    } finally {
+      process.env.ENPILINK_AUTH_BRANDING_APP_NAME = undefined;
+      process.env.ENPILINK_AUTH_BRANDING_ACCENT_COLOR = undefined;
+      process.env.ENPILINK_AUTH_BRANDING_TAGLINE = undefined;
+    }
+  });
+});
+
 describe("A3 — continue-as-guest → full guest token via /token", () => {
   it("mints a guest token (guest: sub, guest scope); public tool works, secure → 403", async () => {
     const upstream = await startUpstream();

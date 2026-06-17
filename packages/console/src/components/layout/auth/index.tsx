@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { Sessions } from "./sessions.js";
+import { Setup } from "./setup.js";
 
 /**
  * Auth tab (A5). The dashboard for end-user authentication.
  *
  * Built as a shell with an internal sub-nav so the tab can grow: section 1
- * ("Sessions") is the sessions/users dashboard delivered here; section 2
- * ("Setup") is reserved for A6 (the upstream IdP / login-page / hooks config
- * screen). A6 adds its panel by appending a {@link SECTIONS} entry + a branch in
- * the body below — the surrounding tab chrome and the sidebar/`app-layout`
- * wiring stay untouched.
+ * ("Sessions") is the sessions/users dashboard; section 2 ("Setup", A6) is the
+ * upstream-IdP + login-page-branding config screen. Both reuse the surrounding
+ * tab chrome; the sidebar/`app-layout` wiring stays untouched.
  *
  * Design: clean/light, white cards on the `bg-canvas` page, gentle 1px
  * `canvas-border` dividers, teal accents from the global tokens (no purple),
@@ -27,7 +26,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { key: "sessions", label: "Sessions", ready: true },
-  { key: "setup", label: "Setup", ready: false },
+  { key: "setup", label: "Setup", ready: true },
 ];
 
 export const Auth = () => {
@@ -83,21 +82,7 @@ export const Auth = () => {
       </div>
 
       {/* Body */}
-      {section === "sessions" ? (
-        <Sessions />
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1100px] px-5 py-16 text-center">
-            <p className="text-sm font-medium text-foreground">
-              Auth setup is coming soon
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Configure the upstream identity provider, login-page branding, and
-              hooks here.
-            </p>
-          </div>
-        </div>
-      )}
+      {section === "sessions" ? <Sessions /> : <Setup />}
     </div>
   );
 };

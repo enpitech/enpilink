@@ -423,6 +423,100 @@ describe("restart-tier editability", () => {
   });
 });
 
+// --- A6: auth setup keys + login-page branding ---
+
+describe("A6 — auth setup config (editable upstream + branding, secrets stay env-only)", () => {
+  it("non-secret auth keys are restart-tier editable (not env-locked by default)", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    for (const key of [
+      "auth.enabled",
+      "auth.issuer",
+      "auth.audience",
+      "auth.jwksUrl",
+      "auth.upstream.clientId",
+      "auth.upstream.authorizationUrl",
+      "auth.upstream.tokenUrl",
+      "auth.redirectUris",
+      "auth.branding.appName",
+      "auth.branding.logoUrl",
+      "auth.branding.accentColor",
+      "auth.branding.tagline",
+    ]) {
+      const s = settings.find((x) => x.key === key);
+      expect(s?.editable, key).toBe("restart");
+      expect(s?.secret, key).toBe(false);
+      expect(s?.envLocked, key).toBe(false);
+    }
+  });
+
+  it("the two auth SECRETS stay env-only / read-only (never web-editable)", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    for (const key of ["auth.signingKey", "auth.clientSecret"]) {
+      const s = settings.find((x) => x.key === key);
+      expect(s?.editable, key).toBe("readonly");
+      expect(s?.secret, key).toBe(true);
+    }
+  });
+
+  it("validates a branding key (valid persists, garbage rejected)", () => {
+    expect(validateConfigWrite("auth.branding.appName", "Acme").ok).toBe(true);
+    expect(validateConfigWrite("auth.branding.accentColor", "#3fb6a8").ok).toBe(
+      true,
+    );
+    // A non-string is rejected by the schema.
+    expect(validateConfigWrite("auth.branding.appName", 123).ok).toBe(false);
+  });
+
+  it("PUT persists an editable upstream/branding key (auth Setup screen)", async () => {
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    const clientId = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/auth.upstream.clientId",
+      { value: "acme-client" },
+    );
+    expect(clientId.status).toBe(200);
+    expect(await storage.getConfig("auth.upstream.clientId")).toBe(
+      "acme-client",
+    );
+
+    const brand = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/auth.branding.appName",
+      { value: "Acme" },
+    );
+    expect(brand.status).toBe(200);
+    expect(await storage.getConfig("auth.branding.appName")).toBe("Acme");
+  });
+
+  it("PUT rejects the auth SECRETS with 403 (the central guardrail)", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    for (const key of ["auth.signingKey", "auth.clientSecret"]) {
+      const { status } = await request(
+        app,
+        "PUT",
+        `/__enpilink/config/${key}`,
+        { value: "leak-me" },
+      );
+      expect(status, key).toBe(403);
+    }
+  });
+
+  it("DELETE rejects the auth SECRETS with 403", async () => {
+    const app = appWith(new MemoryStorageAdapter());
+    for (const key of ["auth.signingKey", "auth.clientSecret"]) {
+      const { status } = await request(
+        app,
+        "DELETE",
+        `/__enpilink/config/${key}`,
+      );
+      expect(status, key).toBe(403);
+    }
+  });
+});
+
 // --- Security guardrails ---
 
 describe("write guardrails (PUT + DELETE)", () => {

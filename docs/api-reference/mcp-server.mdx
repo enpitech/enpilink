@@ -394,6 +394,16 @@ Or via environment / config file (no programmatic config needed):
 | `ENPILINK_AUTH_UPSTREAM_REVOCATION_URL` | `auth.upstream.revocationUrl` | Optional upstream revocation endpoint. |
 | `ENPILINK_AUTH_UPSTREAM_SCOPES` | `auth.upstream.scopes` | Space-delimited scopes requested upstream. |
 | `ENPILINK_AUTH_REDIRECT_URIS` | `auth.redirectUris` | Comma/space-delimited host callback URLs allowed as redirect targets. |
+| `ENPILINK_AUTH_BRANDING_APP_NAME` | `auth.branding.appName` | Login-page app name (non-secret). Defaults to the server name. |
+| `ENPILINK_AUTH_BRANDING_LOGO_URL` | `auth.branding.logoUrl` | Login-page logo image URL, http/https only (non-secret). Defaults to a monogram. |
+| `ENPILINK_AUTH_BRANDING_ACCENT_COLOR` | `auth.branding.accentColor` | Login-page accent color, CSS hex (non-secret). Defaults to enpilink teal. |
+| `ENPILINK_AUTH_BRANDING_TAGLINE` | `auth.branding.tagline` | Login-page tagline (non-secret). Defaults to the enpilink copy. |
+
+The non-secret auth keys (everything except the two **secrets**) are editable
+from the console's **Auth → Setup** tab and take effect after a restart; the two
+secrets stay environment-only. The `auth.branding.*` keys customize the
+server-rendered login page and are presentational only — see
+[Branding the login page](/guides/auth#branding-the-login-page).
 
 `AuthConfig` also accepts a custom `verifier` (any `OAuthTokenVerifier`) — when
 set it overrides the built-in JWKS verifier — and an `upstream` block + optional

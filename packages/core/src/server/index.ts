@@ -52,7 +52,9 @@ export {
 } from "./auth-federation.js";
 export {
   buildFederationRouter,
+  DEFAULT_LOGIN_BRANDING,
   type FederationRouterOptions,
+  type LoginBranding,
   renderFederationEntryHtml,
 } from "./auth-federation-router.js";
 export {

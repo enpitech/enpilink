@@ -23,7 +23,11 @@ const BASE = "/__enpilink/config";
 const settingSchema = z.object({
   key: z.string(),
   tier: z.enum(["bootstrap", "runtime"]),
-  value: z.unknown(),
+  // An unset optional key (e.g. an unset `auth.*` URL) serializes WITHOUT a
+  // `value` field (JSON omits `undefined`), so this must be optional or the
+  // whole settings response fails to parse and the Configuration / Auth Setup
+  // tabs error out.
+  value: z.unknown().optional(),
   source: z.enum(["env", "file", "db", "default"]),
   secret: z.boolean(),
   envLocked: z.boolean(),

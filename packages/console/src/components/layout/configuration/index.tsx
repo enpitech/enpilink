@@ -73,7 +73,13 @@ function fieldHint(s: Setting): string | null {
   return bits.length ? bits.join(" · ") : null;
 }
 
-function SettingRow({ setting }: { setting: Setting }) {
+/**
+ * A single editable/read-only config row. Exported so the Auth tab's Setup
+ * screen (A6) reuses the EXACT same field component + PUT/reset API: runtime
+ * keys edit live, restart-tier keys edit + flag "requires restart", and
+ * secret/env-only keys render masked + read-only with the "set via ENV" hint.
+ */
+export function SettingRow({ setting }: { setting: Setting }) {
   const setConfig = useSetConfig();
   const resetConfig = useResetConfig();
   const readOnly = setting.envLocked || setting.secret;
