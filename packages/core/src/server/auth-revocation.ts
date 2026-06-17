@@ -67,10 +67,11 @@ export function revocationCount(): number {
 }
 
 /**
- * Wrap a token verifier so a revoked token fails verification. After the
- * underlying verifier succeeds, the wrapper checks the access token's reference
- * against the denylist and throws {@link InvalidTokenError} (→ 401) when
- * revoked. Applied AFTER the recording verifier so a revoked token is not
+ * Wrap a token verifier so a revoked token fails verification. The wrapper
+ * checks the access token's reference against the denylist BEFORE delegating to
+ * the underlying verifier, throwing {@link InvalidTokenError} (→ 401) when
+ * revoked. Because it wraps outermost (in front of the recording verifier), a
+ * revoked token is rejected before the recording verifier runs, so it is not
  * re-recorded as an active session.
  */
 export function revocableVerifier(
