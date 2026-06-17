@@ -1,5 +1,11 @@
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, BookOpen, SlidersHorizontal, Wrench } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  ScrollText,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-react";
 import { cn } from "@/components/ui/cn.js";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 
@@ -17,9 +23,10 @@ export type SidebarItem = {
 };
 
 /**
- * Section nav items, in display order: Dashboard, Configuration, Playground,
- * and Docs (the M8 in-app guide renderer). Adding a new section is a one-liner
- * here plus a matching `<TabsContent value=…>` panel in `app-layout.tsx`.
+ * Section nav items, in display order: Dashboard, Logs, Configuration,
+ * Playground, and Docs (the M8 in-app guide renderer). Adding a new section is a
+ * one-liner here plus a matching `<TabsContent value=…>` panel in
+ * `app-layout.tsx`.
  */
 export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
   {
@@ -27,6 +34,12 @@ export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
     label: "Dashboard",
     icon: BarChart3,
     testId: "nav-dashboard",
+  },
+  {
+    value: "logs",
+    label: "Logs",
+    icon: ScrollText,
+    testId: "nav-logs",
   },
   {
     value: "configuration",

@@ -193,6 +193,59 @@ export function useObservabilityEvents(since: number, limit = 100) {
   });
 }
 
+const logsResponseSchema = z.object({
+  enabled: z.boolean(),
+  logs: z.array(logEntrySchema),
+});
+
+/** A history log row with a stable client id (logs carry no server id). */
+export type HistoryLog = LogEntry & { id: string };
+
+/** The result of a logs-history fetch: rows + whether storage is enabled. */
+export interface LogsHistory {
+  enabled: boolean;
+  logs: HistoryLog[];
+}
+
+/**
+ * Logs history for the dedicated Logs page. Pass-through to the existing
+ * observability `GET /logs?since&level&limit` endpoint (backed by
+ * `storage.queryLogs`, returned most-recent-first). Used to backfill the page
+ * with persisted history; the live SSE stream then tails new lines on top.
+ * Returns `{ enabled: false, logs: [] }` (never throws) when analytics/storage
+ * is off so the page can show a friendly disabled state.
+ */
+export function useObservabilityLogs(
+  since: number,
+  level?: string,
+  limit = 500,
+) {
+  return useQuery({
+    queryKey: ["observability", "logs", since, level ?? "all", limit],
+    queryFn: async (): Promise<LogsHistory> => {
+      const params = new URLSearchParams({
+        since: String(since),
+        limit: String(limit),
+      });
+      if (level) {
+        params.set("level", level);
+      }
+      const res = await authedFetch(`${BASE}/logs?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`logs failed (${res.status})`);
+      }
+      const parsed = logsResponseSchema.parse(await res.json());
+      // Tag rows with a stable id (ts + index) for keying; rows are
+      // most-recent-first from the server.
+      return {
+        enabled: parsed.enabled,
+        logs: parsed.logs.map((l, i) => ({ ...l, id: `${l.ts}-${i}` })),
+      };
+    },
+    refetchInterval: 5000,
+  });
+}
+
 // --- Live SSE store (mirrors tunnel-store.ts) ---
 
 const MAX_LIVE_LOGS = 500;

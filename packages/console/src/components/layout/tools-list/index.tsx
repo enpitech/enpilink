@@ -32,8 +32,8 @@ function ToolsList() {
   };
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_1fr]">
-      <header className="flex h-9 items-center justify-between border-b border-border pl-4 pr-0">
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex h-9 shrink-0 items-center justify-between border-b border-border pl-4 pr-0">
         <span className="text-sm font-medium">Tools</span>
         <Button
           onClick={refreshTools}
@@ -44,11 +44,13 @@ function ToolsList() {
           <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
         </Button>
       </header>
+      {/* The left tool list scrolls independently when it overflows: a flex-1
+          min-h-0 scroll region so a long tool list never clips. */}
       <Accordion
         type="multiple"
         value={openTools}
         onValueChange={setOpenTools}
-        className="min-h-0 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-y-auto"
       >
         {tools.map((tool) => (
           <ToolItem key={tool.name} tool={tool} />

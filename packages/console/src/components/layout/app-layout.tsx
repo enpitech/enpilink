@@ -16,6 +16,7 @@ import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
 import Docs from "./docs/index.js";
 import { Header } from "./header.js";
+import Logs from "./logs/index.js";
 import { Sidebar } from "./sidebar.js";
 import { ToolPanel } from "./tool-panel/index.js";
 import ToolsList from "./tools-list/index.js";
@@ -62,9 +63,13 @@ function Playground() {
   }
 
   return (
+    // `h-full` (not just `flex-1`) so this fills the block-level TabsContent
+    // panel and bounds the tools-list/tool-panel height — otherwise the column
+    // grows to its content and the left tools list overflows/clips instead of
+    // scrolling.
     <div
       id="devtools-card-body"
-      className="relative flex min-h-0 min-w-0 flex-1"
+      className="relative flex h-full min-h-0 min-w-0 flex-1"
     >
       <Group
         orientation="horizontal"
@@ -134,6 +139,9 @@ function AppLayout() {
           className="min-h-0 min-w-0 overflow-hidden"
         >
           <Dashboard />
+        </TabsContent>
+        <TabsContent value="logs" className="min-h-0 min-w-0 overflow-hidden">
+          <Logs />
         </TabsContent>
         <TabsContent
           value="configuration"
