@@ -404,7 +404,50 @@ token expiry, and an **opaque token reference**. Sessions/users also carry an
 `isGuest` flag (derived from the `guest:` sub prefix) so a dashboard can
 distinguish guests from real users. Adapters expose
 `upsertUser` / `recordSession` / `getSession` / `listSessions` / `listUsers`
-(see [Storage → End-user auth tracking](/guides/storage#end-user-auth-tracking-optional)).
+(+ the optional `deleteSession` / `deleteUser` for revoke — see
+[Storage → End-user auth tracking](/guides/storage#end-user-auth-tracking-optional)).
+
+### Managing sessions in the console
+
+The console's **Auth** tab is a dashboard for the sessions/users above. It lists
+every tracked user and, under each, their recorded sessions — clearly
+distinguishing **guest** vs **authed** (the `isGuest` flag), and showing `sub`,
+issuer, client id, scopes, created / last-seen / token-expiry, and the opaque
+`tokenRef`. It never displays a raw token or the signing key.
+
+It is backed by a read/revoke API at `/__enpilink/auth` (same dev-open /
+prod-admin-gated pattern as the observability + config APIs — in production it
+sits behind the admin bearer token):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /__enpilink/auth/sessions` | Recorded sessions (guests + authed), most recent first. |
+| `GET /__enpilink/auth/users` | Tracked users, most recently seen first. |
+| `DELETE /__enpilink/auth/sessions/:id` | **Revoke** a session — delete the row + denylist its access token. |
+| `DELETE /__enpilink/auth/users/:sub` | Delete a user and cascade-revoke all their sessions. |
+
+When storage is absent (auth off) every read returns `{ enabled: false }` with
+an empty list — never a 500. None of these endpoints ever return a token or
+secret; `tokenRef` is an opaque one-way hash, safe to expose for correlation.
+
+<Warning>
+**Revoke semantics.** enpilink's access tokens are stateless JWTs, so the
+signature alone keeps them valid until `exp` (≤ 1 hour in federating mode).
+Revoking a session does two things: (1) deletes the session/user row, and
+(2) adds the token's reference to an **in-memory revocation denylist** that the
+verifier checks on every request — so a revoked token is rejected (`401`)
+immediately, not only at expiry. This makes revoke a *true* revocation.
+
+The denylist (like the federation PKCE / refresh state) is **per-process and
+in-memory**: a horizontally-scaled deployment needs a shared denylist (or sticky
+sessions) for cross-instance revocation. Each entry auto-evicts at the token's
+`exp`, so the set never grows unbounded. The revoke endpoint also drops the
+federating provider's in-memory refresh token where it can.
+
+Custom storage adapters made before this feature keep working: `deleteSession` /
+`deleteUser` are **optional** on the interface, and the API reports the action as
+unsupported (`501`) rather than failing when an adapter lacks them.
+</Warning>
 
 ### Tokens at rest
 

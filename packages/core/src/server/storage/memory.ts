@@ -174,6 +174,20 @@ export class MemoryStorageAdapter implements StorageAdapter {
     return out.map((u) => ({ ...u, isGuest: isGuestSub(u.sub) }));
   }
 
+  async deleteSession(id: string): Promise<void> {
+    this.sessions.delete(id);
+  }
+
+  async deleteUser(sub: string): Promise<void> {
+    this.users.delete(sub);
+    // Cascade: drop the user's sessions too.
+    for (const [id, s] of this.sessions) {
+      if (s.sub === sub) {
+        this.sessions.delete(id);
+      }
+    }
+  }
+
   async close(): Promise<void> {
     // Nothing to release.
   }

@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ScrollText,
+  ShieldCheck,
   SlidersHorizontal,
   Wrench,
 } from "lucide-react";
@@ -46,6 +47,12 @@ export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
     label: "Configuration",
     icon: SlidersHorizontal,
     testId: "nav-configuration",
+  },
+  {
+    value: "auth",
+    label: "Auth",
+    icon: ShieldCheck,
+    testId: "nav-auth",
   },
   {
     value: "playground",

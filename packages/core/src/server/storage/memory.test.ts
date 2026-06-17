@@ -159,5 +159,29 @@ describe("MemoryStorageAdapter", () => {
       const filtered = (await store.listSessions?.({ sub: "absent" })) ?? [];
       expect(filtered).toHaveLength(0);
     });
+
+    it("deleteSession removes one session; deleteUser cascades (A5)", async () => {
+      await store.upsertUser?.({ sub: "u-1", createdAt: 1, lastSeenAt: 1 });
+      await store.recordSession?.({
+        id: "s-1",
+        sub: "u-1",
+        createdAt: 1,
+        lastSeenAt: 1,
+      });
+      await store.recordSession?.({
+        id: "s-2",
+        sub: "u-1",
+        createdAt: 1,
+        lastSeenAt: 1,
+      });
+      await store.deleteSession?.("s-1");
+      expect(await store.getSession?.("s-1")).toBeUndefined();
+      expect((await store.listSessions?.()) ?? []).toHaveLength(1);
+
+      await store.deleteUser?.("u-1");
+      expect((await store.listUsers?.()) ?? []).toHaveLength(0);
+      // Cascade: the remaining session is gone too.
+      expect((await store.listSessions?.()) ?? []).toHaveLength(0);
+    });
   });
 });

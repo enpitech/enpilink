@@ -42,6 +42,9 @@ export class SqliteStorageAdapter implements StorageAdapter {
     upsertUser: Statement;
     upsertSession: Statement;
     getSession: Statement;
+    deleteSession: Statement;
+    deleteUser: Statement;
+    deleteUserSessions: Statement;
   } | null = null;
 
   constructor(opts?: StorageAdapterOptions) {
@@ -92,6 +95,9 @@ export class SqliteStorageAdapter implements StorageAdapter {
            client_id = @client_id, expires_at = @expires_at`,
       ),
       getSession: db.prepare("SELECT * FROM auth_sessions WHERE id = ?"),
+      deleteSession: db.prepare("DELETE FROM auth_sessions WHERE id = ?"),
+      deleteUser: db.prepare("DELETE FROM auth_users WHERE sub = ?"),
+      deleteUserSessions: db.prepare("DELETE FROM auth_sessions WHERE sub = ?"),
     };
   }
 
@@ -304,6 +310,20 @@ export class SqliteStorageAdapter implements StorageAdapter {
       )
       .all(params) as UserRow[];
     return rows.map(rowToUser);
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const { stmts } = this.require();
+    stmts.deleteSession.run(id);
+  }
+
+  async deleteUser(sub: string): Promise<void> {
+    const { db, stmts } = this.require();
+    const tx = db.transaction(() => {
+      stmts.deleteUserSessions.run(sub);
+      stmts.deleteUser.run(sub);
+    });
+    tx();
   }
 
   async close(): Promise<void> {

@@ -113,6 +113,8 @@ omit them simply skip tracking):
 | `getSession(id)` | Read one session. |
 | `listSessions(query?)` | List sessions, most recent first (filter by `sub`, cap with `limit`). |
 | `listUsers(query?)` | List tracked users, most recently seen first. |
+| `deleteSession(id)` | **Revoke** — delete one session by id (no-op when unknown). |
+| `deleteUser(sub)` | Delete a user **and cascade** all their sessions. |
 
 These writes are **best-effort**: enpilink fire-and-forgets them so they never
 block or slow a tool call. **Tokens at rest:** a session stores only an opaque

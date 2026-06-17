@@ -14,6 +14,7 @@ import {
   verifyEnpilinkToken,
 } from "./auth-federation.js";
 import { buildFederationRouter } from "./auth-federation-router.js";
+import { revocableVerifier } from "./auth-revocation.js";
 import {
   buildAuthServerRouter,
   buildProxyProvider,
@@ -201,9 +202,13 @@ export function buildAuthRuntime(
 
   // Wrap the verifier so every successful auth records a session (A2). When no
   // storage getter is supplied (e.g. some unit tests), this is a passthrough.
-  const verifier = secrets.getStorage
+  const recording = secrets.getStorage
     ? recordingVerifier(baseVerifier, secrets.getStorage, secrets.now)
     : baseVerifier;
+  // Revocation check OUTERMOST (A5): a revoked access token is rejected (→ 401)
+  // BEFORE it is recorded as an active session. Cheap in-memory denylist keyed
+  // on `sha256(token)` (= the session's `tokenRef`); see auth-revocation.ts.
+  const verifier = revocableVerifier(recording, secrets.now);
 
   const metadataRouter = mcpAuthMetadataRouter({
     // The PRM only needs the issuer to populate `authorization_servers[]`; the

@@ -124,6 +124,17 @@ export interface StorageAdapter {
   listSessions?(q?: SessionQuery): Promise<AuthSession[]>;
   /** List tracked users, most recently seen first. */
   listUsers?(q?: SessionQuery): Promise<AuthUser[]>;
+  /**
+   * Delete a single session by id (A5 revoke). A no-op when the id is unknown.
+   * Optional so custom adapters predating A5 keep working; the auth tab
+   * feature-detects and reports "revoke unsupported" when absent.
+   */
+  deleteSession?(id: string): Promise<void>;
+  /**
+   * Delete a tracked user by `sub` AND all of their sessions (A5 revoke). A
+   * no-op when the `sub` is unknown. Optional, like {@link deleteSession}.
+   */
+  deleteUser?(sub: string): Promise<void>;
 
   /** Release resources / close connections. */
   close(): Promise<void>;

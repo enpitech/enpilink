@@ -35,6 +35,7 @@ export {
   requireBearerAuth,
   type UpstreamIdpConfig,
 } from "./auth.js";
+export { createAuthDataRouter } from "./auth-data-router.js";
 export {
   AuthRequiredError,
   enforceSecuritySchemes,
@@ -61,6 +62,14 @@ export {
   IDENTITY_TOOL_NAME,
   type IdentityToolOutput,
 } from "./auth-identity.js";
+export {
+  clearRevocations,
+  isTokenRefRevoked,
+  revocableVerifier,
+  revocationCount,
+  revokeTokenRef,
+  tokenRef,
+} from "./auth-revocation.js";
 export {
   type AuthRuntime,
   type AuthRuntimeSecrets,

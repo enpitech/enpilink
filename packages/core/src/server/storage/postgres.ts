@@ -352,6 +352,17 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return rows.map(rowToUser);
   }
 
+  async deleteSession(id: string): Promise<void> {
+    const pool = this.require();
+    await pool.query("DELETE FROM auth_sessions WHERE id = $1", [id]);
+  }
+
+  async deleteUser(sub: string): Promise<void> {
+    const pool = this.require();
+    await pool.query("DELETE FROM auth_sessions WHERE sub = $1", [sub]);
+    await pool.query("DELETE FROM auth_users WHERE sub = $1", [sub]);
+  }
+
   async close(): Promise<void> {
     if (this.pool) {
       await this.pool.end();

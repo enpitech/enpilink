@@ -103,6 +103,7 @@ function adminTokenVerifier(token: string): {
 const DATA_API_PREFIXES = [
   "/__enpilink/observability",
   "/__enpilink/config",
+  "/__enpilink/auth",
 ] as const;
 
 /** The observability SSE stream route — the one endpoint that needs `?token=`. */
@@ -253,10 +254,12 @@ export async function mountAdmin(
 ): Promise<void> {
   const { createObservabilityRouter } = await import("./observability.js");
   const { createConfigRouter } = await import("./config/index.js");
+  const { createAuthDataRouter } = await import("./auth-data-router.js");
 
   const staticUi = await loadDevtoolsStaticServer();
   const observability = createObservabilityRouter();
   const config = createConfigRouter();
+  const authData = createAuthDataRouter();
 
   // 1) Static SPA shell — ALWAYS unauthenticated so the browser can load the
   //    app and show the login screen. It serves only non-sensitive app assets.
@@ -272,4 +275,5 @@ export async function mountAdmin(
   }
   app.use(observability);
   app.use(config);
+  app.use(authData);
 }

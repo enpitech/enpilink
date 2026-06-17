@@ -12,6 +12,7 @@ import { useAdminTokenStore } from "@/lib/admin-token-store.js";
 import { useAuthStore } from "@/lib/auth-store.js";
 import { connectToServer } from "@/lib/mcp/index.js";
 import { AdminLogin } from "./admin-login.js";
+import Auth from "./auth/index.js";
 import Configuration from "./configuration/index.js";
 import Dashboard from "./dashboard/index.js";
 import Docs from "./docs/index.js";
@@ -148,6 +149,9 @@ function AppLayout() {
           className="min-h-0 min-w-0 overflow-hidden"
         >
           <Configuration />
+        </TabsContent>
+        <TabsContent value="auth" className="min-h-0 min-w-0 overflow-hidden">
+          <Auth />
         </TabsContent>
         <TabsContent
           value="playground"
