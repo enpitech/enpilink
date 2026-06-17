@@ -1,4 +1,10 @@
 export {
+  type AuthInfo,
+  type AuthState,
+  useAuth,
+  useRequireAuth,
+} from "./use-auth.js";
+export {
   type CallToolAsyncFn,
   type CallToolFn,
   type CallToolState,

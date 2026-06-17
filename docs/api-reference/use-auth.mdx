@@ -1,0 +1,139 @@
+---
+title: useAuth
+description: "Read the signed-in user's identity inside a view — anonymous, guest, or authed — via a tool round-trip."
+---
+
+The `useAuth` hook tells a view **who the user is**. Because the host renders
+views in an identity-blind iframe (it passes no user identity in), the hook
+learns the identity via a **tool round-trip**: it calls the framework's built-in
+`enpilink_whoami` `noauth` tool, which reads the request's `extra.authInfo` on
+the server and returns the caller's identity. The view **never** sees a token —
+only the `sub`, scopes, and the `email`/`name` claims.
+
+It works under **both** runtimes (Apps SDK and MCP Apps) — the round-trip goes
+through the same adaptor layer as [`useCallTool`](/api-reference/use-call-tool).
+
+<Note>
+  This hook is only meaningful when [end-user auth](/guides/auth) is enabled on
+  the server. When auth is off (the identity tool isn't registered) or the
+  round-trip fails, `useAuth` resolves to `anonymous` and **never throws**.
+</Note>
+
+## Basic usage
+
+```tsx
+import { useAuth } from "enpilink/web";
+
+function Account() {
+  const { state, name, email, isLoading, refresh } = useAuth();
+
+  if (isLoading) return <Spinner />;
+
+  switch (state) {
+    case "authed":
+      return <p>Signed in as {name ?? email}</p>;
+    case "guest":
+      return <p>Browsing as a guest</p>;
+    case "anonymous":
+      return <SignInButton onSignedIn={refresh} />;
+  }
+}
+```
+
+## Returns
+
+```tsx
+interface AuthInfo {
+  state: "anonymous" | "guest" | "authed";
+  sub?: string;
+  isGuest: boolean;
+  scopes: string[];
+  email?: string;
+  name?: string;
+  isLoading: boolean;
+  refresh: () => void;
+}
+```
+
+### `state`
+
+The caller's identity, modelled as three explicit states:
+
+| State | Meaning |
+| --- | --- |
+| `anonymous` | No token at all (also the graceful fallback when auth is off or the round-trip fails). |
+| `guest` | A minted guest token — the `sub` carries the `guest:` prefix. |
+| `authed` | A real, upstream-backed signed-in user. |
+
+### `sub`
+
+The stable per-user id (the token's `sub` claim), or `undefined` when
+`anonymous`. For guests this is a `guest:<random-id>` value.
+
+### `isGuest`
+
+Convenience boolean, `true` exactly when `state === "guest"`.
+
+### `scopes`
+
+The scopes granted to the caller's token (empty when `anonymous`).
+
+### `email` / `name`
+
+The user's email and display name, when the upstream login supplied them as
+claims. `undefined` otherwise.
+
+### `isLoading`
+
+`true` while the identity round-trip is in flight (the initial load and during a
+`refresh()`).
+
+### `refresh()`
+
+Re-runs the identity round-trip. Call this after a step-up login so the view
+picks up the new, authenticated identity.
+
+## Triggering login from the view
+
+Login is **host-driven** and opens **out-of-band** (a browser tab/popup the host
+opens) — a view cannot open the login page itself. It can only **trigger the
+challenge**: call an `{ type: "oauth2" }`-scoped server tool, and the resulting
+401/403 prompts the host to open its OAuth flow. After sign-in, call `refresh()`.
+
+`useRequireAuth` is a tiny helper for this pattern — it calls a designated
+`oauth2` tool as the login trigger:
+
+```tsx
+import { useAuth, useRequireAuth } from "enpilink/web";
+
+function SaveButton() {
+  const { state, refresh } = useAuth();
+  const requireAuth = useRequireAuth("save_favorite"); // an oauth2-scoped tool
+
+  return (
+    <button onClick={() => requireAuth({ id: 1 }).then(refresh)}>
+      {state === "authed" ? "Save" : "Sign in to save"}
+    </button>
+  );
+}
+```
+
+<Note>
+  Be honest with your users: the view only *triggers* the challenge. Whether and
+  when the login window opens is up to the host — the iframe cannot force it.
+</Note>
+
+## `useAuth` vs `useUser`
+
+These answer different questions and are kept separate:
+
+- **`useAuth`** — *who* the user is (identity / auth state). Requires auth to be
+  enabled; resolves via a tool round-trip.
+- **[`useUser`](/api-reference/use-user)** — the user's *device* context
+  (`locale`, `userAgent`). Always available, set once at init, no round-trip.
+
+## See also
+
+- [Auth guide → Reading the user in your view](/guides/auth#reading-the-user-in-your-view)
+- [`useUser`](/api-reference/use-user) — device & locale info
+- [`useCallTool`](/api-reference/use-call-tool) — call server tools from a view

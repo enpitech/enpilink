@@ -229,6 +229,76 @@ server.registerTool(
 );
 ```
 
+## Reading the user in your view
+
+The view runs in an **identity-blind iframe** — the host passes it the locale,
+theme, and tool I/O, but **no user identity**. So a view learns "who am I" via a
+**tool round-trip**: it calls a small built-in tool, and the server (which has
+`extra.authInfo`) answers with the caller's identity.
+
+When auth is enabled, enpilink **auto-registers** a `{ type: "noauth" }` tool
+named **`enpilink_whoami`**. It is `noauth` on purpose — anonymous and guest
+callers must be able to call it (that is how the view discovers it is *not*
+signed in). It returns only identity/claims and **never a token**.
+
+### `useAuth()`
+
+The [`useAuth`](/api-reference/use-auth) hook does the round-trip for you and
+models the **three states** explicitly:
+
+```tsx
+import { useAuth } from "enpilink/web";
+
+function Account() {
+  const { state, name, email, isGuest, isLoading, refresh } = useAuth();
+  if (isLoading) return <Spinner />;
+  switch (state) {
+    case "authed":    return <p>Signed in as {name ?? email}</p>;
+    case "guest":     return <p>Browsing as a guest</p>;
+    case "anonymous": return <SignInButton onSignedIn={refresh} />;
+  }
+}
+```
+
+| State | Meaning |
+| --- | --- |
+| `anonymous` | No token at all (or auth is off / the tool isn't present — `useAuth` degrades to this and **never throws**). |
+| `guest` | A minted guest token (the `sub` carries the `guest:` prefix). |
+| `authed` | A real, upstream-backed signed-in user. |
+
+`useAuth` returns `{ state, sub, isGuest, scopes, email, name, isLoading,
+refresh }`. Device info (`locale`, `userAgent`) stays on the separate
+[`useUser`](/api-reference/use-user) hook — they answer different questions.
+
+### Triggering login from the view
+
+Login is **host-driven** and happens **out-of-band**: a view cannot open the
+branded login page itself. What it *can* do is **trigger the challenge** — call
+an `{ type: "oauth2" }` tool; the resulting 401/403 makes the host open its
+OAuth flow. After the user signs in, call `refresh()` to re-read the identity.
+
+```tsx
+import { useAuth, useRequireAuth } from "enpilink/web";
+
+function SaveButton() {
+  const { state, refresh } = useAuth();
+  // `save_favorite` is an oauth2-scoped server tool — calling it as a guest /
+  // anonymous user returns a 401/403, which prompts the host to open OAuth.
+  const requireAuth = useRequireAuth("save_favorite");
+  return (
+    <button onClick={() => requireAuth({ id: 1 }).then(refresh)}>
+      {state === "authed" ? "Save" : "Sign in to save"}
+    </button>
+  );
+}
+```
+
+<Note>
+  Be honest with your users: the view only *triggers* the challenge. Whether and
+  when the login window opens is entirely up to the host — there is nothing more
+  the iframe can do to force it.
+</Note>
+
 ### Configuring the upstream IdP
 
 Set the upstream provider's endpoints + your registered client id. The client

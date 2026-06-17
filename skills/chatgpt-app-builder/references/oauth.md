@@ -35,6 +35,15 @@ Enable user authentication so tools can access user-specific data.
 > WITHOUT a signing key you stay in transparent-proxy mode (upstream-issued
 > tokens, no guest). See the Authentication guide → "Co-hosting the
 > Authorization Server" / "Guest mode & lazy / step-up auth".
+>
+> **Reading identity in a view:** the iframe is identity-blind. Use the
+> `useAuth()` web hook — it round-trips the auto-registered `enpilink_whoami`
+> `noauth` tool and returns `{ state: "anonymous" | "guest" | "authed", sub,
+> isGuest, scopes, email, name, isLoading, refresh }` (never a token; degrades
+> to `anonymous` when auth is off). To trigger login from the view, call an
+> `oauth2` tool (e.g. via `useRequireAuth("tool")`) — the 401/403 makes the host
+> open OAuth out-of-band; then `refresh()`. See the guide → "Reading the user in
+> your view".
 
 ## How it works
 

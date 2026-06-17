@@ -55,6 +55,13 @@ export {
   renderFederationEntryHtml,
 } from "./auth-federation-router.js";
 export {
+  type AuthIdentity,
+  type AuthState,
+  buildIdentity,
+  IDENTITY_TOOL_NAME,
+  type IdentityToolOutput,
+} from "./auth-identity.js";
+export {
   type AuthRuntime,
   type AuthRuntimeSecrets,
   buildAuthRuntime,

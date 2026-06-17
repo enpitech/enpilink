@@ -39,6 +39,7 @@ import {
   deriveSigningKeys,
   type SigningKeys,
 } from "./auth-federation.js";
+import { buildIdentity, IDENTITY_TOOL_NAME } from "./auth-identity.js";
 import {
   type AuthRuntime,
   type AuthRuntimeSecrets,
@@ -520,6 +521,7 @@ export class McpServer<
    */
   private authRuntime: AuthRuntime | null = null;
   private authRuntimeResolved = false;
+  private identityToolRegistered = false;
 
   constructor(
     serverInfo: Implementation,
@@ -738,6 +740,12 @@ export class McpServer<
     // feeds the session-recording verifier.
     const secrets = await this.resolveAuthSecrets(config);
     this.authRuntime = buildAuthRuntime(config, fallback, secrets);
+    // Auto-register the built-in identity tool (A4) the moment auth resolves —
+    // BEFORE any `/mcp` request, so its `noauth` scheme is visible to the HTTP
+    // enforcement layer on the very first call.
+    if (this.authRuntime) {
+      this.registerIdentityTool();
+    }
     return this.authRuntime;
   }
 
@@ -835,6 +843,49 @@ export class McpServer<
    */
   getToolSecuritySchemes(toolName: string): SecurityScheme[] | undefined {
     return this.toolSecuritySchemes.get(toolName);
+  }
+
+  /**
+   * Auto-register the built-in identity tool (A4). The view's iframe is
+   * identity-blind, so `useAuth` round-trips this `noauth` tool to discover
+   * whether the caller is anonymous / guest / authed.
+   *
+   * It is `noauth` so anonymous and guest callers can reach it; it returns only
+   * identity/claims (`state`, `sub`, `isGuest`, `scopes`, `email`, `name`) and
+   * NEVER a token. Idempotent. Never clobbers an app-defined tool with the same
+   * name (the app wins, never throws). Called from {@link getAuthRuntime} the
+   * moment auth resolves enabled — before any `/mcp` request so its `noauth`
+   * scheme is visible to the HTTP enforcement layer on the very first call.
+   *
+   * @internal
+   */
+  private registerIdentityTool(): void {
+    if (this.identityToolRegistered) {
+      return;
+    }
+    this.identityToolRegistered = true;
+    // Never clobber an app-defined tool with the same name.
+    if (this.toolSecuritySchemes.has(IDENTITY_TOOL_NAME)) {
+      return;
+    }
+    this.registerTool(
+      {
+        name: IDENTITY_TOOL_NAME,
+        title: "Current user identity",
+        description:
+          "Returns the caller's auth state (anonymous / guest / authed) so a view can show who is signed in. Built-in to enpilink; never returns a token.",
+        inputSchema: {},
+        securitySchemes: [{ type: "noauth" }],
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      async (_args, extra) => {
+        const identity = buildIdentity(extra);
+        return {
+          content: JSON.stringify(identity),
+          structuredContent: identity,
+        };
+      },
+    );
   }
 
   private async applyMcpMiddleware(): Promise<void> {

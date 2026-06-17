@@ -13,6 +13,9 @@ const server = new McpServer(
   {
     name: "hello-world",
     description: "A hero widget with customizable title and subtitle.",
+    // Public widget: runs for anonymous + guest callers. (When end-user auth is
+    // enabled, a tool without `noauth`/`oauth2` would require a token.)
+    securitySchemes: [{ type: "noauth" }],
     inputSchema: {
       title: z.string().optional().describe("The main title to display."),
       subtitle: z.string().optional().describe("The subtitle to display."),

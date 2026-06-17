@@ -3,7 +3,13 @@ title: useUser
 description: "Access session-stable user information like locale and timezone in your app views."
 ---
 
-The `useUser` hook returns session-stable user information. These values are set once at initialization and do not change during the session.
+The `useUser` hook returns session-stable user **device** information (locale and user agent). These values are set once at initialization and do not change during the session.
+
+<Note>
+  `useUser` is about the user's *device* context. To read *who* the user is —
+  their auth state, `sub`, and profile when [end-user auth](/guides/auth) is
+  enabled — use [`useAuth`](/api-reference/use-auth) instead.
+</Note>
 
 ## Basic usage
 
