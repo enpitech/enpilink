@@ -67,16 +67,18 @@ export {
   resolvePostgresConnectionString,
 } from "./postgres.js";
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
-export type {
-  AnalyticsEvent,
-  AuthSession,
-  AuthUser,
-  ConfigAuditEntry,
-  EventQuery,
-  LogEntry,
-  LogQuery,
-  SessionQuery,
-  StorageAdapter,
-  StorageAdapterFactory,
-  StorageAdapterOptions,
+export {
+  type AnalyticsEvent,
+  type AuthSession,
+  type AuthUser,
+  type ConfigAuditEntry,
+  type EventQuery,
+  GUEST_SUB_PREFIX,
+  isGuestSub,
+  type LogEntry,
+  type LogQuery,
+  type SessionQuery,
+  type StorageAdapter,
+  type StorageAdapterFactory,
+  type StorageAdapterOptions,
 } from "./types.js";

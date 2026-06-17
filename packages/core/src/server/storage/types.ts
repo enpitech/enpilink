@@ -148,6 +148,25 @@ export interface AuthUser {
   /** Optional display fields lifted from non-secret token claims. */
   email?: string;
   name?: string;
+  /**
+   * Whether this is a guest (A3): a coarsely-tracked anonymous user with a
+   * limited token. Derived from the `guest:` {@link GUEST_SUB_PREFIX} on `sub`
+   * (so it is computed on read — no DB migration needed). Real upstream users
+   * are `false`.
+   */
+  isGuest?: boolean;
+}
+
+/**
+ * Namespace prefix for guest subjects (A3). Guests get a `sub` of
+ * `guest:<random-id>` so their tracking key can NEVER collide with a real
+ * upstream `sub`, and so any consumer can distinguish a guest by prefix.
+ */
+export const GUEST_SUB_PREFIX = "guest:";
+
+/** Whether a `sub` belongs to a guest (A3) — i.e. carries the guest prefix. */
+export function isGuestSub(sub: string | undefined): boolean {
+  return typeof sub === "string" && sub.startsWith(GUEST_SUB_PREFIX);
 }
 
 /**
@@ -181,6 +200,12 @@ export interface AuthSession {
   lastSeenAt: number;
   /** Upstream token expiry (epoch seconds), when known. */
   expiresAt?: number;
+  /**
+   * Whether this is a guest session (A3). Derived from the `guest:`
+   * {@link GUEST_SUB_PREFIX} on `sub` (computed on read — no DB migration).
+   * Lets the Auth tab (A5) distinguish guests from authenticated users.
+   */
+  isGuest?: boolean;
 }
 
 /** Filter for {@link StorageAdapter.listSessions} / {@link StorageAdapter.listUsers}. */

@@ -1,14 +1,15 @@
-import type {
-  AnalyticsEvent,
-  AuthSession,
-  AuthUser,
-  ConfigAuditEntry,
-  EventQuery,
-  LogEntry,
-  LogQuery,
-  SessionQuery,
-  StorageAdapter,
-  StorageAdapterOptions,
+import {
+  type AnalyticsEvent,
+  type AuthSession,
+  type AuthUser,
+  type ConfigAuditEntry,
+  type EventQuery,
+  isGuestSub,
+  type LogEntry,
+  type LogQuery,
+  type SessionQuery,
+  type StorageAdapter,
+  type StorageAdapterOptions,
 } from "./types.js";
 
 /** Default ring-buffer capacity for events and logs. */
@@ -146,7 +147,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
 
   async getSession(id: string): Promise<AuthSession | undefined> {
     const s = this.sessions.get(id);
-    return s ? { ...s } : undefined;
+    return s ? { ...s, isGuest: isGuestSub(s.sub) } : undefined;
   }
 
   async listSessions(q: SessionQuery = {}): Promise<AuthSession[]> {
@@ -158,7 +159,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
     if (q.limit !== undefined && q.limit >= 0) {
       out = out.slice(0, q.limit);
     }
-    return out.map((s) => ({ ...s }));
+    return out.map((s) => ({ ...s, isGuest: isGuestSub(s.sub) }));
   }
 
   async listUsers(q: SessionQuery = {}): Promise<AuthUser[]> {
@@ -170,7 +171,7 @@ export class MemoryStorageAdapter implements StorageAdapter {
     if (q.limit !== undefined && q.limit >= 0) {
       out = out.slice(0, q.limit);
     }
-    return out.map((u) => ({ ...u }));
+    return out.map((u) => ({ ...u, isGuest: isGuestSub(u.sub) }));
   }
 
   async close(): Promise<void> {

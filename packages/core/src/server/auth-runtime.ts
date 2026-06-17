@@ -8,6 +8,13 @@ import {
   type UpstreamIdpConfig,
 } from "./auth.js";
 import {
+  buildClientsStore,
+  FederatingOAuthProvider,
+  type SigningKeys,
+  verifyEnpilinkToken,
+} from "./auth-federation.js";
+import { buildFederationRouter } from "./auth-federation-router.js";
+import {
   buildAuthServerRouter,
   buildProxyProvider,
   recordingVerifier,
@@ -52,8 +59,18 @@ export interface AuthRuntimeSecrets {
   redirectUris?: string[];
   /** Display name for the branded login page. */
   appName?: string;
+  /**
+   * The env-only token signing keypair (A3), derived from `auth.signingKey`.
+   * When present, enpilink runs as a FEDERATING AS that mints + signs its own
+   * tokens (guest + lazy/step-up). When absent (A2 path), the co-hosted AS is a
+   * transparent proxy to the upstream IdP. Derived in `getAuthRuntime` (async)
+   * and passed here so `buildAuthRuntime` stays synchronous.
+   */
+  signingKeys?: SigningKeys;
   /** Injectable clock for deterministic session-recording tests. */
   now?: () => number;
+  /** Injectable id generator for the federating provider (deterministic tests). */
+  randomId?: () => string;
 }
 
 /**
@@ -150,22 +167,6 @@ export function buildAuthRuntime(
     );
   }
 
-  // A2's proxy AS (or a test) can inject its own verifier; otherwise build the
-  // built-in JWKS-backed JWT verifier.
-  const baseVerifier =
-    config.verifier ??
-    createJwtVerifier({
-      issuer: config.issuer,
-      audience: config.audience,
-      jwksUrl: config.jwksUrl,
-    });
-
-  // Wrap the verifier so every successful auth records a session (A2). When no
-  // storage getter is supplied (e.g. some unit tests), this is a passthrough.
-  const verifier = secrets.getStorage
-    ? recordingVerifier(baseVerifier, secrets.getStorage, secrets.now)
-    : baseVerifier;
-
   const rsUrl = new URL(config.resourceServerUrl ?? resourceUrl);
   // Anchor the PRM at the well-known root (no path suffix) so the document is
   // served at exactly `/.well-known/oauth-protected-resource`.
@@ -173,14 +174,50 @@ export function buildAuthRuntime(
   rootUrl.pathname = "/";
   rootUrl.search = "";
 
+  // Verifier precedence:
+  // 1. An explicitly injected verifier (A2 / tests) always wins.
+  // 2. A3 FEDERATING mode (signing keys present + upstream): validate OUR minted
+  //    tokens against the LOCAL JWKS derived from the signing key — no network,
+  //    and `auth.jwksUrl` is irrelevant (it points at us anyway).
+  // 3. A1/A2 mode: the JWKS-backed JWT verifier against the configured issuer.
+  const federating = !!secrets.signingKeys && !!config.upstream;
+  const baseVerifier =
+    config.verifier ??
+    (federating && secrets.signingKeys
+      ? {
+          verifyAccessToken: (token: string) =>
+            verifyEnpilinkToken(token, {
+              issuer: config.issuer as string,
+              audience: config.audience ?? rsUrl.href,
+              keys: secrets.signingKeys as SigningKeys,
+              now: secrets.now,
+            }),
+        }
+      : createJwtVerifier({
+          issuer: config.issuer,
+          audience: config.audience,
+          jwksUrl: config.jwksUrl,
+        }));
+
+  // Wrap the verifier so every successful auth records a session (A2). When no
+  // storage getter is supplied (e.g. some unit tests), this is a passthrough.
+  const verifier = secrets.getStorage
+    ? recordingVerifier(baseVerifier, secrets.getStorage, secrets.now)
+    : baseVerifier;
+
   const metadataRouter = mcpAuthMetadataRouter({
     // The PRM only needs the issuer to populate `authorization_servers[]`; the
-    // rest of the AS metadata is a minimal stub (A2 co-hosts the real AS).
+    // rest of the AS metadata is a minimal stub (the AS router co-hosts the real
+    // AS). In federating mode we additionally advertise our JWKS URI so clients
+    // can validate OUR tokens.
     oauthMetadata: {
       issuer: config.issuer,
       authorization_endpoint: new URL("/authorize", config.issuer).href,
       token_endpoint: new URL("/token", config.issuer).href,
       response_types_supported: ["code"],
+      ...(federating
+        ? { jwks_uri: new URL("/.well-known/jwks.json", config.issuer).href }
+        : {}),
     },
     resourceServerUrl: rootUrl,
     scopesSupported: undefined,
@@ -188,11 +225,36 @@ export function buildAuthRuntime(
 
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(rootUrl);
 
-  // Co-host the Authorization Server (A2) when an upstream IdP is configured.
+  // Co-host the Authorization Server when an upstream IdP is configured.
   // Without it we stay in A1-only resource-server mode (validate tokens, but no
   // `/authorize` / `/token` / branded login of our own).
   let authServerRouter: Router | null = null;
-  if (config.upstream) {
+  if (config.upstream && federating && secrets.signingKeys) {
+    // A3 FEDERATING mode: WE mint + sign tokens, federate the login upstream,
+    // and offer "Continue as guest". The verifier above validates our tokens.
+    const provider = new FederatingOAuthProvider(
+      {
+        issuer: config.issuer,
+        audience: config.audience ?? rsUrl.href,
+        keys: secrets.signingKeys,
+        defaultScopes: config.upstream.scopes,
+        now: secrets.now,
+        randomId: secrets.randomId,
+      },
+      buildClientsStore(secrets.redirectUris ?? []),
+    );
+    authServerRouter = buildFederationRouter({
+      issuerUrl: config.issuer,
+      resourceServerUrl: rsUrl.href,
+      provider,
+      publicJwk: secrets.signingKeys.publicJwk,
+      upstream: config.upstream,
+      scopesSupported: config.upstream.scopes,
+      upstreamClientSecret: secrets.clientSecret,
+      appName: secrets.appName,
+    });
+  } else if (config.upstream) {
+    // A2 TRANSPARENT-PROXY mode (no signing key): tokens are upstream-issued.
     const provider = buildProxyProvider({
       upstream: config.upstream,
       verifier,

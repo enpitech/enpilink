@@ -100,9 +100,12 @@ export const bootstrapSchema = z.object({
    */
   "auth.jwksUrl": z.string().optional(),
   /**
-   * SECRET — symmetric signing/encryption key for tokens/sessions enpilink
-   * mints (used in A2's proxy AS). Reserved here so A2 slots in cleanly.
-   * Env-only, never persisted to the DB nor returned in plaintext.
+   * SECRET — the token signing key (A3). When set (alongside an upstream IdP),
+   * enpilink becomes a FEDERATING Authorization Server that mints + signs its
+   * own tokens (Ed25519 keypair derived from this key) and enables guest mode +
+   * lazy/step-up auth. When unset, enpilink stays in A2 transparent-proxy mode
+   * (upstream-issued tokens). Env-only, never persisted to the DB nor returned
+   * in plaintext.
    */
   "auth.signingKey": z.string().optional(),
   /**
@@ -276,7 +279,7 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
   "auth.signingKey": {
     label: "Token signing key",
     description:
-      "Secret key used to sign sessions/tokens enpilink mints. Set via environment only; never stored or shown in plaintext.",
+      "Secret key that signs the tokens enpilink mints when it acts as a federating Authorization Server (enables guest mode + lazy/step-up). Set via environment only; never stored or shown in plaintext.",
     group: "Security",
     editable: "readonly",
   },

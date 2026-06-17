@@ -1,16 +1,17 @@
 import type DatabaseConstructor from "better-sqlite3";
 import type { Database, Statement } from "better-sqlite3";
-import type {
-  AnalyticsEvent,
-  AuthSession,
-  AuthUser,
-  ConfigAuditEntry,
-  EventQuery,
-  LogEntry,
-  LogQuery,
-  SessionQuery,
-  StorageAdapter,
-  StorageAdapterOptions,
+import {
+  type AnalyticsEvent,
+  type AuthSession,
+  type AuthUser,
+  type ConfigAuditEntry,
+  type EventQuery,
+  isGuestSub,
+  type LogEntry,
+  type LogQuery,
+  type SessionQuery,
+  type StorageAdapter,
+  type StorageAdapterOptions,
 } from "./types.js";
 
 /** Default on-disk database path. Overridable via `ENPILINK_DB_PATH`. */
@@ -394,6 +395,7 @@ function rowToUser(r: UserRow): AuthUser {
     sub: r.sub,
     createdAt: r.created_at,
     lastSeenAt: r.last_seen_at,
+    isGuest: isGuestSub(r.sub),
   };
   if (r.issuer !== null) {
     u.issuer = r.issuer;
@@ -413,6 +415,7 @@ function rowToSession(r: SessionRow): AuthSession {
     sub: r.sub,
     createdAt: r.created_at,
     lastSeenAt: r.last_seen_at,
+    isGuest: isGuestSub(r.sub),
   };
   if (r.issuer !== null) {
     s.issuer = r.issuer;

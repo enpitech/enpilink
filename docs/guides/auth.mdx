@@ -143,36 +143,91 @@ host (ChatGPT/Claude)
   │  2. discovers our AS via /.well-known/oauth-protected-resource
   │     → /.well-known/oauth-authorization-server
   ▼
-enpilink /authorize  ──3. branded login page ("Continue to sign in")──▶ user
-  │  4. redirect to the UPSTREAM provider's /authorize
+enpilink /authorize  ──3. branded page ("Sign in" OR "Continue as guest")──▶ user
+  │  4a. "Sign in" → redirect to the UPSTREAM provider's /authorize
+  │  4b. "Continue as guest" → enpilink mints a guest code (no upstream) → host callback
   ▼
 upstream IdP (Google/GitHub/Auth0/…)  ──5. user authenticates──▶
-  │  6. redirect back to the host's callback with ?code=…
+  │  6. redirect to enpilink's /authorize/callback with ?code=… (federating)
   ▼
-enpilink /token  ──7. proxies the code exchange to the upstream /token──▶
-  │  8. returns the upstream-issued access token to the host
+enpilink /token  ──7. PROXY mode: proxies the exchange upstream
+  │             FEDERATING mode: validates PKCE locally, then MINTS + SIGNS
+  │             enpilink's own token (bound to the resolved real/guest `sub`)
+  │  8. returns the token to the host
   ▼
 host attaches the token to every /mcp request
 enpilink validates it (JWKS) and RECORDS a session keyed by `sub`
 ```
 
+In **federating** mode the upstream returns to enpilink's own
+`/authorize/callback` (not the host) so enpilink can resolve the user and mint
+its own token; the host only ever sees the enpilink-issued token.
+
 The branded page is **server-rendered and out-of-band** (the browser tab the
 host opens), not the chat iframe. It is enpilink-teal and consistent with the
 console; deeper customization arrives with the Auth tab.
 
-### Provider approach: transparent proxy
+### Two provider modes
 
-enpilink uses the MCP SDK's **`ProxyOAuthServerProvider`**: tokens are issued by
-the **upstream** provider and enpilink validates them via the upstream JWKS
-(the same [`createJwtVerifier`](#custom-verifiers) as resource-server mode). We
-never mint our own tokens, so enpilink is **not** itself a token issuer — a
-smaller security surface and the simplest path to a working real-host loop.
+enpilink picks one of two Authorization-Server provider modes, **based on
+whether a token signing key is set**:
+
+| Mode | When | Who issues the token | Enables |
+| --- | --- | --- | --- |
+| **Transparent proxy** | upstream set, **no** `ENPILINK_AUTH_SIGNING_KEY` | the **upstream** IdP | logged-in flow only |
+| **Federating issuer** | upstream set **and** `ENPILINK_AUTH_SIGNING_KEY` set | **enpilink** (signs its own tokens) | logged-in **+ guest + lazy/step-up** |
+
+- **Transparent proxy** (`ProxyOAuthServerProvider`): tokens are issued by the
+  upstream provider; enpilink validates them via the upstream JWKS (the same
+  [`createJwtVerifier`](#custom-verifiers) as resource-server mode). enpilink is
+  **not** a token issuer — the smallest security surface. Point
+  `ENPILINK_AUTH_JWKS_URL` at the **upstream** JWKS.
+- **Federating issuer** (`FederatingOAuthProvider`): enpilink **mints + signs
+  its own tokens** with a deterministic Ed25519 keypair derived from
+  `ENPILINK_AUTH_SIGNING_KEY`, advertises them at its own
+  `/.well-known/jwks.json`, and validates them locally. It still federates the
+  *login* to the upstream IdP, but it can also issue **guest tokens** (no
+  upstream round-trip). Point `ENPILINK_AUTH_ISSUER`/JWKS at **enpilink itself**
+  (the default — enpilink serves the JWKS).
 
 <Note>
-Guest / anonymous tracking (a later milestone) will require enpilink to mint
-its own tokens, which uses a different (federating) provider. The proxy is the
-right choice for the logged-in flow today.
+Setting `ENPILINK_AUTH_SIGNING_KEY` is what turns on **guest mode** and the
+federating issuer. Without it you get the (still fully supported) proxy mode.
+The signing key is **env-only** and must be a strong, stable secret — every
+token enpilink issues is signed with it.
 </Note>
+
+### Guest mode & lazy / step-up auth
+
+In federating mode the branded entry page offers **"Continue as guest"**
+alongside **"Sign in"**:
+
+- **Guest** mints a **limited guest token** with its own short scopes
+  (`guest`) and a subject of `guest:<random-id>` — the `guest:` prefix means a
+  guest `sub` can **never collide** with a real upstream `sub`. Guests are
+  tracked coarsely; durable identity requires a real login. A guest token is
+  **never** granted `oauth2`-scoped tools.
+- **Lazy / step-up:** `/mcp` stays open on connect (no forced login).
+  `{ type: "noauth" }` tools run for **anyone** — true anonymous (no token) and
+  guests alike. The first time a caller hits an `{ type: "oauth2" }` tool
+  without a sufficient token (tokenless **or** guest), enpilink returns a
+  **401/403 + `WWW-Authenticate`** challenge, which triggers the host's OAuth
+  out-of-band. After the user signs in, the **same tool call succeeds** and the
+  handler sees the real `sub`. Use the `isGuestSub(sub)` helper (or the `guest`
+  claim) to branch behavior.
+
+```typescript
+import { getAuthInfo, isGuestSub } from "enpilink/server";
+
+server.registerTool(
+  { name: "save", inputSchema: {}, securitySchemes: [{ type: "oauth2", scopes: ["write"] }] },
+  async (args, extra) => {
+    const sub = getAuthInfo(extra)?.sub;        // real `sub` here (guests are challenged first)
+    if (isGuestSub(sub)) { /* never reached for an oauth2 tool */ }
+    return { content: `saved for ${sub}` };
+  },
+);
+```
 
 ### Configuring the upstream IdP
 
@@ -225,10 +280,12 @@ When an upstream is configured, enpilink mounts (at the app root):
 
 | Endpoint | Purpose |
 | --- | --- |
-| `/.well-known/oauth-authorization-server` | RFC 8414 AS metadata (discovery). |
+| `/.well-known/oauth-authorization-server` | RFC 8414 AS metadata (discovery). Advertises `jwks_uri` in federating mode. |
 | `/.well-known/oauth-protected-resource` | RFC 9728 PRM — lists this AS. |
-| `/authorize` | Branded login page → redirect to the upstream provider. |
-| `/token` | Proxies the authorization-code / refresh exchange upstream. |
+| `/.well-known/jwks.json` | **Federating mode only** — enpilink's public signing key (validates the tokens it issues). |
+| `/authorize` | Branded entry page → "Sign in" (upstream) or "Continue as guest" (federating). |
+| `/authorize/upstream`, `/authorize/callback`, `/authorize/guest` | **Federating mode** — internal login/guest steps. |
+| `/token` | Proxy mode: proxies the exchange upstream. Federating mode: validates PKCE + mints enpilink's token. |
 | `/register` | Dynamic client registration — only if the upstream supports it. |
 
 ### Tracking users & sessions
@@ -236,21 +293,25 @@ When an upstream is configured, enpilink mounts (at the app root):
 On every successful token validation, enpilink upserts a **user** (keyed by the
 `sub` claim) and records a **session** into the active storage adapter
 (`memory` / `sqlite` / `postgres`). The write is best-effort — it never blocks
-or slows a tool call (failures are swallowed and logged, like analytics).
+or slows a tool call (failures are swallowed and logged, like analytics). This
+covers **both** authenticated users and **guests** (recorded with their
+`guest:` sub).
 
 Recorded: `sub`, issuer, client/host id, scopes, created/last-seen timestamps,
-token expiry, and an **opaque token reference**. Adapters expose
+token expiry, and an **opaque token reference**. Sessions/users also carry an
+`isGuest` flag (derived from the `guest:` sub prefix) so a dashboard can
+distinguish guests from real users. Adapters expose
 `upsertUser` / `recordSession` / `getSession` / `listSessions` / `listUsers`
 (see [Storage → End-user auth tracking](/guides/storage#end-user-auth-tracking-optional)).
 
 ### Tokens at rest
 
-enpilink **never stores the raw upstream access or refresh token**. The session
-row holds only a **one-way SHA-256 reference** (`tokenRef`) used to correlate
-and de-duplicate sessions. Because no secret token is persisted, there is
-nothing at rest to decrypt or leak — no encryption key is required for session
-storage. (The `ENPILINK_AUTH_SIGNING_KEY` secret is reserved for the future
-guest-token / federating mode.)
+enpilink **never stores the raw access or refresh token** (upstream or its own).
+The session row holds only a **one-way SHA-256 reference** (`tokenRef`) used to
+correlate and de-duplicate sessions. Because no secret token is persisted, there
+is nothing at rest to decrypt or leak — no encryption key is required for
+session storage. `ENPILINK_AUTH_SIGNING_KEY` (federating mode) signs **issued**
+tokens; it is held in memory only and never persisted.
 
 ## Secrets
 

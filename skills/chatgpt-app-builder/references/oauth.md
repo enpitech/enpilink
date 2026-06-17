@@ -14,14 +14,27 @@ Enable user authentication so tools can access user-specific data.
 > custom verifiers. See the Authentication guide.
 >
 > **Co-hosted Authorization Server:** to also host the OAuth endpoints + a
-> **branded login page** and proxy to a configurable upstream IdP
+> **branded login page** and federate to a configurable upstream IdP
 > (Google/GitHub/Auth0), add an `upstream` block to the `auth` config
 > (`{ clientId, authorizationUrl, tokenUrl, scopes }`) plus `redirectUris`, and
 > set the env-only `ENPILINK_AUTH_CLIENT_SECRET`. enpilink then mounts
 > `/.well-known/oauth-authorization-server`, `/authorize`, `/token`, `/register`
 > and **records a user + session (keyed by `sub`) on every sign-in** — storing
-> only an opaque token reference, never the raw token. See the Authentication
-> guide → "Co-hosting the Authorization Server".
+> only an opaque token reference, never the raw token.
+>
+> **Guest mode + lazy/step-up (federating issuer):** also set the env-only
+> `ENPILINK_AUTH_SIGNING_KEY` (a strong, stable secret). enpilink then becomes a
+> **federating Authorization Server** that **mints + signs its own tokens** (its
+> JWKS is served at `/.well-known/jwks.json`; point `ENPILINK_AUTH_ISSUER`/jwks
+> at enpilink itself). The branded page gains a **"Continue as guest"** choice
+> that issues a **limited guest token** (`sub` = `guest:<id>`, `guest` scope
+> only — never `oauth2` tools). `/mcp` stays open: `noauth` tools run for
+> anonymous + guests; an `oauth2` tool hit by a guest/tokenless caller returns
+> **401/403 + `WWW-Authenticate`** to trigger login (step-up), and the same call
+> succeeds after sign-in. Detect guests with `isGuestSub(getAuthInfo(extra)?.sub)`.
+> WITHOUT a signing key you stay in transparent-proxy mode (upstream-issued
+> tokens, no guest). See the Authentication guide → "Co-hosting the
+> Authorization Server" / "Guest mode & lazy / step-up auth".
 
 ## How it works
 

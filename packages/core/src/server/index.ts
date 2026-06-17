@@ -40,6 +40,21 @@ export {
   enforceSecuritySchemes,
 } from "./auth-enforce.js";
 export {
+  AuthSigningKeyMissingError,
+  buildClientsStore,
+  deriveSigningKeys,
+  FederatingOAuthProvider,
+  type FederatingProviderOptions,
+  GUEST_SCOPES,
+  type SigningKeys,
+  verifyEnpilinkToken,
+} from "./auth-federation.js";
+export {
+  buildFederationRouter,
+  type FederationRouterOptions,
+  renderFederationEntryHtml,
+} from "./auth-federation-router.js";
+export {
   type AuthRuntime,
   type AuthRuntimeSecrets,
   buildAuthRuntime,
@@ -169,6 +184,8 @@ export {
 export {
   DEFAULT_DB_PATH,
   DEFAULT_MEMORY_CAP,
+  GUEST_SUB_PREFIX,
+  isGuestSub,
   MemoryStorageAdapter,
   type PgPoolLike,
   PostgresStorageAdapter,
@@ -180,10 +197,13 @@ export {
 } from "./storage/index.js";
 export type {
   AnalyticsEvent,
+  AuthSession,
+  AuthUser,
   ConfigAuditEntry,
   EventQuery,
   LogEntry,
   LogQuery,
+  SessionQuery,
   StorageAdapter,
   StorageAdapterFactory,
   StorageAdapterOptions,

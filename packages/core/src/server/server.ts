@@ -35,6 +35,11 @@ import express, {
 import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
 import {
+  AuthSigningKeyMissingError,
+  deriveSigningKeys,
+  type SigningKeys,
+} from "./auth-federation.js";
+import {
   type AuthRuntime,
   type AuthRuntimeSecrets,
   buildAuthRuntime,
@@ -771,12 +776,55 @@ export class McpServer<
           ? (values["auth.redirectUris"] as string)
           : undefined,
       );
+    // A3: resolve the env-only signing key → derive the deterministic token
+    // signing keypair. When present, enpilink runs as a FEDERATING AS that mints
+    // its own tokens (guest + lazy/step-up). When absent, fail loudly in prod;
+    // in dev, generate an ephemeral key with a loud warning (never default-open
+    // a real deployment with a predictable key).
+    const signingKeys = await this.resolveSigningKeys(values);
     return {
       getStorage: () => this.activeStorage,
       clientSecret,
       redirectUris,
+      signingKeys,
       appName: this.serverInfo.name,
     };
+  }
+
+  /**
+   * Resolve the A3 token signing keypair from the env-only `auth.signingKey`.
+   *
+   * The signing key is what flips enpilink from the A2 transparent-proxy AS
+   * (tokens upstream-issued) to the A3 FEDERATING AS (we mint + sign our own
+   * tokens — required for guest mode + lazy/step-up). It is therefore OPT-IN:
+   *
+   * - Explicit key set → derive a STABLE Ed25519 keypair → federating mode.
+   *   In production a too-short key is rejected (fail loud — never sign with a
+   *   guessable secret).
+   * - No key → return `undefined` → stay in A2 proxy mode (backward compatible;
+   *   no guest minting). Programmatic `auth.signingKey` can pass `dangerouslyAllowEphemeralKey`-style
+   *   intent by simply supplying a value.
+   *
+   * @internal
+   */
+  private async resolveSigningKeys(
+    values: Record<string, unknown>,
+  ): Promise<SigningKeys | undefined> {
+    const signingKey =
+      typeof values["auth.signingKey"] === "string" &&
+      (values["auth.signingKey"] as string).length > 0
+        ? (values["auth.signingKey"] as string)
+        : undefined;
+    if (!signingKey) {
+      // No signing key → no federating issuer. A2 proxy mode (if upstream set).
+      return undefined;
+    }
+    // Reject a weak key in production: a federating issuer signs every token
+    // with this, so a guessable key is a full auth bypass.
+    if (process.env.NODE_ENV === "production" && signingKey.length < 16) {
+      throw new AuthSigningKeyMissingError();
+    }
+    return deriveSigningKeys(signingKey);
   }
 
   /**

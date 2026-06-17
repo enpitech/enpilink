@@ -13,6 +13,7 @@ import {
   jwtVerify,
 } from "jose";
 
+export type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 export {
   InsufficientScopeError,
   InvalidTokenError,
@@ -22,6 +23,7 @@ export {
   requireBearerAuth,
 } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 export type {
+  AuthorizationParams,
   OAuthServerProvider,
   OAuthTokenVerifier,
 } from "@modelcontextprotocol/sdk/server/auth/provider.js";
@@ -29,12 +31,17 @@ export { ProxyOAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/
 export {
   type AuthMetadataOptions,
   type AuthRouterOptions,
+  createOAuthMetadata,
   getOAuthProtectedResourceMetadataUrl,
   mcpAuthMetadataRouter,
   mcpAuthRouter,
 } from "@modelcontextprotocol/sdk/server/auth/router.js";
 export type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-export type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
+export type {
+  OAuthClientInformationFull,
+  OAuthTokenRevocationRequest,
+  OAuthTokens,
+} from "@modelcontextprotocol/sdk/shared/auth.js";
 
 /**
  * Like `requireBearerAuth`, but lets requests through when no
