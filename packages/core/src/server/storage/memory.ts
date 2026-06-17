@@ -1,9 +1,12 @@
 import type {
   AnalyticsEvent,
+  AuthSession,
+  AuthUser,
   ConfigAuditEntry,
   EventQuery,
   LogEntry,
   LogQuery,
+  SessionQuery,
   StorageAdapter,
   StorageAdapterOptions,
 } from "./types.js";
@@ -24,6 +27,8 @@ export class MemoryStorageAdapter implements StorageAdapter {
   private readonly logs: LogEntry[] = [];
   private readonly config = new Map<string, unknown>();
   private readonly audit: ConfigAuditEntry[] = [];
+  private readonly users = new Map<string, AuthUser>();
+  private readonly sessions = new Map<string, AuthSession>();
 
   constructor(opts?: StorageAdapterOptions) {
     const cap = opts?.cap ?? DEFAULT_MEMORY_CAP;
@@ -115,6 +120,57 @@ export class MemoryStorageAdapter implements StorageAdapter {
   async getConfigAudit(): Promise<ConfigAuditEntry[]> {
     // Stored oldest-first; return most-recent-first to match the interface.
     return this.audit.map((a) => ({ ...a })).reverse();
+  }
+
+  async upsertUser(user: AuthUser): Promise<void> {
+    const existing = this.users.get(user.sub);
+    // Mirror the sqlite/postgres COALESCE semantics: keep prior email/name when
+    // the new write omits them.
+    this.users.set(user.sub, {
+      ...user,
+      createdAt: existing?.createdAt ?? user.createdAt,
+      lastSeenAt: user.lastSeenAt,
+      email: user.email ?? existing?.email,
+      name: user.name ?? existing?.name,
+    });
+  }
+
+  async recordSession(session: AuthSession): Promise<void> {
+    const existing = this.sessions.get(session.id);
+    this.sessions.set(session.id, {
+      ...session,
+      createdAt: existing?.createdAt ?? session.createdAt,
+      lastSeenAt: session.lastSeenAt,
+    });
+  }
+
+  async getSession(id: string): Promise<AuthSession | undefined> {
+    const s = this.sessions.get(id);
+    return s ? { ...s } : undefined;
+  }
+
+  async listSessions(q: SessionQuery = {}): Promise<AuthSession[]> {
+    let out = [...this.sessions.values()];
+    if (q.sub !== undefined) {
+      out = out.filter((s) => s.sub === q.sub);
+    }
+    out.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    if (q.limit !== undefined && q.limit >= 0) {
+      out = out.slice(0, q.limit);
+    }
+    return out.map((s) => ({ ...s }));
+  }
+
+  async listUsers(q: SessionQuery = {}): Promise<AuthUser[]> {
+    let out = [...this.users.values()];
+    if (q.sub !== undefined) {
+      out = out.filter((u) => u.sub === q.sub);
+    }
+    out.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    if (q.limit !== undefined && q.limit >= 0) {
+      out = out.slice(0, q.limit);
+    }
+    return out.map((u) => ({ ...u }));
   }
 
   async close(): Promise<void> {

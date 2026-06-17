@@ -142,6 +142,14 @@ export async function createApp({
   // run tokenless; each tool's `securitySchemes` are then enforced per-call).
   const authRuntime = await mcpServer.getAuthRuntime();
   if (authRuntime) {
+    // Co-hosted Authorization Server (A2): branded login + `/authorize` /
+    // `/token` / `/.well-known/oauth-authorization-server` / `/register`.
+    // Mounted at the app root, before the `/mcp` guard. `null` in A1-only mode.
+    if (authRuntime.authServerRouter) {
+      app.use(authRuntime.authServerRouter);
+    }
+    // RFC 9728 Protected Resource Metadata + AS metadata (also served by the
+    // AS router; the PRM router additionally covers the A1-only mode).
     app.use(authRuntime.metadataRouter);
     app.use(
       "/mcp",

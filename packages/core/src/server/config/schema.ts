@@ -107,10 +107,31 @@ export const bootstrapSchema = z.object({
   "auth.signingKey": z.string().optional(),
   /**
    * SECRET — the OAuth client secret for the upstream IdP (used in A2's proxy
-   * AS). Reserved here so A2 slots in cleanly. Env-only, never persisted to the
-   * DB nor returned in plaintext.
+   * AS). Env-only, never persisted to the DB nor returned in plaintext.
    */
   "auth.clientSecret": z.string().optional(),
+
+  // --- Upstream IdP for the co-hosted proxy Authorization Server (A2) ---
+  /**
+   * The OAuth client id registered with the upstream IdP (NON-secret). Required
+   * to co-host the AS; when set (with the authorize/token URLs) enpilink mounts
+   * `mcpAuthRouter` + a branded login page and proxies the flow upstream.
+   */
+  "auth.upstream.clientId": z.string().optional(),
+  /** Upstream provider's authorization endpoint URL. */
+  "auth.upstream.authorizationUrl": z.string().optional(),
+  /** Upstream provider's token endpoint URL. */
+  "auth.upstream.tokenUrl": z.string().optional(),
+  /** Optional upstream provider token revocation endpoint URL. */
+  "auth.upstream.revocationUrl": z.string().optional(),
+  /** Space-delimited scopes requested from the upstream provider. */
+  "auth.upstream.scopes": z.string().optional(),
+  /**
+   * Comma/space-delimited redirect URIs the host (OAuth client) may use — e.g.
+   * the ChatGPT/Claude connector callback URLs. Validated by the AS against the
+   * inbound `redirect_uri`.
+   */
+  "auth.redirectUris": z.string().optional(),
 });
 
 /** Runtime (DB-editable) settings. */
@@ -266,6 +287,48 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Security",
     editable: "readonly",
   },
+  "auth.upstream.clientId": {
+    label: "Upstream client id",
+    description:
+      "The OAuth client id registered with the upstream identity provider. Enables the co-hosted authorization server when set with the authorize/token URLs.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.upstream.authorizationUrl": {
+    label: "Upstream authorize URL",
+    description:
+      "The upstream identity provider's OAuth authorization endpoint the login flow redirects to.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.upstream.tokenUrl": {
+    label: "Upstream token URL",
+    description:
+      "The upstream identity provider's OAuth token endpoint used to exchange the authorization code.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.upstream.revocationUrl": {
+    label: "Upstream revoke URL",
+    description:
+      "Optional upstream identity provider token revocation endpoint.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.upstream.scopes": {
+    label: "Upstream scopes",
+    description:
+      "Space-delimited scopes requested from the upstream identity provider during login.",
+    group: "Security",
+    editable: "readonly",
+  },
+  "auth.redirectUris": {
+    label: "Allowed redirect URIs",
+    description:
+      "Comma- or space-delimited redirect URIs the OAuth client (host connector) is allowed to use, e.g. the ChatGPT/Claude callback URLs.",
+    group: "Security",
+    editable: "readonly",
+  },
   // --- Analytics (runtime) ---
   "analytics.enabled": {
     label: "Analytics enabled",
@@ -331,6 +394,12 @@ export const BOOTSTRAP_KEYS = [
   "auth.jwksUrl",
   "auth.signingKey",
   "auth.clientSecret",
+  "auth.upstream.clientId",
+  "auth.upstream.authorizationUrl",
+  "auth.upstream.tokenUrl",
+  "auth.upstream.revocationUrl",
+  "auth.upstream.scopes",
+  "auth.redirectUris",
 ] as const satisfies readonly BootstrapKey[];
 
 /** Runtime keys (DB-editable). */
@@ -379,6 +448,12 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "auth.jwksUrl": "ENPILINK_AUTH_JWKS_URL",
   "auth.signingKey": "ENPILINK_AUTH_SIGNING_KEY",
   "auth.clientSecret": "ENPILINK_AUTH_CLIENT_SECRET",
+  "auth.upstream.clientId": "ENPILINK_AUTH_UPSTREAM_CLIENT_ID",
+  "auth.upstream.authorizationUrl": "ENPILINK_AUTH_UPSTREAM_AUTHORIZATION_URL",
+  "auth.upstream.tokenUrl": "ENPILINK_AUTH_UPSTREAM_TOKEN_URL",
+  "auth.upstream.revocationUrl": "ENPILINK_AUTH_UPSTREAM_REVOCATION_URL",
+  "auth.upstream.scopes": "ENPILINK_AUTH_UPSTREAM_SCOPES",
+  "auth.redirectUris": "ENPILINK_AUTH_REDIRECT_URIS",
   "analytics.enabled": "ENPILINK_ANALYTICS",
   "analytics.sampleRate": "ENPILINK_CFG_ANALYTICS_SAMPLE_RATE",
   "retention.events": "ENPILINK_CFG_RETENTION_EVENTS",

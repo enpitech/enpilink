@@ -2,10 +2,13 @@ import type DatabaseConstructor from "better-sqlite3";
 import type { Database, Statement } from "better-sqlite3";
 import type {
   AnalyticsEvent,
+  AuthSession,
+  AuthUser,
   ConfigAuditEntry,
   EventQuery,
   LogEntry,
   LogQuery,
+  SessionQuery,
   StorageAdapter,
   StorageAdapterOptions,
 } from "./types.js";
@@ -35,6 +38,9 @@ export class SqliteStorageAdapter implements StorageAdapter {
     deleteConfig: Statement;
     insertAudit: Statement;
     allConfig: Statement;
+    upsertUser: Statement;
+    upsertSession: Statement;
+    getSession: Statement;
   } | null = null;
 
   constructor(opts?: StorageAdapterOptions) {
@@ -70,6 +76,21 @@ export class SqliteStorageAdapter implements StorageAdapter {
         "INSERT INTO config_audit (ts, key, old_value, new_value, actor) VALUES (@ts, @key, @old_value, @new_value, @actor)",
       ),
       allConfig: db.prepare("SELECT key, value FROM config"),
+      upsertUser: db.prepare(
+        `INSERT INTO auth_users (sub, issuer, created_at, last_seen_at, email, name)
+         VALUES (@sub, @issuer, @created_at, @last_seen_at, @email, @name)
+         ON CONFLICT(sub) DO UPDATE SET
+           issuer = @issuer, last_seen_at = @last_seen_at,
+           email = COALESCE(@email, email), name = COALESCE(@name, name)`,
+      ),
+      upsertSession: db.prepare(
+        `INSERT INTO auth_sessions (id, sub, issuer, client_id, token_ref, scopes, created_at, last_seen_at, expires_at)
+         VALUES (@id, @sub, @issuer, @client_id, @token_ref, @scopes, @created_at, @last_seen_at, @expires_at)
+         ON CONFLICT(id) DO UPDATE SET
+           last_seen_at = @last_seen_at, scopes = @scopes,
+           client_id = @client_id, expires_at = @expires_at`,
+      ),
+      getSession: db.prepare("SELECT * FROM auth_sessions WHERE id = ?"),
     };
   }
 
@@ -215,6 +236,75 @@ export class SqliteStorageAdapter implements StorageAdapter {
     return this.getAuditLog();
   }
 
+  async upsertUser(user: AuthUser): Promise<void> {
+    const { stmts } = this.require();
+    stmts.upsertUser.run({
+      sub: user.sub,
+      issuer: user.issuer ?? null,
+      created_at: user.createdAt,
+      last_seen_at: user.lastSeenAt,
+      email: user.email ?? null,
+      name: user.name ?? null,
+    });
+  }
+
+  async recordSession(session: AuthSession): Promise<void> {
+    const { stmts } = this.require();
+    stmts.upsertSession.run({
+      id: session.id,
+      sub: session.sub,
+      issuer: session.issuer ?? null,
+      client_id: session.clientId ?? null,
+      token_ref: session.tokenRef ?? null,
+      scopes: session.scopes ? session.scopes.join(" ") : null,
+      created_at: session.createdAt,
+      last_seen_at: session.lastSeenAt,
+      expires_at: session.expiresAt ?? null,
+    });
+  }
+
+  async getSession(id: string): Promise<AuthSession | undefined> {
+    const { stmts } = this.require();
+    const row = stmts.getSession.get(id) as SessionRow | undefined;
+    return row ? rowToSession(row) : undefined;
+  }
+
+  async listSessions(q: SessionQuery = {}): Promise<AuthSession[]> {
+    const { db } = this.require();
+    const where: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (q.sub !== undefined) {
+      where.push("sub = @sub");
+      params.sub = q.sub;
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const rows = db
+      .prepare(
+        `SELECT * FROM auth_sessions ${clause} ORDER BY last_seen_at DESC ${limit}`,
+      )
+      .all(params) as SessionRow[];
+    return rows.map(rowToSession);
+  }
+
+  async listUsers(q: SessionQuery = {}): Promise<AuthUser[]> {
+    const { db } = this.require();
+    const where: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (q.sub !== undefined) {
+      where.push("sub = @sub");
+      params.sub = q.sub;
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const rows = db
+      .prepare(
+        `SELECT * FROM auth_users ${clause} ORDER BY last_seen_at DESC ${limit}`,
+      )
+      .all(params) as UserRow[];
+    return rows.map(rowToUser);
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       this.db.close();
@@ -276,6 +366,70 @@ interface AuditRow {
   old_value: string | null;
   new_value: string;
   actor: string;
+}
+
+interface UserRow {
+  sub: string;
+  issuer: string | null;
+  created_at: number;
+  last_seen_at: number;
+  email: string | null;
+  name: string | null;
+}
+
+interface SessionRow {
+  id: string;
+  sub: string;
+  issuer: string | null;
+  client_id: string | null;
+  token_ref: string | null;
+  scopes: string | null;
+  created_at: number;
+  last_seen_at: number;
+  expires_at: number | null;
+}
+
+function rowToUser(r: UserRow): AuthUser {
+  const u: AuthUser = {
+    sub: r.sub,
+    createdAt: r.created_at,
+    lastSeenAt: r.last_seen_at,
+  };
+  if (r.issuer !== null) {
+    u.issuer = r.issuer;
+  }
+  if (r.email !== null) {
+    u.email = r.email;
+  }
+  if (r.name !== null) {
+    u.name = r.name;
+  }
+  return u;
+}
+
+function rowToSession(r: SessionRow): AuthSession {
+  const s: AuthSession = {
+    id: r.id,
+    sub: r.sub,
+    createdAt: r.created_at,
+    lastSeenAt: r.last_seen_at,
+  };
+  if (r.issuer !== null) {
+    s.issuer = r.issuer;
+  }
+  if (r.client_id !== null) {
+    s.clientId = r.client_id;
+  }
+  if (r.token_ref !== null) {
+    s.tokenRef = r.token_ref;
+  }
+  if (r.scopes !== null) {
+    s.scopes = r.scopes.split(/\s+/).filter(Boolean);
+  }
+  if (r.expires_at !== null) {
+    s.expiresAt = r.expires_at;
+  }
+  return s;
 }
 
 function rowToEvent(r: EventRow): AnalyticsEvent {
@@ -353,4 +507,28 @@ CREATE TABLE IF NOT EXISTS config_audit (
   actor TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_key ON config_audit (key);
+
+CREATE TABLE IF NOT EXISTS auth_users (
+  sub TEXT PRIMARY KEY,
+  issuer TEXT,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  email TEXT,
+  name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_auth_users_last_seen ON auth_users (last_seen_at);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id TEXT PRIMARY KEY,
+  sub TEXT NOT NULL,
+  issuer TEXT,
+  client_id TEXT,
+  token_ref TEXT,
+  scopes TEXT,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  expires_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_sub ON auth_sessions (sub);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_last_seen ON auth_sessions (last_seen_at);
 `;

@@ -1,9 +1,12 @@
 import type {
   AnalyticsEvent,
+  AuthSession,
+  AuthUser,
   ConfigAuditEntry,
   EventQuery,
   LogEntry,
   LogQuery,
+  SessionQuery,
   StorageAdapter,
   StorageAdapterOptions,
 } from "./types.js";
@@ -264,6 +267,90 @@ export class PostgresStorageAdapter implements StorageAdapter {
     }));
   }
 
+  async upsertUser(user: AuthUser): Promise<void> {
+    const pool = this.require();
+    await pool.query(
+      `INSERT INTO auth_users (sub, issuer, created_at, last_seen_at, email, name)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (sub) DO UPDATE SET
+         issuer = $2, last_seen_at = $4,
+         email = COALESCE($5, auth_users.email),
+         name = COALESCE($6, auth_users.name)`,
+      [
+        user.sub,
+        user.issuer ?? null,
+        user.createdAt,
+        user.lastSeenAt,
+        user.email ?? null,
+        user.name ?? null,
+      ],
+    );
+  }
+
+  async recordSession(session: AuthSession): Promise<void> {
+    const pool = this.require();
+    await pool.query(
+      `INSERT INTO auth_sessions (id, sub, issuer, client_id, token_ref, scopes, created_at, last_seen_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET
+         last_seen_at = $8, scopes = $6, client_id = $4, expires_at = $9`,
+      [
+        session.id,
+        session.sub,
+        session.issuer ?? null,
+        session.clientId ?? null,
+        session.tokenRef ?? null,
+        session.scopes ? session.scopes.join(" ") : null,
+        session.createdAt,
+        session.lastSeenAt,
+        session.expiresAt ?? null,
+      ],
+    );
+  }
+
+  async getSession(id: string): Promise<AuthSession | undefined> {
+    const pool = this.require();
+    const { rows } = await pool.query<SessionRow>(
+      "SELECT * FROM auth_sessions WHERE id = $1",
+      [id],
+    );
+    return rows[0] ? rowToSession(rows[0]) : undefined;
+  }
+
+  async listSessions(q: SessionQuery = {}): Promise<AuthSession[]> {
+    const pool = this.require();
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.sub !== undefined) {
+      params.push(q.sub);
+      where.push(`sub = $${params.length}`);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const { rows } = await pool.query<SessionRow>(
+      `SELECT * FROM auth_sessions ${clause} ORDER BY last_seen_at DESC ${limit}`,
+      params,
+    );
+    return rows.map(rowToSession);
+  }
+
+  async listUsers(q: SessionQuery = {}): Promise<AuthUser[]> {
+    const pool = this.require();
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.sub !== undefined) {
+      params.push(q.sub);
+      where.push(`sub = $${params.length}`);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const { rows } = await pool.query<UserRow>(
+      `SELECT * FROM auth_users ${clause} ORDER BY last_seen_at DESC ${limit}`,
+      params,
+    );
+    return rows.map(rowToUser);
+  }
+
   async close(): Promise<void> {
     if (this.pool) {
       await this.pool.end();
@@ -341,6 +428,70 @@ function rowToLog(r: LogRow): LogEntry {
   return l;
 }
 
+interface UserRow {
+  sub: string;
+  issuer: string | null;
+  created_at: number | string;
+  last_seen_at: number | string;
+  email: string | null;
+  name: string | null;
+}
+
+interface SessionRow {
+  id: string;
+  sub: string;
+  issuer: string | null;
+  client_id: string | null;
+  token_ref: string | null;
+  scopes: string | null;
+  created_at: number | string;
+  last_seen_at: number | string;
+  expires_at: number | string | null;
+}
+
+function rowToUser(r: UserRow): AuthUser {
+  const u: AuthUser = {
+    sub: r.sub,
+    createdAt: Number(r.created_at),
+    lastSeenAt: Number(r.last_seen_at),
+  };
+  if (r.issuer !== null) {
+    u.issuer = r.issuer;
+  }
+  if (r.email !== null) {
+    u.email = r.email;
+  }
+  if (r.name !== null) {
+    u.name = r.name;
+  }
+  return u;
+}
+
+function rowToSession(r: SessionRow): AuthSession {
+  const s: AuthSession = {
+    id: r.id,
+    sub: r.sub,
+    createdAt: Number(r.created_at),
+    lastSeenAt: Number(r.last_seen_at),
+  };
+  if (r.issuer !== null) {
+    s.issuer = r.issuer;
+  }
+  if (r.client_id !== null) {
+    s.clientId = r.client_id;
+  }
+  if (r.token_ref !== null) {
+    s.tokenRef = r.token_ref;
+  }
+  if (r.scopes !== null) {
+    s.scopes = r.scopes.split(/\s+/).filter(Boolean);
+  }
+  if (r.expires_at !== null) {
+    s.expiresAt = Number(r.expires_at);
+  }
+  return s;
+}
+
 /**
  * Schema. `BIGINT` for epoch-ms timestamps; `BIGSERIAL` ids give a stable
  * insertion order for most-recent-first queries (`ORDER BY id DESC`). `meta` /
@@ -386,4 +537,28 @@ CREATE TABLE IF NOT EXISTS config_audit (
   actor TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_key ON config_audit (key);
+
+CREATE TABLE IF NOT EXISTS auth_users (
+  sub TEXT PRIMARY KEY,
+  issuer TEXT,
+  created_at BIGINT NOT NULL,
+  last_seen_at BIGINT NOT NULL,
+  email TEXT,
+  name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_auth_users_last_seen ON auth_users (last_seen_at);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id TEXT PRIMARY KEY,
+  sub TEXT NOT NULL,
+  issuer TEXT,
+  client_id TEXT,
+  token_ref TEXT,
+  scopes TEXT,
+  created_at BIGINT NOT NULL,
+  last_seen_at BIGINT NOT NULL,
+  expires_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_sub ON auth_sessions (sub);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_last_seen ON auth_sessions (last_seen_at);
 `;

@@ -21,13 +21,20 @@ export {
   type BearerAuthMiddlewareOptions,
   requireBearerAuth,
 } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
-export type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
+export type {
+  OAuthServerProvider,
+  OAuthTokenVerifier,
+} from "@modelcontextprotocol/sdk/server/auth/provider.js";
+export { ProxyOAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/providers/proxyProvider.js";
 export {
   type AuthMetadataOptions,
+  type AuthRouterOptions,
   getOAuthProtectedResourceMetadataUrl,
   mcpAuthMetadataRouter,
+  mcpAuthRouter,
 } from "@modelcontextprotocol/sdk/server/auth/router.js";
 export type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+export type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
 
 /**
  * Like `requireBearerAuth`, but lets requests through when no
@@ -93,6 +100,48 @@ export interface AuthConfig {
    * omitted, falls back to the public `/mcp` URL derived per request.
    */
   resourceServerUrl?: string;
+  /**
+   * Upstream IdP configuration (A2). When present, enpilink co-hosts an OAuth
+   * Authorization Server (the SDK's `mcpAuthRouter` + `ProxyOAuthServerProvider`)
+   * that proxies the OAuth flow to this upstream provider and serves a branded
+   * login page. When omitted, only the A1 resource-server behavior is active
+   * (validate tokens against the configured issuer/JWKS).
+   */
+  upstream?: UpstreamIdpConfig;
+  /**
+   * Redirect URIs the host (OAuth client) is allowed to use — the AS validates
+   * the inbound `redirect_uri` against this list. Typically the ChatGPT/Claude
+   * connector callback URLs. When omitted, falls back to the env-only
+   * `auth.redirectUris`. Loopback ports are relaxed per RFC 8252.
+   */
+  redirectUris?: string[];
+}
+
+/**
+ * Configuration for the upstream identity provider the co-hosted Authorization
+ * Server proxies to (A2). The OAuth flow runs: host → OUR `/authorize` (branded
+ * page) → upstream `authorize` → upstream login → callback to OUR `/token`
+ * proxy → token. We validate the issued token via {@link AuthConfig.jwksUrl}.
+ *
+ * The `clientSecret` is NEVER part of this object — it is read from the
+ * env-only `auth.clientSecret` secret at build time and never persisted,
+ * returned, or logged.
+ */
+export interface UpstreamIdpConfig {
+  /** Upstream authorization endpoint URL. */
+  authorizationUrl: string;
+  /** Upstream token endpoint URL. */
+  tokenUrl: string;
+  /** Optional upstream token revocation endpoint. */
+  revocationUrl?: string;
+  /**
+   * The OAuth client id registered with the upstream provider (NON-secret —
+   * may come from config). The matching client secret is read from the
+   * env-only `auth.clientSecret`.
+   */
+  clientId: string;
+  /** Default scopes requested from the upstream provider. */
+  scopes?: string[];
 }
 
 /** Options for {@link createJwtVerifier}. Injectable for deterministic tests. */

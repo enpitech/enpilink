@@ -98,6 +98,27 @@ Your adapter must implement the full `StorageAdapter` interface: `init`,
 `getConfigAudit`, and `close`. Treat config values as opaque, write an audit row
 on every `setConfig`, and return queries most-recent-first.
 
+### End-user auth tracking (optional)
+
+When end-user [authentication](/guides/auth) is enabled with a co-hosted
+authorization server, enpilink records a **user** and a **session** on every
+successful sign-in. Adapters may implement these **optional** methods (the
+built-in `memory` / `sqlite` / `postgres` adapters all do; custom adapters that
+omit them simply skip tracking):
+
+| Method | Purpose |
+| --- | --- |
+| `upsertUser(user)` | Insert-or-update a tracked user keyed by `sub` (`createdAt` sticks; `lastSeenAt` bumps). |
+| `recordSession(session)` | Record / refresh a session keyed by its id. |
+| `getSession(id)` | Read one session. |
+| `listSessions(query?)` | List sessions, most recent first (filter by `sub`, cap with `limit`). |
+| `listUsers(query?)` | List tracked users, most recently seen first. |
+
+These writes are **best-effort**: enpilink fire-and-forgets them so they never
+block or slow a tool call. **Tokens at rest:** a session stores only an opaque
+SHA-256 `tokenRef` — never the raw upstream access/refresh token — so there is
+no credential at rest to encrypt or leak.
+
 ## OpenTelemetry export
 
 Beyond storage, you can **mirror the analytics stream to an OpenTelemetry

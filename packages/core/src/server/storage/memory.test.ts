@@ -106,4 +106,58 @@ describe("MemoryStorageAdapter", () => {
       expect(await store.getConfigAudit()).toHaveLength(0);
     });
   });
+
+  describe("auth users + sessions (A2)", () => {
+    it("upserts a user (createdAt sticks, lastSeenAt bumps) and lists it", async () => {
+      await store.upsertUser?.({
+        sub: "u-1",
+        issuer: "iss",
+        createdAt: 100,
+        lastSeenAt: 100,
+        email: "a@b.c",
+      });
+      await store.upsertUser?.({
+        sub: "u-1",
+        issuer: "iss",
+        createdAt: 999,
+        lastSeenAt: 200,
+      });
+      const users = (await store.listUsers?.()) ?? [];
+      expect(users).toHaveLength(1);
+      expect(users[0]).toMatchObject({
+        sub: "u-1",
+        createdAt: 100,
+        lastSeenAt: 200,
+        email: "a@b.c",
+      });
+    });
+
+    it("records a session, reads it back, and refreshes on repeat id", async () => {
+      const s = {
+        id: "sess-1",
+        sub: "u-1",
+        issuer: "iss",
+        clientId: "c",
+        tokenRef: "deadbeef",
+        scopes: ["read", "write"],
+        createdAt: 100,
+        lastSeenAt: 100,
+        expiresAt: 9999,
+      };
+      await store.recordSession?.(s);
+      await store.recordSession?.({ ...s, lastSeenAt: 250 });
+      const got = await store.getSession?.("sess-1");
+      expect(got).toMatchObject({
+        sub: "u-1",
+        tokenRef: "deadbeef",
+        createdAt: 100,
+        lastSeenAt: 250,
+      });
+      expect(got?.scopes).toEqual(["read", "write"]);
+      const all = (await store.listSessions?.()) ?? [];
+      expect(all).toHaveLength(1);
+      const filtered = (await store.listSessions?.({ sub: "absent" })) ?? [];
+      expect(filtered).toHaveLength(0);
+    });
+  });
 });

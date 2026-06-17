@@ -12,6 +12,16 @@ Enable user authentication so tools can access user-specific data.
 > (`oauth2` → 401/403, `noauth` → runs tokenless). Read identity with
 > `getAuthInfo(extra)`. The manual wiring below is the lower-level path / for
 > custom verifiers. See the Authentication guide.
+>
+> **Co-hosted Authorization Server:** to also host the OAuth endpoints + a
+> **branded login page** and proxy to a configurable upstream IdP
+> (Google/GitHub/Auth0), add an `upstream` block to the `auth` config
+> (`{ clientId, authorizationUrl, tokenUrl, scopes }`) plus `redirectUris`, and
+> set the env-only `ENPILINK_AUTH_CLIENT_SECRET`. enpilink then mounts
+> `/.well-known/oauth-authorization-server`, `/authorize`, `/token`, `/register`
+> and **records a user + session (keyed by `sub`) on every sign-in** — storing
+> only an opaque token reference, never the raw token. See the Authentication
+> guide → "Co-hosting the Authorization Server".
 
 ## How it works
 

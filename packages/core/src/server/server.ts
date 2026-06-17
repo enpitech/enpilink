@@ -36,9 +36,12 @@ import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
 import {
   type AuthRuntime,
+  type AuthRuntimeSecrets,
   buildAuthRuntime,
+  parseList,
   resolveAuthConfig,
 } from "./auth-runtime.js";
+import { resolveConfig } from "./config/index.js";
 import { createApp } from "./express.js";
 import { getActiveStorage, serverLog, setActiveStorage } from "./log-sink.js";
 import type {
@@ -723,8 +726,57 @@ export class McpServer<
     // always anchored at the origin root inside `buildAuthRuntime`.
     const fallback =
       config.resourceServerUrl ?? config.issuer ?? "http://localhost";
-    this.authRuntime = buildAuthRuntime(config, fallback);
+
+    // Secret/dynamic inputs for A2's co-hosted AS. The upstream client SECRET
+    // and the redirect URIs are read here (env-only, never persisted/returned)
+    // — programmatic config is authoritative when supplied. The storage getter
+    // feeds the session-recording verifier.
+    const secrets = await this.resolveAuthSecrets(config);
+    this.authRuntime = buildAuthRuntime(config, fallback, secrets);
     return this.authRuntime;
+  }
+
+  /**
+   * Resolve the env-only secrets + dynamic inputs the co-hosted AS (A2) needs:
+   * the upstream client secret (`auth.clientSecret`), the allowed redirect URIs,
+   * and a storage getter for session recording. Secrets are read from the
+   * resolved config's in-process values (never the masked API) and never
+   * persisted/returned/logged.
+   *
+   * @internal
+   */
+  private async resolveAuthSecrets(
+    config: AuthConfig,
+  ): Promise<AuthRuntimeSecrets> {
+    // Only bother resolving secrets when an upstream AS is in play.
+    if (!config.upstream) {
+      return { getStorage: () => this.activeStorage };
+    }
+    let values: Record<string, unknown> = {};
+    try {
+      const resolved = await resolveConfig(this.activeStorage);
+      values = resolved.values as Record<string, unknown>;
+    } catch {
+      values = {};
+    }
+    const clientSecret =
+      typeof values["auth.clientSecret"] === "string"
+        ? (values["auth.clientSecret"] as string)
+        : undefined;
+    // Programmatic redirect URIs win; otherwise read the env-only config.
+    const redirectUris =
+      config.redirectUris ??
+      parseList(
+        typeof values["auth.redirectUris"] === "string"
+          ? (values["auth.redirectUris"] as string)
+          : undefined,
+      );
+    return {
+      getStorage: () => this.activeStorage,
+      clientSecret,
+      redirectUris,
+      appName: this.serverInfo.name,
+    };
   }
 
   /**

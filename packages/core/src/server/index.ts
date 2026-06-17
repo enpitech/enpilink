@@ -16,6 +16,7 @@ export {
   type AuthConfig,
   type AuthInfo,
   type AuthMetadataOptions,
+  type AuthRouterOptions,
   type BearerAuthMiddlewareOptions,
   createJwtVerifier,
   getAuthInfo,
@@ -25,9 +26,14 @@ export {
   InvalidTokenError,
   type JwtVerifierOptions,
   mcpAuthMetadataRouter,
+  mcpAuthRouter,
+  type OAuthClientInformationFull,
+  type OAuthServerProvider,
   type OAuthTokenVerifier,
   optionalBearerAuth,
+  ProxyOAuthServerProvider,
   requireBearerAuth,
+  type UpstreamIdpConfig,
 } from "./auth.js";
 export {
   AuthRequiredError,
@@ -35,9 +41,20 @@ export {
 } from "./auth-enforce.js";
 export {
   type AuthRuntime,
+  type AuthRuntimeSecrets,
   buildAuthRuntime,
+  parseList,
   resolveAuthConfig,
 } from "./auth-runtime.js";
+export {
+  type AuthServerRouterOptions,
+  brandedLoginPage,
+  buildAuthServerRouter,
+  buildProxyProvider,
+  type ProxyProviderOptions,
+  persistSession,
+  recordingVerifier,
+} from "./auth-server.js";
 export {
   allKeyMeta,
   BOOTSTRAP_KEYS,

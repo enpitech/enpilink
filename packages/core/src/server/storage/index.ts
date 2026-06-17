@@ -69,10 +69,13 @@ export {
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
 export type {
   AnalyticsEvent,
+  AuthSession,
+  AuthUser,
   ConfigAuditEntry,
   EventQuery,
   LogEntry,
   LogQuery,
+  SessionQuery,
   StorageAdapter,
   StorageAdapterFactory,
   StorageAdapterOptions,

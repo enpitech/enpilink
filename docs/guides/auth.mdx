@@ -9,11 +9,17 @@ default** — until you enable it, `/mcp` stays open exactly as before and
 existing apps are unaffected.
 
 <Note>
-This page covers the **resource-server foundation** (validating tokens,
-advertising where to sign in, enforcing per-tool scopes). enpilink does **not
-yet ship a hosted login page / authorization server** — that is on the
-roadmap. For now you point enpilink at an existing OAuth authorization server
-(your own, or a provider's) via its issuer + JWKS URL.
+enpilink works in **two modes**, both opt-in:
+
+1. **Resource-server only** — point enpilink at an existing OAuth authorization
+   server via its issuer + JWKS URL. enpilink validates tokens and enforces
+   per-tool scopes (the foundation; see [The model](#the-model)).
+2. **Co-hosted Authorization Server** (recommended for real hosts) — enpilink
+   *also* hosts the OAuth endpoints + a **branded login page** and proxies the
+   actual credential check to a configurable **upstream identity provider**
+   (Google, GitHub, Auth0, your own). The host discovers and completes OAuth
+   against enpilink; every successful sign-in is **tracked** (see
+   [Co-hosting the Authorization Server](#co-hosting-the-authorization-server)).
 </Note>
 
 ## The model
@@ -120,9 +126,136 @@ validates standard JWTs against a JWKS URL. To use token introspection or a
 provider SDK instead, pass your own `verifier` (any `OAuthTokenVerifier`) in
 the `auth` config — it overrides the built-in one.
 
+## Co-hosting the Authorization Server
+
+In resource-server-only mode the host still has to find an authorization server
+to sign in at. With a **co-hosted Authorization Server**, enpilink *is* that
+server: it serves the OAuth discovery + endpoints, shows a **branded login
+page**, and delegates the real credential check to a configurable **upstream
+identity provider**. This is the most robust path to completing OAuth from a
+real ChatGPT/Claude connector, and it lets enpilink **track every sign-in**.
+
+### The login flow
+
+```
+host (ChatGPT/Claude)
+  │  1. tokenless call → 401 + WWW-Authenticate (resource_metadata=)
+  │  2. discovers our AS via /.well-known/oauth-protected-resource
+  │     → /.well-known/oauth-authorization-server
+  ▼
+enpilink /authorize  ──3. branded login page ("Continue to sign in")──▶ user
+  │  4. redirect to the UPSTREAM provider's /authorize
+  ▼
+upstream IdP (Google/GitHub/Auth0/…)  ──5. user authenticates──▶
+  │  6. redirect back to the host's callback with ?code=…
+  ▼
+enpilink /token  ──7. proxies the code exchange to the upstream /token──▶
+  │  8. returns the upstream-issued access token to the host
+  ▼
+host attaches the token to every /mcp request
+enpilink validates it (JWKS) and RECORDS a session keyed by `sub`
+```
+
+The branded page is **server-rendered and out-of-band** (the browser tab the
+host opens), not the chat iframe. It is enpilink-teal and consistent with the
+console; deeper customization arrives with the Auth tab.
+
+### Provider approach: transparent proxy
+
+enpilink uses the MCP SDK's **`ProxyOAuthServerProvider`**: tokens are issued by
+the **upstream** provider and enpilink validates them via the upstream JWKS
+(the same [`createJwtVerifier`](#custom-verifiers) as resource-server mode). We
+never mint our own tokens, so enpilink is **not** itself a token issuer — a
+smaller security surface and the simplest path to a working real-host loop.
+
+<Note>
+Guest / anonymous tracking (a later milestone) will require enpilink to mint
+its own tokens, which uses a different (federating) provider. The proxy is the
+right choice for the logged-in flow today.
+</Note>
+
+### Configuring the upstream IdP
+
+Set the upstream provider's endpoints + your registered client id. The client
+**secret is env-only** (`ENPILINK_AUTH_CLIENT_SECRET`) — never in code, the DB,
+or any API response. Auth stays **off** until you set this.
+
+```bash
+ENPILINK_AUTH=1
+# This server (the AS/RS) — issuer is enpilink's own public origin:
+ENPILINK_AUTH_ISSUER=https://my-app.example.com
+ENPILINK_AUTH_AUDIENCE=https://my-app.example.com/mcp
+ENPILINK_AUTH_JWKS_URL=https://accounts.google.com/.well-known/jwks   # the UPSTREAM JWKS (validates issued tokens)
+
+# Upstream identity provider (example: Google):
+ENPILINK_AUTH_UPSTREAM_CLIENT_ID=xxxx.apps.googleusercontent.com
+ENPILINK_AUTH_UPSTREAM_AUTHORIZATION_URL=https://accounts.google.com/o/oauth2/v2/auth
+ENPILINK_AUTH_UPSTREAM_TOKEN_URL=https://oauth2.googleapis.com/token
+ENPILINK_AUTH_UPSTREAM_SCOPES="openid email profile"
+ENPILINK_AUTH_CLIENT_SECRET=••••   # SECRET — env only
+
+# The host connector callback URLs allowed as redirect targets:
+ENPILINK_AUTH_REDIRECT_URIS="https://chatgpt.com/connector/oauth/<id>,https://claude.ai/api/mcp/auth_callback"
+```
+
+Programmatically, pass an `upstream` block (and optional `redirectUris`) in the
+`auth` config:
+
+```typescript
+const server = new McpServer({ name: "my-app", version: "1.0.0" }, undefined, {
+  auth: {
+    enabled: true,
+    issuer: "https://my-app.example.com",
+    audience: "https://my-app.example.com/mcp",
+    jwksUrl: "https://accounts.google.com/.well-known/jwks",
+    redirectUris: ["https://claude.ai/api/mcp/auth_callback"],
+    upstream: {
+      clientId: "xxxx.apps.googleusercontent.com",
+      authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      tokenUrl: "https://oauth2.googleapis.com/token",
+      scopes: ["openid", "email", "profile"],
+    },
+  },
+});
+```
+
+### Authorization-server endpoints
+
+When an upstream is configured, enpilink mounts (at the app root):
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/.well-known/oauth-authorization-server` | RFC 8414 AS metadata (discovery). |
+| `/.well-known/oauth-protected-resource` | RFC 9728 PRM — lists this AS. |
+| `/authorize` | Branded login page → redirect to the upstream provider. |
+| `/token` | Proxies the authorization-code / refresh exchange upstream. |
+| `/register` | Dynamic client registration — only if the upstream supports it. |
+
+### Tracking users & sessions
+
+On every successful token validation, enpilink upserts a **user** (keyed by the
+`sub` claim) and records a **session** into the active storage adapter
+(`memory` / `sqlite` / `postgres`). The write is best-effort — it never blocks
+or slows a tool call (failures are swallowed and logged, like analytics).
+
+Recorded: `sub`, issuer, client/host id, scopes, created/last-seen timestamps,
+token expiry, and an **opaque token reference**. Adapters expose
+`upsertUser` / `recordSession` / `getSession` / `listSessions` / `listUsers`
+(see [Storage → End-user auth tracking](/guides/storage#end-user-auth-tracking-optional)).
+
+### Tokens at rest
+
+enpilink **never stores the raw upstream access or refresh token**. The session
+row holds only a **one-way SHA-256 reference** (`tokenRef`) used to correlate
+and de-duplicate sessions. Because no secret token is persisted, there is
+nothing at rest to decrypt or leak — no encryption key is required for session
+storage. (The `ENPILINK_AUTH_SIGNING_KEY` secret is reserved for the future
+guest-token / federating mode.)
+
 ## Secrets
 
 Any auth secret (`ENPILINK_AUTH_SIGNING_KEY`, `ENPILINK_AUTH_CLIENT_SECRET`)
 is **env-only**: shown masked + read-only in the Configuration UI, never
 persisted to the database, never returned in plaintext by any API — the same
-treatment as the admin token.
+treatment as the admin token. The upstream **client id** and endpoint URLs are
+non-secret config and may be set via file/env normally.
