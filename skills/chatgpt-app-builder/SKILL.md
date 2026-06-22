@@ -42,4 +42,4 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 - **Ship to production** → [deploy.md](references/deploy.md): when ready to deploy via enpitech
 - **Publish to ChatGPT Directory** → [publish.md](references/publish.md): when ready to submit for review
 
-Full API docs: [https://docs.enpitech.dev/api-reference.md](https://docs.enpitech.dev/api-reference.md)
+Full API docs: [https://docs.enpitech.dev/api-reference](https://docs.enpitech.dev/api-reference)

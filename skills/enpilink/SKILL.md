@@ -45,4 +45,4 @@ enpilink is **account-free** — no login, no vendor lock-in.
 - **Ship to production** → [deploy.md](references/deploy.md): build with `enpilink build`, self-host with `node dist/__entry.js` (reads `__PORT`, default 3000) on Node / Docker / Cloudflare / Vercel.
 - **Publish to ChatGPT/Claude Directories** → [publish.md](references/publish.md): when ready to submit for review.
 
-Full API docs: [https://docs.enpitech.dev/api-reference.md](https://docs.enpitech.dev/api-reference.md)
+Full API docs: [https://docs.enpitech.dev/api-reference](https://docs.enpitech.dev/api-reference)
