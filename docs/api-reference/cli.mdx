@@ -34,6 +34,13 @@ enpilink dev
 | `--mock` | Seed the Dashboard with deterministic demo analytics for demos/screenshots. Implies analytics-on and in-memory storage for the session — never touches disk and vanishes on exit. Dev-only; ignored in production. |
 | `-v, --verbose` | Show tunnel logs. |
 
+<Note>
+**The tunnel URL is stable across runs** — it does **not** rotate. enpilink persists a dedicated ed25519 key at `~/.enpilink/id_ed25519` (generated once, idempotently) and always connects with `ssh -i <that key>`; srv.us derives the subdomain from the key, so the same machine prints the same `https://<hash>.srv.us` URL every run.
+
+- **Reset / rotate the URL:** delete `~/.enpilink/id_ed25519` (and `.pub`). The next `--tunnel` run regenerates the key and you get a new URL.
+- **Caveats:** a different `$HOME`, OS user, container, or CI runner — or a different machine — has its own key, hence a different URL. To keep one URL across machines, copy `~/.enpilink/id_ed25519` (and `.pub`) to each one.
+</Note>
+
 You can also set the port via the `PORT` environment variable:
 
 ```bash

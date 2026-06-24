@@ -90,6 +90,12 @@ export interface AuthConfig {
   /**
    * The RFC 8707 audience (`aud`) inbound tokens must be bound to — typically
    * the public `/mcp` URL. Prevents confused-deputy token replay.
+   *
+   * This must be a STABLE, statically-configured value: both minting and
+   * verification use `audience ?? resourceServerUrl` resolved ONCE at boot (see
+   * `auth-runtime.ts`), never recomputed per request. Pin it explicitly (e.g.
+   * `ENPILINK_AUTH_AUDIENCE`) so issued and validated tokens always agree —
+   * letting it vary breaks token validation.
    */
   audience?: string;
   /** JWKS URL for the built-in JWT verifier (signature verification). */
@@ -103,8 +109,12 @@ export interface AuthConfig {
   verifier?: OAuthTokenVerifier;
   /**
    * The public base URL of this resource server (used to compute the PRM
-   * `resource` identifier + the `resource_metadata` URL in challenges). When
-   * omitted, falls back to the public `/mcp` URL derived per request.
+   * `resource` identifier + the `resource_metadata` URL in challenges). This is
+   * resolved ONCE at boot — `getAuthRuntime()` is memoized (`server.ts`), so the
+   * value is NOT recomputed per request. When omitted, it is derived from
+   * `issuer` (enpilink co-hosts the AS, so the issuer origin is this server),
+   * then `http://localhost` as a last resort. It also seeds the default token
+   * `audience` ({@link AuthConfig.audience}), so it should be a stable URL.
    */
   resourceServerUrl?: string;
   /**

@@ -413,6 +413,46 @@ Open the console at `http://localhost:5454/` and switch to the **Auth** tab: onc
 a guest completes the flow (via `/authorize/guest`), the session shows up flagged
 as **guest**.
 
+### Stable dev URL for OAuth (srv.us) + Claude connector
+
+OAuth needs a **stable public URL**: the connector registration (DCR), the token
+`aud` binding, and the saved connector all key off it. The
+[`enpilink dev --tunnel`](/quickstart/test-your-app) srv.us URL is exactly that —
+it is **stable across runs** (it does *not* rotate), because enpilink persists a
+dedicated ed25519 key at `~/.enpilink/id_ed25519` and srv.us derives the
+subdomain from that key. So you can configure OAuth once and it survives across
+dev sessions — no re-adding the connector each time. (See
+[Stability & resetting the URL](/quickstart/test-your-app) for how to rotate it
+and the cross-machine caveats.)
+
+A reserved-subdomain / `--tunnel-host` knob is **not** needed — the persisted key
+already pins the subdomain.
+
+Given a printed tunnel URL `https://<hash>.srv.us`, set the auth env to that
+origin (note: `ISSUER` is the **origin**, `AUDIENCE` is the **pinned `/mcp`
+URL**):
+
+```bash
+ENPILINK_AUTH=1
+ENPILINK_AUTH_ISSUER=https://<hash>.srv.us              # the tunnel origin, no /mcp
+ENPILINK_AUTH_AUDIENCE=https://<hash>.srv.us/mcp        # pinned (must match across runs)
+ENPILINK_AUTH_SIGNING_KEY=••••                          # SECRET — env only (enables guest mode)
+ENPILINK_AUTH_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback
+# Leave resourceServerUrl unset — it auto-derives from ENPILINK_AUTH_ISSUER.
+# Guest-only: omit ENPILINK_AUTH_UPSTREAM_* and ENPILINK_AUTH_CLIENT_SECRET.
+```
+
+Then add the connector in Claude with URL `https://<hash>.srv.us/mcp`. Because the
+URL is stable, the registration and consent persist — you add it once.
+
+With **no upstream** configured (guest-only), the branded page Claude opens shows
+only **"Continue as guest"**, which mints a signed guest token (`sub =
+guest:<id>`); [`getAuthInfo(extra)`](#reading-the-user-in-your-view) /
+[`useAuth`](#useauth) then report `state: "guest"`. `{ type: "noauth" }` tools run
+for guests; `{ type: "oauth2" }` tools return `403` until you add a real upstream
+IdP. To add real login later, set `ENPILINK_AUTH_UPSTREAM_*` +
+`ENPILINK_AUTH_CLIENT_SECRET` (the URL — and so the connector — stays the same).
+
 ### Guest mode & lazy / step-up auth
 
 In federating mode the branded entry page offers **"Continue as guest"**

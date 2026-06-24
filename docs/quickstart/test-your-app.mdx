@@ -67,7 +67,9 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is stable: it's derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run. Add `--verbose` to stream the raw tunnel logs.
+enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is **stable across runs** (it does not rotate): it's derived from an ed25519 key persisted at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run — handy for OAuth, saved connectors, and bookmarks. Add `--verbose` to stream the raw tunnel logs.
+
+To **reset/rotate** the URL, delete `~/.enpilink/id_ed25519` (and `.pub`); the next run regenerates the key and prints a new URL. A different `$HOME`, OS user, container, CI runner, or machine has its own key and so a different URL — copy `~/.enpilink/id_ed25519` (and `.pub`) to keep one URL across machines.
 
 <Note>
 **Windows.** The tunnel uses the OpenSSH client, which ships with Windows 10 (1809+) and Windows 11 — no extra install. If you see `OpenSSH client not found`, enable it via **Settings → Apps → Optional features → Add → OpenSSH Client** (or install OpenSSH), then restart your terminal. On Windows the auto-generated key's permissions are locked to your user account with `icacls` (Windows ignores POSIX file modes), so OpenSSH won't reject it as an "UNPROTECTED PRIVATE KEY FILE".
@@ -122,7 +124,9 @@ deno task dev --tunnel
 ```
 </CodeGroup>
 
-enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is stable: it's derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run. Add `--verbose` to stream the raw tunnel logs.
+enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is **stable across runs** (it does not rotate): it's derived from an ed25519 key persisted at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run — handy for OAuth, saved connectors, and bookmarks. Add `--verbose` to stream the raw tunnel logs.
+
+To **reset/rotate** the URL, delete `~/.enpilink/id_ed25519` (and `.pub`); the next run regenerates the key and prints a new URL. A different `$HOME`, OS user, container, CI runner, or machine has its own key and so a different URL — copy `~/.enpilink/id_ed25519` (and `.pub`) to keep one URL across machines.
 
 #### 2. Connect to Claude
 

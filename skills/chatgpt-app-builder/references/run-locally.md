@@ -40,10 +40,16 @@ bundled with Windows 10 1809+/11):
 {pm} run dev -- --tunnel      # or: enpilink dev --tunnel
 ```
 
-enpilink auto-generates an ed25519 key at `~/.enpilink/id_ed25519` on first use
-and prints a stable public URL (e.g. `https://6x7k9m2qwerasdf.srv.us`). Extract
-that URL from the dev-server output; the MCP endpoint is `{tunnel-url}/mcp`. Add
-`--verbose` to stream the raw tunnel logs.
+enpilink persists an ed25519 key at `~/.enpilink/id_ed25519` (generated once) and
+always connects with `ssh -i` that key; srv.us derives the subdomain from it, so
+the URL is **stable across runs** (NOT rotating) — e.g. `https://6x7k9m2qwerasdf.srv.us`.
+Extract that URL from the dev-server output; the MCP endpoint is `{tunnel-url}/mcp`.
+Add `--verbose` to stream the raw tunnel logs.
+
+To reset/rotate the URL, delete `~/.enpilink/id_ed25519` (and `.pub`) — the next
+run regenerates the key and yields a new URL. Caveat: a different `$HOME`, OS
+user, container, CI runner, or machine has its own key, hence a different URL;
+copy the key (+`.pub`) to keep one URL across machines.
 
 **Windows:** if you see `OpenSSH client not found`, enable it via Settings →
 Apps → Optional features → Add → OpenSSH Client, then restart the terminal. The
