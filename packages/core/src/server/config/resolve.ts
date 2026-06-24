@@ -69,6 +69,13 @@ export interface ResolvedSetting {
   /** Editability classification: `runtime` | `restart` | `readonly`. */
   editable: Editable;
   /**
+   * True for startup/env-only keys (`port`/`storage`/`dbPath`) the DB-config can
+   * never honour. The dashboard MUST NOT render these as settings — they are
+   * documented as deploy/env concerns. Still returned here so they remain
+   * introspectable via the API.
+   */
+  hidden: boolean;
+  /**
    * True when the effective value comes from a DB override that differs from
    * the schema default (i.e. the operator has changed it).
    */
@@ -295,6 +302,7 @@ export async function resolveConfig(
       unit: meta.unit,
       default: meta.default,
       editable: meta.editable,
+      hidden: meta.hidden,
       modified,
       restartRequired,
     };

@@ -10,6 +10,16 @@ import { z } from "zod";
  *   auth secret). They are NOT editable from the DB / admin UI. Some are
  *   **secret** (`adminAuthToken`) and are never persisted to the DB nor
  *   returned in plaintext by any API.
+ *
+ * A few startup-only bootstrap keys (`port`, `storage`, `dbPath`) are also
+ * flagged **UI-hidden** ({@link UI_HIDDEN_KEYS}): they are read at boot from the
+ * environment to bind the port / open the database, so a DB value for them can
+ * never be honoured on the next boot (the storage engine + path must be known
+ * *before* the DB is opened — a chicken-and-egg). They remain real env/file
+ * settings (kept in the schema, env mapping and resolution, introspectable via
+ * the API with `hidden: true`) but are NOT surfaced as editable rows in the
+ * dashboard — they're pure deploy/env concerns documented in the deploy/storage
+ * guides. The config API rejects writes to them like any other non-editable key.
  * - **Runtime** keys live in the DB and are editable from the Configuration
  *   admin page (analytics on/off + sample rate, retention, feature flags,
  *   display prefs). They still honour the env > file > db precedence so an
@@ -194,9 +204,10 @@ export type RuntimeKey = keyof RuntimeConfig;
  * Editability classification, surfaced to the admin UI:
  * - `runtime`  — editable live; takes effect immediately.
  * - `restart`  — DB-editable but only takes effect after a process restart
- *   (the non-secret bootstrap keys `port`/`storage`/`dbPath`).
- * - `readonly` — env-only; never web-editable (the `admin` gate + the
- *   `adminAuthToken` secret).
+ *   (the non-secret editable auth keys).
+ * - `readonly` — env-only; never web-editable (the `admin` gate, the
+ *   `adminAuthToken` / auth secrets, and the startup-only `port`/`storage`/
+ *   `dbPath` keys that the DB can never honour — see {@link UI_HIDDEN_KEYS}).
  */
 export type Editable = "runtime" | "restart" | "readonly";
 
@@ -221,6 +232,13 @@ export interface KeyMeta {
   default: unknown;
   /** How this key may be edited from the admin UI. */
   editable: Editable;
+  /**
+   * Hidden from the dashboard. These are startup/env-only keys (`port`,
+   * `storage`, `dbPath`) the DB-config can never honour, so they are NOT
+   * rendered as settings — only documented in the deploy/storage guides. Still
+   * returned by the API (with `hidden: true`) so they remain introspectable.
+   */
+  hidden: boolean;
 }
 
 /**
@@ -237,27 +255,30 @@ interface KeyDescriptor {
 }
 
 const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
-  // --- Server (restart-tier bootstrap) ---
+  // --- Startup/env-only (UI-hidden — see UI_HIDDEN_KEYS) ---
+  // port/storage/dbPath are read at boot from the environment to bind the port
+  // and open the database, so a DB value for them can never be honoured on the
+  // next boot. They stay real env/file settings but are NOT shown in the UI.
   port: {
     label: "Server port",
     description:
-      "The network port the server listens on. Changing this needs a restart to take effect.",
+      "The network port the server listens on. Set via the PORT environment variable at startup (the hosting platform may assign it). Not editable from the dashboard.",
     group: "Server",
-    editable: "restart",
+    editable: "readonly",
   },
   storage: {
     label: "Storage engine",
     description:
-      "Where analytics, logs, and settings are persisted: sqlite (a durable local file, the default), in-memory (ephemeral — resets on restart), or postgres. Takes effect after a restart.",
+      "Where analytics, logs, and settings are persisted: sqlite (a durable local file, the default), in-memory (ephemeral), or postgres. Read at boot to open the database, so it is set via the ENPILINK_STORAGE environment variable only — not editable from the dashboard.",
     group: "Storage",
-    editable: "restart",
+    editable: "readonly",
   },
   dbPath: {
     label: "SQLite database file",
     description:
-      "Path to the SQLite database file (only used when the storage engine is sqlite). Takes effect after a restart.",
+      "Path to the SQLite database file (only used when the storage engine is sqlite). Set via the ENPILINK_DB_PATH environment variable at startup. Not editable from the dashboard.",
     group: "Storage",
-    editable: "restart",
+    editable: "readonly",
   },
   // --- Security (read-only, env-only) ---
   admin: {
@@ -482,6 +503,28 @@ export const SECRET_KEYS = [
 ] as const satisfies readonly ConfigKey[];
 
 /**
+ * UI-hidden keys: startup/env-only bootstrap keys the DB-config can never
+ * honour, so they are NOT surfaced as editable rows in the dashboard.
+ *
+ * - `port` comes from `PORT`/`__PORT` at boot (and on serverless hosts the
+ *   platform assigns it — the app can't bind an arbitrary port).
+ * - `storage`/`dbPath` are read at boot to *open* the database, so they can't
+ *   be read *from* the database (circular) — a DB value for them is never
+ *   consulted on the next boot.
+ *
+ * They remain real env/file settings (kept in the schema, env mapping and
+ * resolution) and are still returned by the config API with `hidden: true` so
+ * they are introspectable — they're just documented in the deploy/storage
+ * guides instead of shown as settings. They are NOT in {@link RESTART_KEYS}, so
+ * the config write guard rejects them like any other non-editable key.
+ */
+export const UI_HIDDEN_KEYS = [
+  "port",
+  "storage",
+  "dbPath",
+] as const satisfies readonly BootstrapKey[];
+
+/**
  * Restart-tier keys: non-secret bootstrap keys that ARE DB-editable but only
  * take effect after a process restart. Resolution still honours env>file>db so
  * an env/file pin locks them (read-only).
@@ -490,12 +533,12 @@ export const SECRET_KEYS = [
  * (verifier, co-hosted AS, branded login page) is built once at boot, so a
  * change persists to the DB and applies on the next restart. The two SECRETS
  * (`auth.signingKey`, `auth.clientSecret`) are intentionally NOT here — they
- * stay env-only / read-only (see {@link SECRET_KEYS}).
+ * stay env-only / read-only (see {@link SECRET_KEYS}). The startup-only
+ * `port`/`storage`/`dbPath` keys are intentionally NOT here either — the DB can
+ * never honour them, so they are env-only / read-only + UI-hidden (see
+ * {@link UI_HIDDEN_KEYS}).
  */
 export const RESTART_KEYS = [
-  "port",
-  "storage",
-  "dbPath",
   "auth.enabled",
   "auth.issuer",
   "auth.audience",
@@ -552,6 +595,7 @@ const SECRET_SET = new Set<string>(SECRET_KEYS);
 const RUNTIME_SET = new Set<string>(RUNTIME_KEYS);
 const BOOTSTRAP_SET = new Set<string>(BOOTSTRAP_KEYS);
 const RESTART_SET = new Set<string>(RESTART_KEYS);
+const UI_HIDDEN_SET = new Set<string>(UI_HIDDEN_KEYS);
 
 export function isSecretKey(key: string): boolean {
   return SECRET_SET.has(key);
@@ -569,11 +613,19 @@ export function isKnownKey(key: string): key is ConfigKey {
 export function isRestartKey(key: string): key is BootstrapKey {
   return RESTART_SET.has(key);
 }
+/**
+ * A UI-hidden key: a startup/env-only key the DB can never honour, hidden from
+ * the dashboard but still introspectable via the API (`hidden: true`).
+ */
+export function isHiddenKey(key: string): key is BootstrapKey {
+  return UI_HIDDEN_SET.has(key);
+}
 
 /**
  * The editability classification for a key:
- * - secret/admin → `readonly` (env-only, never web-editable)
- * - other bootstrap keys (port/storage/dbPath) → `restart`
+ * - restart-tier keys → `restart` (DB-editable, effective after a restart)
+ * - other bootstrap keys (secrets/admin + startup-only port/storage/dbPath)
+ *   → `readonly` (env-only, never web-editable)
  * - runtime keys → `runtime`
  */
 export function editableOf(key: ConfigKey): Editable {
@@ -608,6 +660,7 @@ export function keyMeta(key: ConfigKey): KeyMeta {
     unit: d.unit,
     default: defaultForKey(key),
     editable: d.editable,
+    hidden: isHiddenKey(key),
   };
 }
 

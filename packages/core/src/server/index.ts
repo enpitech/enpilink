@@ -105,6 +105,7 @@ export {
   editableOf,
   getPreset,
   isBootstrapKey,
+  isHiddenKey,
   isKnownKey,
   isRestartKey,
   isRuntimeKey,
@@ -125,6 +126,7 @@ export {
   resolveConfig,
   runtimeSchema,
   SECRET_KEYS,
+  UI_HIDDEN_KEYS,
   validateConfigWrite,
   validateRuntimeWrite,
 } from "./config/index.js";

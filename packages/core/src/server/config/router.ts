@@ -222,8 +222,9 @@ async function writeGuard(
       error: `"${key}" is a secret and is set via environment only`,
     };
   }
-  // Bootstrap keys are writable ONLY if they are restart-tier (port/storage/
-  // dbPath). `admin` (and any other bootstrap key) is env-only / read-only.
+  // Bootstrap keys are writable ONLY if they are restart-tier (the non-secret
+  // auth keys). `admin`, the secrets, and the startup-only port/storage/dbPath
+  // keys (env-only / UI-hidden) are read-only here.
   if (isBootstrapKey(key) && !isRestartKey(key)) {
     return {
       ok: false,

@@ -5,7 +5,8 @@ import type { RuntimeKey } from "./schema.js";
  *
  * A preset is a named bundle of RUNTIME-key → value overrides applied in one
  * action. Presets ONLY touch runtime keys — never secrets, never the `admin`
- * gate, never restart-tier bootstrap keys (`port`/`storage`/`dbPath`). The
+ * gate, never restart-tier or env-only bootstrap keys (`port`/`storage`/
+ * `dbPath` are startup/env-only). The
  * router applies each value through the same validation + audit path as a
  * manual PUT, and skips any key currently pinned by env/file.
  */

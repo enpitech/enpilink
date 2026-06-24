@@ -514,8 +514,14 @@ export const Configuration = () => {
     );
   }
 
+  // Drop UI-hidden keys (startup/env-only port/storage/dbPath the DB can never
+  // honour — documented as deploy/env concerns, not shown as settings). Because
+  // the empty "Server"/"Storage" groups never get created, no empty group
+  // header is rendered.
+  const visible = settings.filter((s) => !s.hidden);
+
   const groups = new Map<string, Setting[]>();
-  for (const s of settings) {
+  for (const s of visible) {
     const list = groups.get(s.group) ?? [];
     list.push(s);
     groups.set(s.group, list);

@@ -49,17 +49,29 @@ resolved setting:
   immediately. These live in the DB (`analytics.*`, `retention.*`, `flags.*`,
   `display.*`).
 - **`restart`** — DB-editable, but the change only takes effect after a process
-  **restart**. These are non-secret bootstrap keys: `port`, `storage`, `dbPath`,
-  and all non-secret end-user-auth keys (`auth.enabled`, `auth.issuer`,
-  `auth.audience`, `auth.jwksUrl`, `auth.upstream.*`, `auth.redirectUris`,
-  `auth.branding.*`). The running process keeps using the value it booted with;
-  the UI shows a **"requires restart"** badge and, once you change one, a
-  "takes effect after restart" note.
+  **restart**. These are the non-secret end-user-auth keys (`auth.enabled`,
+  `auth.issuer`, `auth.audience`, `auth.jwksUrl`, `auth.upstream.*`,
+  `auth.redirectUris`, `auth.branding.*`). The running process keeps using the
+  value it booted with; the UI shows a **"requires restart"** badge and, once
+  you change one, a "takes effect after restart" note.
 - **`readonly`** — environment-only, never web-editable. These are the `admin`
-  gate and the `adminAuthToken` secret.
+  gate, the secrets (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`),
+  and the **startup-only** keys `port`, `storage`, and `dbPath`.
 
 All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 `restart` key via env/file makes it **env-locked** (read-only in the UI).
+
+<Note>
+**`port`, `storage`, and `dbPath` are deploy/env concerns — not shown in the
+Configuration tab.** They are read at boot from the environment to bind the port
+and *open* the database, so a value persisted to the DB could never be honoured
+on the next boot (the storage engine + path must be known before the DB is
+opened — a chicken-and-egg). Set them via `PORT` / `ENPILINK_STORAGE` /
+`ENPILINK_DB_PATH` — see [Storage](/guides/storage) and
+[Deploy](/quickstart/deploy). The config API still returns them (flagged
+`hidden: true`) for introspection, but the dashboard hides them and the API
+rejects any write to them (403).
+</Note>
 
 | Key | Env var | Default | Tier | Group | Meaning |
 |---|---|---|---|---|---|
@@ -69,9 +81,6 @@ All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 | `retention.logs` | `ENPILINK_CFG_RETENTION_LOGS` | `5000` | runtime | Retention | Max logs retained |
 | `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | runtime | Features | Expose the live-log stream |
 | `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | runtime | Display | Dashboard time-bucket width (ms) |
-| `port` | `PORT` | `3000` | restart | Server | HTTP port (restart to apply) |
-| `storage` | `ENPILINK_STORAGE` | `sqlite` | restart | Storage | Storage engine — `sqlite` default (durable `enpilink.db`); `memory`/`postgres`/custom |
-| `dbPath` | `ENPILINK_DB_PATH` | `./enpilink.db` | restart | Storage | SQLite database path |
 | `auth.enabled` | `ENPILINK_AUTH` | `false` | restart | Security | Enable end-user OAuth on `/mcp` (restart to apply) |
 | `auth.issuer` | `ENPILINK_AUTH_ISSUER` | — | restart | Security | Authorization server issuer URL |
 | `auth.audience` | `ENPILINK_AUTH_AUDIENCE` | — | restart | Security | RFC 8707 audience (`aud`) tokens must carry |
@@ -94,6 +103,16 @@ All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 Runtime keys use the `ENPILINK_CFG_*` convention so pinning one via env never
 collides with the bootstrap vars.
 
+The startup-only keys below are **env-only and hidden from the Configuration
+tab** (the DB can never honour them — see the note above). They're configured at
+deploy time:
+
+| Key | Env var | Default | Where to set it |
+|---|---|---|---|
+| `port` | `PORT` (or `__PORT`) | `3000` | [Deploy](/quickstart/deploy) — the hosting platform usually assigns it |
+| `storage` | `ENPILINK_STORAGE` | `sqlite` | [Storage](/guides/storage) — `sqlite` (default, durable `enpilink.db`), `memory`, `postgres`, or custom |
+| `dbPath` | `ENPILINK_DB_PATH` | `./enpilink.db` | [Storage](/guides/storage) — SQLite database file path |
+
 ## Per-key metadata
 
 Each resolved setting carries presentation metadata so the UI can render it
@@ -108,9 +127,11 @@ value the process booted with — a pending change awaiting a restart).
 ## The Configuration admin tab
 
 The admin UI's **Configuration** tab groups settings into friendly sections
-(Analytics, Retention, Features, Display, Storage, Server, Security) rather than
-a raw bootstrap/runtime split. Each row shows the human label, the raw key, the
+(Analytics, Retention, Features, Display, Security) rather than a raw
+bootstrap/runtime split. Each row shows the human label, the raw key, the
 description + unit hint, a source badge, and a **"modified"** badge when changed.
+The startup-only `port`/`storage`/`dbPath` keys are **not shown** (they're
+deploy/env concerns — see the note above).
 
 - **Runtime keys** — booleans render as switches, numbers/strings as inputs
   (saved on blur/Enter); each change is written to the DB and takes effect
@@ -125,23 +146,24 @@ description + unit hint, a source badge, and a **"modified"** badge when changed
 - **Change history** — the config audit trail (see below).
 
 Writes are validated against the schema and rejected with a clear status:
-unknown key → 404, secret / `admin` → 403, env-locked → 409, invalid value →
-400, no storage → 409.
+unknown key → 404, secret / `admin` / startup-only (`port`/`storage`/`dbPath`)
+→ 403, env-locked → 409, invalid value → 400, no storage → 409.
 
 ## Reset to default
 
 `DELETE /__enpilink/config/:key` clears a key's DB override and audit-logs the
 reset. After clearing, resolution falls back to file/env/default. The same
 guardrails as a write apply (only `runtime` and non-env-locked `restart` keys;
-secrets, `admin`, unknown, and env-locked keys are rejected). The storage layer
-backs this with `clearConfig(key, actor?)`.
+secrets, `admin`, the startup-only `port`/`storage`/`dbPath` keys, unknown, and
+env-locked keys are rejected). The storage layer backs this with
+`clearConfig(key, actor?)`.
 
 ## Presets
 
 Two built-in presets bundle runtime-key changes into one action. Presets **only
-touch runtime keys** — never secrets, never `admin`, never restart-tier
-bootstrap keys — and **skip any key that is env/file-pinned**, reporting which
-were applied vs skipped.
+touch runtime keys** — never secrets, never `admin`, never restart-tier or
+startup-only bootstrap keys — and **skip any key that is env/file-pinned**,
+reporting which were applied vs skipped.
 
 | Preset | What it sets |
 |---|---|

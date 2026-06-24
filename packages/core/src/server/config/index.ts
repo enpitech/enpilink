@@ -29,6 +29,7 @@ export {
   ENV_VARS,
   editableOf,
   isBootstrapKey,
+  isHiddenKey,
   isKnownKey,
   isRestartKey,
   isRuntimeKey,
@@ -41,4 +42,5 @@ export {
   type RuntimeKey,
   runtimeSchema,
   SECRET_KEYS,
+  UI_HIDDEN_KEYS,
 } from "./schema.js";

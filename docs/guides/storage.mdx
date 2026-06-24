@@ -22,6 +22,15 @@ captured analytics/logs **across restarts**. Set `ENPILINK_STORAGE=memory` to op
 back into an ephemeral store. (`enpilink dev --mock` always uses an ephemeral
 in-memory store regardless of this setting — the demo seed never touches disk.)
 
+<Note>
+The storage engine (`ENPILINK_STORAGE`) and database path (`ENPILINK_DB_PATH`)
+are **environment-only** — they're read at boot to *open* the database, so they
+can't be edited from the Configuration tab (a value persisted to the DB could
+never be honoured on the next boot — a chicken-and-egg). Set them via the
+environment as shown here. The same applies to the listening `PORT` (see
+[Deploy](/quickstart/deploy)).
+</Note>
+
 | Adapter | Best for | Persistence | Extra setup |
 |---|---|---|---|
 | `sqlite` | default (dev + production) | embedded file on disk (`enpilink.db`) | none (ships with enpilink) |

@@ -40,6 +40,27 @@ node dist/__entry.js
 Host that anywhere that runs Node ≥22 — a VM, a container (a `Dockerfile` is
 included in the templates), a PaaS, or a serverless Node runtime.
 
+### Startup environment variables
+
+A few settings are read **at boot** from the environment — they bind the port
+and open the database, so they can't be changed from the admin Configuration tab
+(a value in the DB could never be honoured on the next boot). Set them on your
+host:
+
+| Variable | Default | What it controls |
+|---|---|---|
+| `PORT` (or `__PORT`) | `3000` | The HTTP port the server listens on. Most PaaS / serverless hosts **assign this automatically** — read it, don't hardcode it. |
+| `ENPILINK_STORAGE` | `sqlite` | The [storage engine](/guides/storage): `sqlite` (durable local file), `memory` (ephemeral), `postgres`, or a custom adapter. |
+| `ENPILINK_DB_PATH` | `./enpilink.db` | The SQLite database file path (when `ENPILINK_STORAGE=sqlite`). Point it at a persistent volume in a container. |
+
+```bash
+PORT=8080 ENPILINK_STORAGE=sqlite ENPILINK_DB_PATH=/var/lib/enpilink/enpilink.db node dist/__entry.js
+```
+
+See [Storage](/guides/storage) for the full adapter matrix and
+[Configuration](/guides/configuration) for the runtime settings that *are*
+editable from the dashboard.
+
 ## Cloudflare Workers
 
 enpilink runs on Cloudflare Workers via [Wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) and the `nodejs_compat` runtime. Static assets (your built views) are served by Cloudflare's edge directly; the worker handles `/mcp` traffic and any other dynamic routes.

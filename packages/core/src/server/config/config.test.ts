@@ -123,13 +123,49 @@ describe("secret masking", () => {
     expect(s?.envLocked).toBe(true);
   });
 
-  it("restart-tier bootstrap keys are editable when not env/file-pinned", async () => {
+  it("startup-only port/storage/dbPath are hidden + read-only (env-only, not DB-editable)", async () => {
     const { settings } = await resolveConfig(null, cwd);
     for (const key of ["storage", "dbPath", "port"]) {
       const s = settings.find((x) => x.key === key);
       expect(s?.tier).toBe("bootstrap");
-      expect(s?.editable).toBe("restart");
-      expect(s?.envLocked).toBe(false);
+      // The DB can never honour these (read at boot to bind the port / open the
+      // db) — so they are env-only / read-only and hidden from the dashboard.
+      expect(s?.editable).toBe("readonly");
+      expect(s?.hidden).toBe(true);
+      expect(s?.envLocked).toBe(true);
+    }
+  });
+
+  it("only the startup-only keys are hidden; everything else is visible", async () => {
+    const { settings } = await resolveConfig(null, cwd);
+    const hidden = settings
+      .filter((s) => s.hidden)
+      .map((s) => s.key)
+      .sort();
+    expect(hidden).toEqual(["dbPath", "port", "storage"]);
+    // A representative runtime + auth key is NOT hidden.
+    expect(settings.find((s) => s.key === "analytics.enabled")?.hidden).toBe(
+      false,
+    );
+    expect(settings.find((s) => s.key === "auth.enabled")?.hidden).toBe(false);
+  });
+
+  it("port/storage/dbPath still resolve from env / default correctly", async () => {
+    // Default (no env): schema defaults apply.
+    const def = await resolveConfig(null, cwd);
+    expect(def.values.port).toBe(3000);
+    expect(def.values.storage).toBe("sqlite");
+    expect(def.values.dbPath).toBe("./enpilink.db");
+    // Env still drives them (they remain real env settings).
+    process.env.PORT = "8123";
+    process.env.ENPILINK_STORAGE = "memory";
+    process.env.ENPILINK_DB_PATH = "/tmp/custom.db";
+    const env = await resolveConfig(null, cwd);
+    expect(env.values.port).toBe(8123);
+    expect(env.values.storage).toBe("memory");
+    expect(env.values.dbPath).toBe("/tmp/custom.db");
+    for (const k of ["port", "storage", "dbPath"]) {
+      expect(env.settings.find((s) => s.key === k)?.source).toBe("env");
     }
   });
 
@@ -341,17 +377,21 @@ describe("resolved setting metadata", () => {
   it("classifies restart vs readonly editability", async () => {
     const { settings } = await resolveConfig(null, cwd);
     const byKey = new Map(settings.map((s) => [s.key, s]));
-    expect(byKey.get("port")?.editable).toBe("restart");
-    expect(byKey.get("storage")?.editable).toBe("restart");
-    expect(byKey.get("dbPath")?.editable).toBe("restart");
+    // The non-secret auth keys are the restart-tier examples now.
+    expect(byKey.get("auth.issuer")?.editable).toBe("restart");
+    expect(byKey.get("auth.enabled")?.editable).toBe("restart");
+    // Startup-only port/storage/dbPath are read-only (env-only, DB can't honour).
+    expect(byKey.get("port")?.editable).toBe("readonly");
+    expect(byKey.get("storage")?.editable).toBe("readonly");
+    expect(byKey.get("dbPath")?.editable).toBe("readonly");
     expect(byKey.get("admin")?.editable).toBe("readonly");
     expect(byKey.get("adminAuthToken")?.editable).toBe("readonly");
   });
 
   it("restart-tier keys NOT pinned by env/file are not env-locked", async () => {
     const { settings } = await resolveConfig(null, cwd);
-    const port = settings.find((s) => s.key === "port");
-    expect(port?.envLocked).toBe(false);
+    const issuer = settings.find((s) => s.key === "auth.issuer");
+    expect(issuer?.envLocked).toBe(false);
     const admin = settings.find((s) => s.key === "admin");
     // readonly key stays env-locked (read-only) even without an env pin.
     expect(admin?.envLocked).toBe(true);
@@ -372,11 +412,16 @@ describe("resolved setting metadata", () => {
 // --- Restart-tier writes + restartRequired ---
 
 describe("restart-tier editability", () => {
-  it("validateConfigWrite accepts a restart key, rejects secret", () => {
-    expect(validateConfigWrite("port", 8080).ok).toBe(true);
-    expect(validateConfigWrite("storage", "sqlite").ok).toBe(true);
+  it("validateConfigWrite accepts a restart key, rejects secret + startup-only", () => {
+    expect(validateConfigWrite("auth.issuer", "https://as.example").ok).toBe(
+      true,
+    );
     expect(validateConfigWrite("adminAuthToken", "x").ok).toBe(false);
     expect(validateConfigWrite("admin", true).ok).toBe(false);
+    // Startup-only keys are no longer writable.
+    expect(validateConfigWrite("port", 8080).ok).toBe(false);
+    expect(validateConfigWrite("storage", "sqlite").ok).toBe(false);
+    expect(validateConfigWrite("dbPath", "/tmp/x.db").ok).toBe(false);
   });
 
   it("PUT a restart key persists + flags restartRequired", async () => {
@@ -385,41 +430,76 @@ describe("restart-tier editability", () => {
     const { status, json } = await request(
       app,
       "PUT",
-      "/__enpilink/config/port",
+      "/__enpilink/config/auth.issuer",
       {
-        value: 8080,
+        value: "https://as.example",
       },
     );
     expect(status).toBe(200);
     expect((json as { restartRequired: boolean }).restartRequired).toBe(true);
-    expect(await storage.getConfig("port")).toBe(8080);
+    expect(await storage.getConfig("auth.issuer")).toBe("https://as.example");
 
-    // The boot snapshot is the default 3000; the persisted 8080 differs → pending.
     const { settings } = await resolveConfig(storage, cwd);
-    const port = settings.find((s) => s.key === "port");
-    expect(port?.source).toBe("db");
-    expect(port?.value).toBe(8080);
-    expect(port?.restartRequired).toBe(true);
+    const issuer = settings.find((s) => s.key === "auth.issuer");
+    expect(issuer?.source).toBe("db");
+    expect(issuer?.value).toBe("https://as.example");
+    expect(issuer?.restartRequired).toBe(true);
   });
 
   it("restartRequired is false when the DB value equals the booted value", async () => {
     const storage = new MemoryStorageAdapter();
-    // booted with default 3000; persist the same value
-    await storage.setConfig("port", 3000);
+    // booted with no issuer (undefined); persist the same effective value via
+    // a different restart key that defaults to a stable value.
+    await storage.setConfig("auth.enabled", false);
     const { settings } = await resolveConfig(storage, cwd);
-    const port = settings.find((s) => s.key === "port");
-    expect(port?.restartRequired).toBe(false);
+    const enabled = settings.find((s) => s.key === "auth.enabled");
+    expect(enabled?.restartRequired).toBe(false);
   });
 
   it("PUT a restart key 409s when env-pinned (envLocked)", async () => {
-    process.env.PORT = "4000";
+    process.env.ENPILINK_AUTH_ISSUER = "https://pinned.example";
     resetBootSnapshotForTests();
     const storage = new MemoryStorageAdapter();
     const app = appWith(storage);
-    const { status } = await request(app, "PUT", "/__enpilink/config/port", {
-      value: 8080,
-    });
+    const { status } = await request(
+      app,
+      "PUT",
+      "/__enpilink/config/auth.issuer",
+      { value: "https://other.example" },
+    );
     expect(status).toBe(409);
+    delete process.env.ENPILINK_AUTH_ISSUER;
+  });
+
+  it("PUT a startup-only key (port/storage/dbPath) → 403 (env-only, not editable)", async () => {
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    for (const key of ["port", "storage", "dbPath"]) {
+      const { status } = await request(
+        app,
+        "PUT",
+        `/__enpilink/config/${key}`,
+        {
+          value: key === "port" ? 8080 : "x",
+        },
+      );
+      expect(status, key).toBe(403);
+      // Nothing persisted.
+      expect(await storage.getConfig(key)).toBeUndefined();
+    }
+  });
+
+  it("DELETE a startup-only key → 403 (env-only, not editable)", async () => {
+    const storage = new MemoryStorageAdapter();
+    const app = appWith(storage);
+    for (const key of ["port", "storage", "dbPath"]) {
+      const { status } = await request(
+        app,
+        "DELETE",
+        `/__enpilink/config/${key}`,
+      );
+      expect(status, key).toBe(403);
+    }
   });
 });
 

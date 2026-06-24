@@ -38,6 +38,10 @@ const settingSchema = z.object({
   unit: z.string().optional(),
   default: z.unknown().optional(),
   editable: z.enum(["runtime", "restart", "readonly"]),
+  // Startup/env-only keys (port/storage/dbPath) the DB can never honour — hidden
+  // from the dashboard. Optional for back-compat with older servers that don't
+  // send the flag (treated as not hidden).
+  hidden: z.boolean().optional(),
   modified: z.boolean(),
   restartRequired: z.boolean(),
 });
