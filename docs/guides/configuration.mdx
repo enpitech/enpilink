@@ -30,6 +30,16 @@ DB or a file value is bad, it falls back per-key rather than crashing a read. A
 config read never throws.
 </Note>
 
+<Note>
+The default storage engine is **`sqlite`** (a durable local `enpilink.db`) in
+both dev and production, so changes you make from the Configuration tab during
+`enpilink dev` — for example enabling analytics — **persist across restarts**
+and are read back from the database on the next boot. Set
+`ENPILINK_STORAGE=memory` for an ephemeral, file-less store (and `enpilink dev
+--mock` always uses an ephemeral in-memory store). The `enpilink.db` file is
+gitignored by the scaffold.
+</Note>
+
 ## Editability tiers
 
 Every key is classified by how it can be edited, surfaced as `editable` on each
@@ -60,7 +70,7 @@ All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 | `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | runtime | Features | Expose the live-log stream |
 | `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | runtime | Display | Dashboard time-bucket width (ms) |
 | `port` | `PORT` | `3000` | restart | Server | HTTP port (restart to apply) |
-| `storage` | `ENPILINK_STORAGE` | `memory` | restart | Storage | Storage engine (`memory`/`sqlite`/`postgres`/custom) |
+| `storage` | `ENPILINK_STORAGE` | `sqlite` | restart | Storage | Storage engine — `sqlite` default (durable `enpilink.db`); `memory`/`postgres`/custom |
 | `dbPath` | `ENPILINK_DB_PATH` | `./enpilink.db` | restart | Storage | SQLite database path |
 | `auth.enabled` | `ENPILINK_AUTH` | `false` | restart | Security | Enable end-user OAuth on `/mcp` (restart to apply) |
 | `auth.issuer` | `ENPILINK_AUTH_ISSUER` | — | restart | Security | Authorization server issuer URL |

@@ -5,3 +5,6 @@ dist/
 *.tsbuildinfo
 .enpilink/
 .vercel/
+*.db
+*.db-shm
+*.db-wal

@@ -25,16 +25,18 @@ import type { StorageAdapter } from "./storage/types.js";
  * DECOUPLED:
  *
  * - **Storage** is activated whenever the admin/config UI is reachable: always
- *   in dev (default `memory`, honoring `ENPILINK_STORAGE`/`ENPILINK_DB_PATH`),
- *   and in prod-admin (handled separately in `admin.ts`). It reuses any already
- *   active adapter — never double-inits.
+ *   in dev (default `sqlite` → a local `enpilink.db`, honoring
+ *   `ENPILINK_STORAGE`/`ENPILINK_DB_PATH`), and in prod-admin (handled
+ *   separately in `admin.ts`). It reuses any already active adapter — never
+ *   double-inits. Because dev now persists to a file, a runtime config change
+ *   (e.g. enabling analytics) and any captured events/logs survive a restart.
+ *   Set `ENPILINK_STORAGE=memory` to opt back into an ephemeral store.
  * - **Capture** is governed at runtime by the resolved `analytics.enabled`
  *   config value (env > file > db > default) via the {@link CaptureGate}, so
  *   toggling it in the UI takes effect WITHOUT a restart. `ENPILINK_ANALYTICS`
  *   still works as an env override (env > db).
  *
- * The default `memory` adapter creates NO `enpilink.db` file and does zero
- * network; OTel stays independently gated and off by default.
+ * OTel stays independently gated and off by default.
  */
 
 /** Options for {@link installAnalytics}. */
@@ -205,11 +207,12 @@ async function recordSafely(
  * - Reuse any already-active adapter ({@link getActiveStorage}) — never
  *   double-init.
  * - In `--mock` mode, force a fresh in-memory adapter and seed it.
- * - Otherwise, in DEV activate the configured adapter (default `memory`,
- *   honoring `ENPILINK_STORAGE` / `ENPILINK_DB_PATH`) so the Configuration +
- *   observability UI always has a backing store — removing the "no active
- *   storage" 409 on the first config write. `memory` creates NO file and does
- *   zero network.
+ * - Otherwise, in DEV activate the configured adapter (default `sqlite` → a
+ *   local `enpilink.db`, honoring `ENPILINK_STORAGE` / `ENPILINK_DB_PATH`) so
+ *   the Configuration + observability UI always has a backing store — removing
+ *   the "no active storage" 409 on the first config write — AND so runtime
+ *   config + analytics/logs persist across restarts. Set
+ *   `ENPILINK_STORAGE=memory` for an ephemeral, file-less store.
  * - In PRODUCTION WITHOUT mock, activate NOTHING here (the config UI isn't
  *   reachable; prod-admin activates its own store in `admin.ts`). This preserves
  *   the "no db / no network when off in prod" guarantee.

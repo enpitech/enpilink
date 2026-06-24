@@ -5,9 +5,12 @@ description: "Opt-in analytics, the observability Dashboard, the live-log SSE st
 
 enpilink can record what your MCP server actually does — tool-call volume,
 latency, error rate, per-tool breakdowns — and surface it in a **Dashboard**
-with a **live log stream**. It is **opt-in and off by default**: when analytics
-is disabled there is no storage adapter, no `enpilink.db`, no middleware, and
-**zero network activity**.
+with a **live log stream**. *Capturing* events is **opt-in and off by default**:
+when analytics is disabled no events are recorded and there is **zero network
+activity**. In production with no admin plane, no storage adapter is activated at
+all (no `enpilink.db`, no middleware). In `enpilink dev` a durable SQLite
+adapter is activated so the Configuration and Dashboard tabs always have a
+backing store — see [below](#enabling-analytics).
 
 <Note>
 enpilink itself sends **no telemetry** to us or anyone. Analytics is a local,
@@ -41,11 +44,16 @@ read-only ("set via `ENPILINK_ANALYTICS`"). Unset it to hand control back to the
 live toggle.
 
 In `enpilink dev`, a storage adapter is **always** activated so the Configuration
-and Dashboard tabs work out of the box — by default an in-memory adapter, which
-creates **no** database file and makes **no** network calls (set
-`ENPILINK_STORAGE`/`ENPILINK_DB_PATH` to use SQLite or Postgres). Whether tool
-calls are *recorded* is governed by the live `analytics.enabled` gate above;
-storage being active does not by itself capture anything.
+and Dashboard tabs work out of the box — by default a durable SQLite adapter
+backed by a local `enpilink.db` file (override with
+`ENPILINK_STORAGE`/`ENPILINK_DB_PATH`, or set `ENPILINK_STORAGE=memory` for an
+ephemeral, file-less store). Because dev now persists to a file, **toggling
+`analytics.enabled` on (and any captured events/logs) survives a restart**: on
+the next boot the resolved config reads the value back from the database and the
+capture gate re-enables capture automatically. Whether tool calls are *recorded*
+is governed by the live `analytics.enabled` gate above; storage being active does
+not by itself capture anything. (`enpilink dev --mock` always uses an ephemeral
+in-memory store — see below.)
 
 There is **no backfill**: turning analytics on starts capturing forward only; it
 does not synthesize events for calls made while it was off.

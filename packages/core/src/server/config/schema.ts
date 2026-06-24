@@ -58,8 +58,10 @@ export function coerceNumber(raw: unknown): number | undefined {
  * framework off-by-default and secure-by-default.
  */
 export const bootstrapSchema = z.object({
-  /** Storage engine name (`memory` | `sqlite` | custom). */
-  storage: z.string().default("memory"),
+  /** Storage engine name (`memory` | `sqlite` | custom). Defaults to `sqlite`
+   * (a durable local `enpilink.db`) in both dev and prod; set
+   * `ENPILINK_STORAGE=memory` for an ephemeral in-memory store. */
+  storage: z.string().default("sqlite"),
   /** SQLite database path (only meaningful for the sqlite engine). */
   dbPath: z.string().default("./enpilink.db"),
   /** HTTP port the server listens on. */
@@ -246,7 +248,7 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
   storage: {
     label: "Storage engine",
     description:
-      "Where analytics, logs, and settings are persisted: in-memory (resets on restart), sqlite (a local file), or postgres. Takes effect after a restart.",
+      "Where analytics, logs, and settings are persisted: sqlite (a durable local file, the default), in-memory (ephemeral — resets on restart), or postgres. Takes effect after a restart.",
     group: "Storage",
     editable: "restart",
   },

@@ -28,6 +28,16 @@ class MemoryStorage implements Storage {
   }
 }
 
+// Default the storage engine to the ephemeral in-memory adapter for tests so a
+// server-booting test never writes a durable `enpilink.db` into the package cwd
+// (the dev/prod default is now `sqlite`). Tests that specifically exercise the
+// sqlite engine instantiate `SqliteStorageAdapter` directly or set
+// `ENPILINK_STORAGE`/`ENPILINK_DB_PATH` explicitly. Only set it when unset so a
+// test (or the CI env) can still override it.
+if (process.env.ENPILINK_STORAGE === undefined) {
+  process.env.ENPILINK_STORAGE = "memory";
+}
+
 const storage = new MemoryStorage();
 
 Object.defineProperty(globalThis, "localStorage", {

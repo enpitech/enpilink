@@ -34,18 +34,25 @@ registerStorageAdapter("postgres", (opts) => new PostgresStorageAdapter(opts));
 /**
  * Resolve the storage adapter from the environment.
  *
- * - `ENPILINK_STORAGE` selects the adapter by name (defaults to `memory` when
- *   `NODE_ENV !== "production"`, otherwise `sqlite`).
- * - `ENPILINK_DB_PATH` overrides the sqlite database path.
+ * - `ENPILINK_STORAGE` selects the adapter by name. When unset it defaults to
+ *   **`sqlite`** in BOTH dev and production, so runtime config and
+ *   analytics/logs persist to a local `enpilink.db` file and survive restarts
+ *   (e.g. an `enpilink dev` operator can toggle `analytics.enabled` and have it
+ *   stick across restarts). Set `ENPILINK_STORAGE=memory` to opt back into the
+ *   ephemeral in-memory adapter.
+ * - `ENPILINK_DB_PATH` overrides the sqlite database path (default
+ *   `./enpilink.db`, cwd-relative → per-app).
+ *
+ * NOTE: `--mock` mode does NOT go through here for its session store — it forces
+ * a throwaway {@link MemoryStorageAdapter} (see `analytics.ts`) so the demo seed
+ * never touches disk.
  *
  * The returned adapter is NOT yet initialized — callers must `await init()`.
  */
 export function resolveStorageAdapter(
   overrides?: StorageAdapterOptions,
 ): StorageAdapter {
-  const name =
-    process.env.ENPILINK_STORAGE ??
-    (process.env.NODE_ENV === "production" ? "sqlite" : "memory");
+  const name = process.env.ENPILINK_STORAGE ?? "sqlite";
   const factory = registry.get(name);
   if (!factory) {
     throw new Error(

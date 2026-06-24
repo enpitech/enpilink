@@ -10,18 +10,22 @@ built-in engine with one environment variable, or register your own.
 ## Choosing an adapter
 
 ```bash
-ENPILINK_STORAGE=memory      # dev default
-ENPILINK_STORAGE=sqlite      # production default
+ENPILINK_STORAGE=sqlite      # default (dev + production)
+ENPILINK_STORAGE=memory      # opt in to an ephemeral, file-less store
 ENPILINK_STORAGE=postgres    # external database
 ```
 
-When `ENPILINK_STORAGE` is unset, enpilink defaults to **`memory` in
-development** and **`sqlite` in production** (`NODE_ENV=production`).
+When `ENPILINK_STORAGE` is unset, enpilink defaults to **`sqlite` in both
+development and production** — a durable local `enpilink.db` file. This means
+`enpilink dev` now persists your runtime config (e.g. enabling analytics) and
+captured analytics/logs **across restarts**. Set `ENPILINK_STORAGE=memory` to opt
+back into an ephemeral store. (`enpilink dev --mock` always uses an ephemeral
+in-memory store regardless of this setting — the demo seed never touches disk.)
 
 | Adapter | Best for | Persistence | Extra setup |
 |---|---|---|---|
-| `memory` | dev, `--mock`, ephemeral | none (in-process, lost on exit) | none |
-| `sqlite` | production default | embedded file on disk | none (ships with enpilink) |
+| `sqlite` | default (dev + production) | embedded file on disk (`enpilink.db`) | none (ships with enpilink) |
+| `memory` | `--mock`, opt-in ephemeral | none (in-process, lost on exit) | none |
 | `postgres` | shared / external DB | your Postgres server | set a connection string |
 
 All adapters implement the same interface (events, logs, config, and the config
@@ -31,13 +35,17 @@ Configuration tab behave identically regardless of engine.
 ### memory
 
 Zero-dependency ring buffers (default cap 5000 events/logs). Nothing is written
-to disk and everything is lost on exit — ideal for local dev and the
-[`--mock` demo seed](/guides/observability#demo-data-with-enpilink-dev---mock).
+to disk and everything is lost on exit. It is no longer the dev default — opt in
+with `ENPILINK_STORAGE=memory` when you want an ephemeral store. It always backs
+the [`--mock` demo seed](/guides/observability#demo-data-with-enpilink-dev---mock),
+so demo data never touches disk and vanishes on exit.
 
 ### sqlite
 
-The **production default**: an embedded SQLite database, no server to run. The
-file path comes from `ENPILINK_DB_PATH` (default `./enpilink.db`):
+The **default in both dev and production**: an embedded SQLite database, no
+server to run. The file path comes from `ENPILINK_DB_PATH` (default
+`./enpilink.db`, relative to the working directory, so each app gets its own
+file). The file is gitignored by enpilink's scaffold:
 
 ```bash
 ENPILINK_STORAGE=sqlite ENPILINK_DB_PATH=/var/lib/enpilink/enpilink.db

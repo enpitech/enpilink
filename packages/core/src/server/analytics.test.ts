@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   analyticsEnabled,
@@ -8,6 +10,7 @@ import {
 import { getCaptureGate, setCaptureGate } from "./capture-gate.js";
 import { getActiveStorage, serverLog, setActiveStorage } from "./log-sink.js";
 import { MemoryStorageAdapter } from "./storage/memory.js";
+import { SqliteStorageAdapter } from "./storage/sqlite.js";
 import type { AnalyticsEvent } from "./storage/types.js";
 
 /** Flush the fire-and-forget recordEvent/appendLog microtasks. */
@@ -179,9 +182,9 @@ describe("installAnalytics gating", () => {
     }
   });
 
-  it("activates a default (memory) storage in dev even when analytics is OFF", async () => {
+  it("activates storage in dev even when analytics is OFF (explicit memory store)", async () => {
     delete process.env.ENPILINK_ANALYTICS;
-    delete process.env.ENPILINK_STORAGE; // default = memory in dev
+    process.env.ENPILINK_STORAGE = "memory"; // keep ephemeral/file-less for this test
     delete process.env.NODE_ENV; // dev
     const result = await installAnalytics();
     // Storage is activated (so the config/observability UI can persist) ...
@@ -192,17 +195,24 @@ describe("installAnalytics gating", () => {
     await result?.storage.close();
   });
 
-  it("does NOT create a sqlite db file in dev when storage is the default (memory)", async () => {
+  it("activates a DURABLE sqlite store in dev by default (persists across restart)", async () => {
     delete process.env.ENPILINK_ANALYTICS;
-    delete process.env.ENPILINK_STORAGE; // default = memory => no file
-    delete process.env.NODE_ENV;
-    const dbPath = `${process.cwd()}/enpilink.db`;
-    const preexisting = existsSync(dbPath);
-    const result = await installAnalytics();
-    if (!preexisting) {
-      expect(existsSync(dbPath)).toBe(false);
+    delete process.env.ENPILINK_STORAGE; // default = sqlite now (durable)
+    delete process.env.NODE_ENV; // dev
+    const dir = mkdtempSync(join(tmpdir(), "enpilink-dev-default-"));
+    const dbPath = join(dir, "enpilink.db");
+    process.env.ENPILINK_DB_PATH = dbPath;
+    try {
+      const result = await installAnalytics();
+      expect(result).not.toBeNull();
+      expect(result?.storage).toBeInstanceOf(SqliteStorageAdapter);
+      // The sqlite file is created on init → durable across restarts.
+      expect(existsSync(dbPath)).toBe(true);
+      await result?.storage.close();
+    } finally {
+      delete process.env.ENPILINK_DB_PATH;
+      rmSync(dir, { recursive: true, force: true });
     }
-    await result?.storage.close();
   });
 
   it("activates NOTHING in prod when analytics is OFF (no admin)", async () => {
