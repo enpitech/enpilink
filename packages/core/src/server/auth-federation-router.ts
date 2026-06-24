@@ -34,8 +34,12 @@ export interface FederationRouterOptions {
   provider: FederatingOAuthProvider;
   /** The public signing JWK to advertise at the JWKS endpoint. */
   publicJwk: JWK;
-  /** Upstream IdP for real (non-guest) logins. */
-  upstream: UpstreamIdpConfig;
+  /**
+   * Upstream IdP for real (non-guest) logins. OPTIONAL (A7): when absent,
+   * enpilink runs GUEST-ONLY — the branded page shows only "Continue as guest",
+   * the "Sign in" link is hidden, and `/authorize/upstream` 4xxs gracefully.
+   */
+  upstream?: UpstreamIdpConfig;
   /** Default scopes a real login is granted. */
   scopesSupported?: string[];
   /** The env-only upstream client secret (used for the upstream token exchange). */
@@ -217,6 +221,9 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
   const provider = opts.provider;
   const pendingStore = opts.pendingStore ?? new PendingAuthStore();
   const registeredRedirectUris = opts.redirectUris ?? [];
+  // A7: with no upstream IdP we run GUEST-ONLY — there is no real-login path, so
+  // the branded page hides "Sign in" and `/authorize/upstream` 4xxs.
+  const upstreamEnabled = !!opts.upstream;
   // The cookie is `Secure` whenever this AS is served over HTTPS (the public
   // issuer URL is authoritative — works behind a tunnel where `req.protocol`
   // may be http). Locally over http, `Secure` is omitted so the cookie still
@@ -310,18 +317,28 @@ export function buildFederationRouter(opts: FederationRouterOptions): Router {
       .set("Cache-Control", "no-store")
       .set("Set-Cookie", flowCookie(id))
       .send(
-        renderEntryHtml(signInUrl, guestUrl, {
-          appName: opts.branding?.appName ?? opts.appName,
-          logoUrl: opts.branding?.logoUrl,
-          accentColor: opts.branding?.accentColor,
-          tagline: opts.branding?.tagline,
-        }),
+        renderEntryHtml(
+          signInUrl,
+          guestUrl,
+          {
+            appName: opts.branding?.appName ?? opts.appName,
+            logoUrl: opts.branding?.logoUrl,
+            accentColor: opts.branding?.accentColor,
+            tagline: opts.branding?.tagline,
+          },
+          upstreamEnabled,
+        ),
       );
   });
 
   // "Sign in" → federate to the upstream IdP. The upstream returns to OUR
   // callback (not the host directly), so we can mint our own token.
   router.get("/authorize/upstream", (req, res) => {
+    // A7: no upstream IdP configured → there is no real-login path (guest-only).
+    if (!opts.upstream) {
+      res.status(404).send("No upstream identity provider is configured");
+      return;
+    }
     const id = String(req.query.id ?? "");
     const pending = pendingStore.peek(id);
     if (
@@ -466,6 +483,10 @@ async function exchangeUpstreamCode(
   if (resolve) {
     return resolve(code);
   }
+  // A7: no upstream + no injected resolver → nothing to exchange (guest-only).
+  if (!opts.upstream) {
+    return undefined;
+  }
   const doFetch = opts.fetchImpl ?? fetch;
   const callbackUrl = new URL("/authorize/callback", opts.issuerUrl).href;
   const body = new URLSearchParams({
@@ -559,6 +580,7 @@ function renderEntryHtml(
   signInUrl: string,
   guestUrl: string,
   branding: LoginBranding = {},
+  upstreamEnabled = true,
 ): string {
   const s = escapeHtml(signInUrl);
   const g = escapeHtml(guestUrl);
@@ -569,10 +591,11 @@ function renderEntryHtml(
     safeHexColor(branding.accentColor) && /^#[0-9a-fA-F]{6}$/.test(accent)
       ? darkenHex(accent)
       : DEFAULT_LOGIN_BRANDING.accentHover;
-  const tagline = escapeHtml(
-    branding.tagline ??
-      `${branding.appName ?? "This app"} uses enpilink to keep your sign-in secure. Sign in with your identity provider, or continue as a guest with limited access.`,
-  );
+  // Default copy adapts to whether a real-login path exists (A7 guest-only).
+  const defaultTagline = upstreamEnabled
+    ? `${branding.appName ?? "This app"} uses enpilink to keep your sign-in secure. Sign in with your identity provider, or continue as a guest with limited access.`
+    : `${branding.appName ?? "This app"} uses enpilink. Continue as a guest to get started.`;
+  const tagline = escapeHtml(branding.tagline ?? defaultTagline);
   const logoUrl = safeUrl(branding.logoUrl);
   const mark = logoUrl
     ? `<img class="mark" src="${escapeHtml(logoUrl)}" alt="" />`
@@ -625,10 +648,10 @@ function renderEntryHtml(
 <body>
   <main class="card">
     ${mark}
-    <h1>Sign in to continue${branding.appName ? ` to ${app}` : ""}</h1>
+    <h1>${upstreamEnabled ? "Sign in to continue" : "Continue"}${branding.appName ? ` to ${app}` : ""}</h1>
     <p>${tagline}</p>
-    <a class="btn" href="${s}">Sign in</a>
-    <a class="btn secondary" href="${g}">Continue as guest</a>
+    ${upstreamEnabled ? `<a class="btn" href="${s}">Sign in</a>` : ""}
+    <a class="btn${upstreamEnabled ? " secondary" : ""}" href="${g}">Continue as guest</a>
     <div class="footer">Powered by enpilink</div>
   </main>
 </body>

@@ -865,6 +865,149 @@ describe("A4.5 — federation state binding + cookie + redirect allowlist", () =
   });
 });
 
+/**
+ * A7 — GUEST-ONLY mode: a signing key with NO upstream IdP configured. enpilink
+ * still mints + signs its own tokens (so it can offer guest), but the branded
+ * page shows ONLY "Continue as guest" and there is no real-login path. Proven
+ * with NO upstream, NO real host — purely synthetic over local express.
+ */
+describe("A7 — guest-only mode (signing key, no upstream)", () => {
+  const REDIRECT = "http://localhost:9999/cb";
+
+  /** Auth config with a signing key (via env in startEnpilink) but NO upstream. */
+  function guestOnlyConfig(base: string): AuthConfig {
+    return {
+      enabled: true,
+      issuer: base,
+      audience: `${base}/mcp`,
+      resourceServerUrl: `${base}/mcp`,
+      redirectUris: [REDIRECT],
+      // NOTE: intentionally NO `upstream`.
+    };
+  }
+
+  it("boots without throwing and co-hosts the AS (JWKS + metadata)", async () => {
+    const { base } = await startEnpilink((b) => ({ auth: guestOnlyConfig(b) }));
+    // The federating AS is mounted even with no upstream.
+    const asMeta = await (
+      await fetch(`${base}/.well-known/oauth-authorization-server`)
+    ).json();
+    expect(asMeta.jwks_uri).toContain("/.well-known/jwks.json");
+    const jwks = await (await fetch(`${base}/.well-known/jwks.json`)).json();
+    expect(jwks.keys).toHaveLength(1);
+    expect(jwks.keys[0].d).toBeUndefined();
+  });
+
+  it("branded page shows ONLY 'Continue as guest' (no Sign in)", async () => {
+    const { base } = await startEnpilink((b) => ({ auth: guestOnlyConfig(b) }));
+    const auth = await fetch(
+      `${base}/authorize?client_id=host-client&response_type=code&code_challenge=abc&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+        REDIRECT,
+      )}`,
+      { redirect: "manual" },
+    );
+    const html = await (await fetch(auth.headers.get("location") ?? "")).text();
+    expect(html).toContain("Continue as guest");
+    // No "Sign in" button / upstream link is offered (the <title> may still say
+    // "Sign in"; we assert there is no upstream login affordance in the body).
+    expect(html).not.toContain(">Sign in</a>");
+    expect(html).not.toContain("/authorize/upstream");
+  });
+
+  it("/authorize/upstream 404s gracefully when no upstream is configured", async () => {
+    const { base } = await startEnpilink((b) => ({ auth: guestOnlyConfig(b) }));
+    const res = await fetch(`${base}/authorize/upstream?id=anything`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("guest issuance + session recording work with no upstream; oauth2 still 403s a guest", async () => {
+    const { base, server } = await startEnpilink((b) => ({
+      auth: guestOnlyConfig(b),
+      register: registerTools,
+    }));
+    const { verifier, challenge } = await pkce();
+    const { html, cookie } = await startFlow(
+      base,
+      `client_id=host-client&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(
+        REDIRECT,
+      )}&scope=read&state=g1`,
+    );
+    const guestUrl = decodeHtml(
+      (/href="([^"]*\/authorize\/guest[^"]*)"/.exec(html)?.[1] as string) ?? "",
+    );
+    const guestRes = await fetch(new URL(guestUrl, base).href, {
+      redirect: "manual",
+      headers: { cookie },
+    });
+    const code = new URL(
+      guestRes.headers.get("location") ?? "",
+    ).searchParams.get("code");
+    expect(code).toBeTruthy();
+
+    const tokenRes = await fetch(`${base}/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: "host-client",
+        code: code ?? "",
+        code_verifier: verifier,
+        redirect_uri: REDIRECT,
+      }).toString(),
+    });
+    expect(tokenRes.status).toBe(200);
+    const tokens = (await tokenRes.json()) as {
+      access_token: string;
+      scope: string;
+    };
+    expect(tokens.scope).toBe(GUEST_SCOPES.join(" "));
+
+    // The minted guest token validates against OUR local JWKS (no upstream).
+    const info = await verifyEnpilinkToken(tokens.access_token, {
+      issuer: base,
+      audience: `${base}/mcp`,
+      keys: await keys(),
+    });
+    expect(isGuestSub(getAuthInfo({ authInfo: info })?.sub)).toBe(true);
+
+    // The whoami identity tool reports state "guest".
+    const whoami = await callTool(base, "enpilink_whoami", tokens.access_token);
+    expect(whoami.status).toBe(200);
+    expect(JSON.stringify(await whoami.json())).toContain("guest");
+
+    // noauth tool works for the guest; oauth2 tool 403s (no `read` scope).
+    expect((await callTool(base, "public", tokens.access_token)).status).toBe(
+      200,
+    );
+    const sec = await callTool(base, "secure", tokens.access_token);
+    expect(sec.status).toBe(403);
+    expect(sec.headers.get("WWW-Authenticate")).toContain("insufficient_scope");
+
+    // A guest session was recorded + flagged (for the console Auth tab). The
+    // active storage can be process-shared across tests, so match the session
+    // for the exact guest `sub` we just minted rather than the total count.
+    await new Promise((r) => setTimeout(r, 20));
+    const guestSub = getAuthInfo({ authInfo: info })?.sub;
+    const sessions = await listSessionsOf(server);
+    const mine = sessions.find((x) => x.sub === guestSub);
+    expect(mine).toBeDefined();
+    expect(mine?.isGuest).toBe(true);
+    expect(mine?.sub?.startsWith("guest:")).toBe(true);
+  });
+
+  it("true-anonymous + A1-only mode still behave (oauth2 → 401 tokenless)", async () => {
+    const { base } = await startEnpilink((b) => ({
+      auth: guestOnlyConfig(b),
+      register: registerTools,
+    }));
+    // No token at all → noauth tool runs, oauth2 tool 401s.
+    expect((await callTool(base, "public")).status).toBe(200);
+    expect((await callTool(base, "secure")).status).toBe(401);
+  });
+});
+
 // --- helpers ---
 
 /** Read recorded sessions from the server's live active storage. */

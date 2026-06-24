@@ -39,6 +39,22 @@ Enable user authentication so tools can access user-specific data.
 > tokens, no guest). See the Authentication guide → "Co-hosting the
 > Authorization Server" / "Guest mode & lazy / step-up auth".
 >
+> **Guest-only mode (no provider):** the upstream IdP is OPTIONAL. Set
+> `ENPILINK_AUTH_SIGNING_KEY` with NO `auth.upstream.*` configured and enpilink
+> runs guest-only — the branded page shows ONLY "Continue as guest", and
+> `/authorize/upstream` 404s. Great for trying auth or coarse tracking with no
+> identity provider. `oauth2` tools stay unusable by guests (expected). Prove it
+> locally with `enpilink dev --mock` + the signing-key env (no upstream vars) —
+> see the Authentication guide → "Guest-only mode (no upstream provider)".
+>
+> **Provider-agnostic:** enpilink integrates ANY provider three ways — (1) a
+> standard OAuth2/OIDC upstream via `auth.upstream.*` (hosted IdP or company
+> SSO), (2) a pluggable `AuthConfig.verifier` for custom/opaque-token/internal
+> systems (overrides the built-in JWKS verifier), or (3) guest-only (no provider).
+> Built-in token introspection (RFC 7662) + OIDC discovery are NOT yet shipped —
+> opaque-token providers (Google/GitHub access tokens) currently need a custom
+> verifier. See the Authentication guide → "Integrate your auth provider".
+>
 > **Reading identity in a view:** the iframe is identity-blind. Use the
 > `useAuth()` web hook — it round-trips the auto-registered `enpilink_whoami`
 > `noauth` tool and returns `{ state: "anonymous" | "guest" | "authed", sub,

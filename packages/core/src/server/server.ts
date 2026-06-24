@@ -39,6 +39,7 @@ import {
   deriveSigningKeys,
   type SigningKeys,
 } from "./auth-federation.js";
+import type { LoginBranding } from "./auth-federation-router.js";
 import { buildIdentity, IDENTITY_TOOL_NAME } from "./auth-identity.js";
 import {
   type AuthRuntime,
@@ -761,16 +762,39 @@ export class McpServer<
   private async resolveAuthSecrets(
     config: AuthConfig,
   ): Promise<AuthRuntimeSecrets> {
-    // Only bother resolving secrets when an upstream AS is in play.
-    if (!config.upstream) {
-      return { getStorage: () => this.activeStorage };
-    }
     let values: Record<string, unknown> = {};
     try {
       const resolved = await resolveConfig(this.activeStorage);
       values = resolved.values as Record<string, unknown>;
     } catch {
       values = {};
+    }
+    // A7: resolve the signing key REGARDLESS of upstream — a signing key with no
+    // upstream is GUEST-ONLY federating mode (mint + sign our own tokens, offer
+    // guest, no real-login path). Without a signing key AND without an upstream
+    // we stay in A1 resource-server (validate-only) mode.
+    const signingKeysEarly = await this.resolveSigningKeys(values);
+    if (!config.upstream) {
+      if (!signingKeysEarly) {
+        // A1 resource-server only: nothing to co-host.
+        return { getStorage: () => this.activeStorage };
+      }
+      // Guest-only federating: pass the signing keys + branding, but no upstream
+      // secret/redirect-from-upstream concerns.
+      const branding = this.readBranding(values);
+      return {
+        getStorage: () => this.activeStorage,
+        redirectUris:
+          config.redirectUris ??
+          parseList(
+            typeof values["auth.redirectUris"] === "string"
+              ? (values["auth.redirectUris"] as string)
+              : undefined,
+          ),
+        signingKeys: signingKeysEarly,
+        appName: branding.appName ?? this.serverInfo.name,
+        branding,
+      };
     }
     const clientSecret =
       typeof values["auth.clientSecret"] === "string"
@@ -784,25 +808,14 @@ export class McpServer<
           ? (values["auth.redirectUris"] as string)
           : undefined,
       );
-    // A3: resolve the env-only signing key → derive the deterministic token
-    // signing keypair. When present, enpilink runs as a FEDERATING AS that mints
-    // its own tokens (guest + lazy/step-up). When absent, fail loudly in prod;
-    // in dev, generate an ephemeral key with a loud warning (never default-open
-    // a real deployment with a predictable key).
-    const signingKeys = await this.resolveSigningKeys(values);
+    // The env-only signing key (already resolved above). When present with an
+    // upstream, enpilink is a full A3 FEDERATING AS (login + guest + step-up);
+    // when absent it is the A2 transparent proxy.
+    const signingKeys = signingKeysEarly;
     // Login-page branding (A6, non-secret, presentational). Read from the
     // resolved config (env > file > db). All optional — the page falls back to
     // enpilink defaults / the server name.
-    const str = (k: string): string | undefined =>
-      typeof values[k] === "string" && (values[k] as string).length > 0
-        ? (values[k] as string)
-        : undefined;
-    const branding = {
-      appName: str("auth.branding.appName"),
-      logoUrl: str("auth.branding.logoUrl"),
-      accentColor: str("auth.branding.accentColor"),
-      tagline: str("auth.branding.tagline"),
-    };
+    const branding = this.readBranding(values);
     return {
       getStorage: () => this.activeStorage,
       clientSecret,
@@ -810,6 +823,25 @@ export class McpServer<
       signingKeys,
       appName: branding.appName ?? this.serverInfo.name,
       branding,
+    };
+  }
+
+  /**
+   * Read the non-secret login-page branding (A6) from resolved config values.
+   * All fields optional — the branded page falls back to enpilink defaults.
+   *
+   * @internal
+   */
+  private readBranding(values: Record<string, unknown>): LoginBranding {
+    const str = (k: string): string | undefined =>
+      typeof values[k] === "string" && (values[k] as string).length > 0
+        ? (values[k] as string)
+        : undefined;
+    return {
+      appName: str("auth.branding.appName"),
+      logoUrl: str("auth.branding.logoUrl"),
+      accentColor: str("auth.branding.accentColor"),
+      tagline: str("auth.branding.tagline"),
     };
   }
 

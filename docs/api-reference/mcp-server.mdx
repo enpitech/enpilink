@@ -388,7 +388,7 @@ Or via environment / config file (no programmatic config needed):
 | `ENPILINK_AUTH_ISSUER` | `auth.issuer` | Authorization server issuer URL. |
 | `ENPILINK_AUTH_AUDIENCE` | `auth.audience` | RFC 8707 audience (`aud`) to bind tokens to — usually your `/mcp` URL. |
 | `ENPILINK_AUTH_JWKS_URL` | `auth.jwksUrl` | JWKS URL for the built-in JWT verifier. |
-| `ENPILINK_AUTH_SIGNING_KEY` | `auth.signingKey` | **Secret** — env-only, masked, never DB-persisted. When set (alongside an upstream IdP), enpilink becomes a **federating Authorization Server** that mints + signs its own tokens (Ed25519, key derived from this secret) and enables guest mode + lazy/step-up auth. Without it, enpilink stays in transparent-proxy mode (upstream-issued tokens). |
+| `ENPILINK_AUTH_SIGNING_KEY` | `auth.signingKey` | **Secret** — env-only, masked, never DB-persisted. When set, enpilink becomes a **federating Authorization Server** that mints + signs its own tokens (Ed25519, key derived from this secret) and enables guest mode + lazy/step-up auth. An upstream IdP is **optional**: with one, the "Sign in" login path is layered on; without one, enpilink runs **guest-only**. Without a signing key, enpilink stays in transparent-proxy mode (upstream-issued tokens) or resource-server-only mode. |
 | `ENPILINK_AUTH_CLIENT_SECRET` | `auth.clientSecret` | **Secret** — env-only, masked, never DB-persisted. The upstream IdP client secret. |
 | `ENPILINK_AUTH_UPSTREAM_CLIENT_ID` | `auth.upstream.clientId` | Upstream IdP OAuth client id (non-secret). Enables the co-hosted AS. |
 | `ENPILINK_AUTH_UPSTREAM_AUTHORIZATION_URL` | `auth.upstream.authorizationUrl` | Upstream provider authorize endpoint. |

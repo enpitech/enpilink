@@ -9,16 +9,28 @@ default** — until you enable it, `/mcp` stays open exactly as before and
 existing apps are unaffected.
 
 <Note>
-enpilink works in **two modes**, both opt-in:
+enpilink is **provider-agnostic** and works in several opt-in modes, picked from
+just two inputs — whether you set a **signing key** (`ENPILINK_AUTH_SIGNING_KEY`)
+and whether you configure an **upstream IdP** (`auth.upstream.*`):
+
+| Mode | Signing key | Upstream IdP | What you get |
+| --- | --- | --- | --- |
+| **Resource-server only** | – | – | Validate tokens from an existing OAuth server + enforce per-tool scopes. |
+| **Guest-only** (federating) | ✅ | – | enpilink mints + signs its own tokens and offers **Continue as guest** — no provider needed. Great for tracking + trying auth. |
+| **Transparent proxy** | – | ✅ | enpilink co-hosts the OAuth endpoints; tokens are issued by the **upstream** IdP. |
+| **Full federating** | ✅ | ✅ | Branded login page with **Sign in** (upstream) *and* **Continue as guest**; enpilink mints its own tokens + supports lazy/step-up. |
+
+All modes are **opt-in** (auth is off by default) and detailed below:
 
 1. **Resource-server only** — point enpilink at an existing OAuth authorization
-   server via its issuer + JWKS URL. enpilink validates tokens and enforces
-   per-tool scopes (the foundation; see [The model](#the-model)).
-2. **Co-hosted Authorization Server** (recommended for real hosts) — enpilink
-   *also* hosts the OAuth endpoints + a **branded login page** and proxies the
-   actual credential check to a configurable **upstream identity provider**
-   (Google, GitHub, Auth0, your own). The host discovers and completes OAuth
-   against enpilink; every successful sign-in is **tracked** (see
+   server via its issuer + JWKS URL (see [The model](#the-model)).
+2. **Guest-only** — set a signing key with **no** upstream; enpilink offers
+   guest sign-in with no identity provider at all (see
+   [Guest-only mode](#guest-only-mode-no-upstream-provider)).
+3. **Co-hosted Authorization Server** (recommended for real hosts) — enpilink
+   *also* hosts the OAuth endpoints + a **branded login page** and delegates the
+   credential check to a configurable **upstream identity provider** (Google,
+   GitHub, Auth0, Okta, your own SSO) (see
    [Co-hosting the Authorization Server](#co-hosting-the-authorization-server)).
 </Note>
 
@@ -126,6 +138,88 @@ validates standard JWTs against a JWKS URL. To use token introspection or a
 provider SDK instead, pass your own `verifier` (any `OAuthTokenVerifier`) in
 the `auth` config — it overrides the built-in one.
 
+## Integrate your auth provider
+
+enpilink is **provider-agnostic**. There is no enpilink account and no required
+vendor — you bring whatever identity system your company already uses. There are
+three ways to integrate, from least to most custom:
+
+### 1. A standard OAuth2 / OIDC upstream
+
+Most providers expose standard OAuth2 authorization + token endpoints (and,
+for OIDC, an id token). Configure them via `auth.upstream.*` and enpilink
+co-hosts the login flow against them:
+
+- **A hosted IdP** (Auth0, Okta, Microsoft Entra ID, Keycloak): these issue
+  **JWTs**, which enpilink can validate directly. Point
+  `ENPILINK_AUTH_JWKS_URL` at the provider's JWKS (or run
+  [federating mode](#two-provider-modes) so enpilink issues + validates its own
+  tokens and only *lifts* the `sub`/profile from the upstream login).
+- **A company SSO** (an internal OAuth2/OIDC server behind your firewall): set
+  the same `auth.upstream.*` endpoints to your internal URLs and your registered
+  client id + `ENPILINK_AUTH_CLIENT_SECRET`. The login page, redirect allowlist,
+  and session tracking work identically — enpilink never sees credentials, only
+  the post-login `sub`.
+
+See [Configuring the upstream IdP](#configuring-the-upstream-idp) for the full
+key list.
+
+### 2. A custom / opaque-token / internal system (the `verifier` seam)
+
+If your tokens are **not** standard JWTs — opaque access tokens, a provider SDK,
+an internal session service, token introspection (RFC 7662) — supply your own
+**`verifier`**. Any object implementing `OAuthTokenVerifier` (a single
+`verifyAccessToken(token) → AuthInfo`) plugs in and **overrides** the built-in
+JWKS verifier entirely:
+
+```typescript
+import { McpServer } from "enpilink/server";
+import type { OAuthTokenVerifier, AuthInfo } from "enpilink/server";
+
+// Wire your company's validation here — call your introspection endpoint,
+// your auth SDK, or your internal session service. Throw to reject.
+const verifier: OAuthTokenVerifier = {
+  async verifyAccessToken(token: string): Promise<AuthInfo> {
+    const claims = await myCompanyAuth.introspect(token); // your code
+    if (!claims.active) {
+      throw new Error("invalid token");
+    }
+    return {
+      token,
+      clientId: claims.client_id ?? claims.sub,
+      scopes: claims.scope?.split(" ") ?? [],
+      expiresAt: claims.exp,
+      // `sub` is your stable per-user tracking key — surface it under `extra`.
+      extra: { sub: claims.sub, email: claims.email, name: claims.name },
+    };
+  },
+};
+
+const server = new McpServer({ name: "my-app", version: "1.0.0" }, undefined, {
+  auth: { enabled: true, issuer: "https://my-app.example.com", verifier },
+});
+```
+
+The rest of enpilink (per-tool `securitySchemes` enforcement, the
+`getAuthInfo(extra)` helper, session/user recording keyed on `sub`, the Auth
+tab) works unchanged on top of your verifier.
+
+### 3. No provider at all — guest-only
+
+If you only need coarse tracking and a low-friction start, use
+[guest-only mode](#guest-only-mode-no-upstream-provider): set a signing key,
+configure **no** provider, and enpilink mints + validates its own guest tokens.
+
+### Roadmap
+
+Built-in helpers for **token introspection (RFC 7662)** and **OIDC discovery**
+(auto-resolving a provider's endpoints + JWKS from its `.well-known`) are
+**planned but not yet shipped**. Until they land, opaque-token providers (e.g.
+Google or GitHub access tokens, which are not JWTs) need a **custom `verifier`**
+(option 2 above) or an upstream that re-issues JWTs. enpilink does **not**
+currently ship an introspection verifier or OIDC discovery — the
+OAuth2/OIDC-upstream config and the pluggable `verifier` seam cover the rest.
+
 ## Co-hosting the Authorization Server
 
 In resource-server-only mode the host still has to find an authorization server
@@ -212,13 +306,14 @@ the same caveat as the in-memory code/refresh state.
 
 ### Two provider modes
 
-enpilink picks one of two Authorization-Server provider modes, **based on
-whether a token signing key is set**:
+enpilink picks the Authorization-Server provider mode **based on whether a token
+signing key is set** (and whether an upstream is configured):
 
 | Mode | When | Who issues the token | Enables |
 | --- | --- | --- | --- |
 | **Transparent proxy** | upstream set, **no** `ENPILINK_AUTH_SIGNING_KEY` | the **upstream** IdP | logged-in flow only |
-| **Federating issuer** | upstream set **and** `ENPILINK_AUTH_SIGNING_KEY` set | **enpilink** (signs its own tokens) | logged-in **+ guest + lazy/step-up** |
+| **Guest-only federating** | `ENPILINK_AUTH_SIGNING_KEY` set, **no** upstream | **enpilink** (signs its own tokens) | **guest + lazy/step-up** (no real-login path) |
+| **Full federating** | upstream set **and** `ENPILINK_AUTH_SIGNING_KEY` set | **enpilink** (signs its own tokens) | logged-in **+ guest + lazy/step-up** |
 
 - **Transparent proxy** (`ProxyOAuthServerProvider`): tokens are issued by the
   upstream provider; enpilink validates them via the upstream JWKS (the same
@@ -228,22 +323,100 @@ whether a token signing key is set**:
 - **Federating issuer** (`FederatingOAuthProvider`): enpilink **mints + signs
   its own tokens** with a deterministic Ed25519 keypair derived from
   `ENPILINK_AUTH_SIGNING_KEY`, advertises them at its own
-  `/.well-known/jwks.json`, and validates them locally. It still federates the
-  *login* to the upstream IdP, but it can also issue **guest tokens** (no
-  upstream round-trip). Point `ENPILINK_AUTH_ISSUER`/JWKS at **enpilink itself**
-  (the default — enpilink serves the JWKS).
+  `/.well-known/jwks.json`, and validates them locally. It can issue **guest
+  tokens** (no upstream round-trip). An upstream IdP is **optional**: configure
+  one and enpilink *also* federates the **Sign in** login path on top; omit it
+  and enpilink runs [guest-only](#guest-only-mode-no-upstream-provider). Point
+  `ENPILINK_AUTH_ISSUER`/JWKS at **enpilink itself** (the default — enpilink
+  serves the JWKS).
 
 <Note>
 Setting `ENPILINK_AUTH_SIGNING_KEY` is what turns on **guest mode** and the
-federating issuer. Without it you get the (still fully supported) proxy mode.
-The signing key is **env-only** and must be a strong, stable secret — every
-token enpilink issues is signed with it.
+federating issuer — **even with no upstream provider configured**. Adding an
+upstream IdP layers the "Sign in" path on top; without one you get a working,
+guest-only sign-in flow. The signing key is **env-only** and must be a strong,
+stable secret — every token enpilink issues is signed with it.
 </Note>
+
+### Guest-only mode (no upstream provider)
+
+You do **not** need an identity provider to use auth. Set a **signing key** and
+leave the upstream IdP unconfigured: enpilink becomes a federating issuer that
+mints + signs its own tokens and offers **Continue as guest** — with no provider
+at all. This is the fastest way to start tracking interactions, and to try the
+whole auth flow locally.
+
+In guest-only mode:
+
+- The co-hosted Authorization Server still mounts (AS metadata + JWKS +
+  `/authorize` + `/token`).
+- The branded login page shows **only "Continue as guest"** — the "Sign in"
+  button is hidden and `/authorize/upstream` returns `404` (there is no upstream
+  to sign in to).
+- Guest sign-in mints a limited token (`sub = guest:<id>`, scope `guest`),
+  records a guest session, and the [`enpilink_whoami`](#reading-the-user-in-your-view)
+  tool / [`useAuth`](#useauth) report `state: "guest"`.
+- `{ type: "noauth" }` tools run for anonymous **and** guest callers;
+  `{ type: "oauth2" }` tools correctly remain **unusable by guests** — a guest
+  token has only the `guest` scope, so an `oauth2` tool returns `403
+  insufficient_scope`. (To make those tools usable you must add a real upstream
+  IdP — there is no logged-in identity in guest-only mode.)
+
+```bash
+ENPILINK_AUTH=1
+ENPILINK_AUTH_ISSUER=https://my-app.example.com        # enpilink's own origin
+ENPILINK_AUTH_AUDIENCE=https://my-app.example.com/mcp
+ENPILINK_AUTH_SIGNING_KEY=••••                          # SECRET — env only (enables guest mode)
+ENPILINK_AUTH_REDIRECT_URIS="https://claude.ai/api/mcp/auth_callback"
+# NOTE: no ENPILINK_AUTH_UPSTREAM_* and no ENPILINK_AUTH_CLIENT_SECRET.
+```
+
+#### Try it: guest-only mode with `--mock`
+
+You can prove the whole guest flow locally with **no provider and no real host**.
+Run an example with `enpilink dev --mock` and guest-only auth env:
+
+```bash
+cd examples/manifest-ui
+
+ENPILINK_AUTH=1 \
+ENPILINK_AUTH_ISSUER=http://localhost:5454 \
+ENPILINK_AUTH_AUDIENCE=http://localhost:5454/mcp \
+ENPILINK_AUTH_SIGNING_KEY=dev-guest-only-signing-key-change-me \
+ENPILINK_AUTH_REDIRECT_URIS=http://localhost:9999/cb \
+  pnpm exec enpilink dev --mock --port 5454
+```
+
+Then, in another terminal:
+
+```bash
+B=http://localhost:5454
+
+# AS metadata + our JWKS are served (we mint our own tokens):
+curl -s $B/.well-known/oauth-authorization-server
+curl -s $B/.well-known/jwks.json
+
+# The branded login page shows ONLY "Continue as guest":
+curl -sL "$B/authorize?client_id=host&response_type=code&code_challenge=abc\
+&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A9999%2Fcb" | grep -o "Continue as guest"
+
+# There is no upstream to sign in to:
+curl -s -o /dev/null -w "%{http_code}\n" "$B/authorize/upstream?id=x"   # → 404
+
+# A tokenless identity check reports anonymous:
+curl -s -X POST $B/mcp -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"enpilink_whoami","arguments":{}},"id":1}'
+```
+
+Open the console at `http://localhost:5454/` and switch to the **Auth** tab: once
+a guest completes the flow (via `/authorize/guest`), the session shows up flagged
+as **guest**.
 
 ### Guest mode & lazy / step-up auth
 
 In federating mode the branded entry page offers **"Continue as guest"**
-alongside **"Sign in"**:
+(and, when an upstream IdP is configured, **"Sign in"** alongside it):
 
 - **Guest** mints a **limited guest token** with its own short scopes
   (`guest`) and a subject of `guest:<random-id>` — the `guest:` prefix means a
@@ -389,15 +562,18 @@ const server = new McpServer({ name: "my-app", version: "1.0.0" }, undefined, {
 
 ### Authorization-server endpoints
 
-When an upstream is configured, enpilink mounts (at the app root):
+When a signing key **or** an upstream is configured (i.e. any co-hosted-AS mode
+— guest-only, transparent proxy, or full federating), enpilink mounts (at the
+app root):
 
 | Endpoint | Purpose |
 | --- | --- |
 | `/.well-known/oauth-authorization-server` | RFC 8414 AS metadata (discovery). Advertises `jwks_uri` in federating mode. |
 | `/.well-known/oauth-protected-resource` | RFC 9728 PRM — lists this AS. |
 | `/.well-known/jwks.json` | **Federating mode only** — enpilink's public signing key (validates the tokens it issues). |
-| `/authorize` | Branded entry page → "Sign in" (upstream) or "Continue as guest" (federating). |
-| `/authorize/upstream`, `/authorize/callback`, `/authorize/guest` | **Federating mode** — internal login/guest steps. |
+| `/authorize` | Branded entry page → "Sign in" (upstream) and/or "Continue as guest" (federating). In guest-only mode it shows guest only. |
+| `/authorize/upstream`, `/authorize/callback` | **Federating mode with an upstream** — internal login steps. In guest-only mode `/authorize/upstream` returns `404`. |
+| `/authorize/guest` | **Federating mode** — mints a guest code (available in guest-only mode too). |
 | `/token` | Proxy mode: proxies the exchange upstream. Federating mode: validates PKCE + mints enpilink's token. |
 | `/register` | Dynamic client registration — only if the upstream supports it. |
 

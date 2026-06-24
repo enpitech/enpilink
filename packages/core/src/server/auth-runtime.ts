@@ -185,11 +185,21 @@ export function buildAuthRuntime(
 
   // Verifier precedence:
   // 1. An explicitly injected verifier (A2 / tests) always wins.
-  // 2. A3 FEDERATING mode (signing keys present + upstream): validate OUR minted
-  //    tokens against the LOCAL JWKS derived from the signing key — no network,
-  //    and `auth.jwksUrl` is irrelevant (it points at us anyway).
+  // 2. FEDERATING mode (signing keys present): validate OUR minted tokens
+  //    against the LOCAL JWKS derived from the signing key — no network, and
+  //    `auth.jwksUrl` is irrelevant (it points at us anyway). An upstream IdP is
+  //    OPTIONAL here: with one we add the "Sign in" login path on top; without
+  //    one we run GUEST-ONLY (A7) — we still mint + sign tokens for the guest
+  //    path, just with no real-login option.
   // 3. A1/A2 mode: the JWKS-backed JWT verifier against the configured issuer.
-  const federating = !!secrets.signingKeys && !!config.upstream;
+  //
+  // A7: the signing key ALONE makes us a federating issuer (guest-first); the
+  // upstream is no longer required. The four modes are:
+  //   (a) no signing key, no upstream  → A1 resource-server (validate-only).
+  //   (b) signing key, no upstream      → GUEST-ONLY federating (NEW).
+  //   (c) upstream, no signing key      → A2 transparent proxy.
+  //   (d) upstream + signing key        → A3 full federating (login + guest).
+  const federating = !!secrets.signingKeys;
   const baseVerifier =
     config.verifier ??
     (federating && secrets.signingKeys
@@ -238,19 +248,22 @@ export function buildAuthRuntime(
 
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(rootUrl);
 
-  // Co-host the Authorization Server when an upstream IdP is configured.
-  // Without it we stay in A1-only resource-server mode (validate tokens, but no
-  // `/authorize` / `/token` / branded login of our own).
+  // Co-host the Authorization Server when we have a signing key (federating, A7
+  // — upstream optional) OR an upstream-only proxy. Without either we stay in
+  // A1-only resource-server mode (validate tokens, but no `/authorize` /
+  // `/token` / branded login of our own).
   let authServerRouter: Router | null = null;
-  if (config.upstream && federating && secrets.signingKeys) {
-    // A3 FEDERATING mode: WE mint + sign tokens, federate the login upstream,
-    // and offer "Continue as guest". The verifier above validates our tokens.
+  if (federating && secrets.signingKeys) {
+    // FEDERATING mode: WE mint + sign tokens and offer "Continue as guest". When
+    // an upstream IdP is configured we ALSO federate the "Sign in" login path;
+    // without one (A7 guest-only) the branded page shows guest only. The
+    // verifier above validates our tokens either way.
     const provider = new FederatingOAuthProvider(
       {
         issuer: config.issuer,
         audience: config.audience ?? rsUrl.href,
         keys: secrets.signingKeys,
-        defaultScopes: config.upstream.scopes,
+        defaultScopes: config.upstream?.scopes,
         now: secrets.now,
         randomId: secrets.randomId,
       },
@@ -261,8 +274,10 @@ export function buildAuthRuntime(
       resourceServerUrl: rsUrl.href,
       provider,
       publicJwk: secrets.signingKeys.publicJwk,
+      // Optional in guest-only mode — when absent, the "Sign in" path is hidden
+      // and `/authorize/upstream` 4xxs gracefully.
       upstream: config.upstream,
-      scopesSupported: config.upstream.scopes,
+      scopesSupported: config.upstream?.scopes,
       upstreamClientSecret: secrets.clientSecret,
       appName: secrets.appName,
       branding: secrets.branding,
