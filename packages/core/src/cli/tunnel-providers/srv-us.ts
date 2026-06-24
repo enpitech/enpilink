@@ -1,10 +1,41 @@
 import spawn from "cross-spawn";
-import { ensureSshKey } from "../ensure-ssh-key.js";
+import { ensureSshKey, opensshMissingMessage } from "../ensure-ssh-key.js";
 import type {
   ParsedStdoutEvent,
   TunnelChildProcess,
   TunnelProvider,
 } from "./types.js";
+
+/**
+ * Wrap a spawned tunnel child so a missing `ssh` binary surfaces an actionable,
+ * platform-specific message instead of a cryptic `spawn ssh ENOENT`. cross-spawn
+ * reports a missing executable asynchronously via the `error` event, so we
+ * intercept that event and rewrite ENOENT errors before passing them through.
+ */
+export function wrapSshSpawnErrors(
+  child: TunnelChildProcess,
+  platform: NodeJS.Platform = process.platform,
+): TunnelChildProcess {
+  const originalOn = child.on.bind(child) as (
+    event: string,
+    listener: (arg: never) => void,
+  ) => unknown;
+  child.on = ((event: string, listener: (arg: never) => void) => {
+    if (event === "error") {
+      return originalOn("error", ((err: unknown) => {
+        if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+          (listener as (e: Error) => void)(
+            new Error(opensshMissingMessage("ssh", platform)),
+          );
+          return;
+        }
+        (listener as (e: unknown) => void)(err);
+      }) as (arg: never) => void);
+    }
+    return originalOn(event, listener);
+  }) as TunnelChildProcess["on"];
+  return child;
+}
 
 /**
  * Matches a srv.us public URL anywhere in a stdout line. srv.us announces each
@@ -67,9 +98,10 @@ export const srvUsProvider: TunnelProvider = {
   },
   spawn(port: number): TunnelChildProcess {
     const keyPath = ensureSshKey();
-    return spawn("ssh", srvUsSshArgs(port, keyPath), {
+    const child = spawn("ssh", srvUsSshArgs(port, keyPath), {
       stdio: ["ignore", "pipe", "pipe"],
     });
+    return wrapSshSpawnErrors(child);
   },
   parseLine: parseSrvUsLine,
 };

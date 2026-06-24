@@ -29,7 +29,7 @@ enpilink dev
 | Flag | Description |
 |------|-------------|
 | `-p, --port <number>` | Port to run the server on. Defaults to `3000`, or the next available port if `3000` is in use. |
-| `--tunnel` | Open an account-free [srv.us](https://srv.us) SSH tunnel for remote testing (no login, no signup). |
+| `--tunnel` | Open an account-free [srv.us](https://srv.us) SSH tunnel for remote testing (no login, no signup). Requires an OpenSSH client (`ssh`) on `PATH`. |
 | `--open` | Open the Console in the browser when the server is ready (off by default). |
 | `--mock` | Seed the Dashboard with deterministic demo analytics for demos/screenshots. Implies analytics-on and in-memory storage for the session — never touches disk and vanishes on exit. Dev-only; ignored in production. |
 | `-v, --verbose` | Show tunnel logs. |

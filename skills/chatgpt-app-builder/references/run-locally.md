@@ -33,7 +33,8 @@ Interactions inside the rendered view itself are not WebMCP tools, use regular D
 Ask user if they want to test in ChatGPT/Claude or just use the local Console.
 
 If yes, expose the local server with the account-free srv.us tunnel — no login,
-no signup, it just needs `ssh` (present on macOS/Linux):
+no signup, it just needs an OpenSSH client (`ssh`, present on macOS/Linux and
+bundled with Windows 10 1809+/11):
 
 ```bash
 {pm} run dev -- --tunnel      # or: enpilink dev --tunnel
@@ -43,6 +44,12 @@ enpilink auto-generates an ed25519 key at `~/.enpilink/id_ed25519` on first use
 and prints a stable public URL (e.g. `https://6x7k9m2qwerasdf.srv.us`). Extract
 that URL from the dev-server output; the MCP endpoint is `{tunnel-url}/mcp`. Add
 `--verbose` to stream the raw tunnel logs.
+
+**Windows:** if you see `OpenSSH client not found`, enable it via Settings →
+Apps → Optional features → Add → OpenSSH Client, then restart the terminal. The
+key's permissions are locked to your user with `icacls` automatically (Windows
+ignores POSIX modes). Windows support is verified via platform-mocked tests but
+NOT yet confirmed on real Windows hardware.
 
 ### Connect to ChatGPT
 Provide the user with these instructions to create the app in ChatGPT:

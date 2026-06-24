@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseSrvUsLine, srvUsProvider, srvUsSshArgs } from "./srv-us.js";
+import {
+  parseSrvUsLine,
+  srvUsProvider,
+  srvUsSshArgs,
+  wrapSshSpawnErrors,
+} from "./srv-us.js";
+import type { TunnelChildProcess } from "./types.js";
 
 describe("parseSrvUsLine", () => {
   it("extracts the URL from srv.us's real on-connect line (live-confirmed format)", () => {
@@ -77,6 +83,66 @@ describe("srvUsSshArgs", () => {
       "-R",
       "1:localhost:63189",
     ]);
+  });
+
+  it("passes a Windows spaced home path as a SINGLE argv element after -i", () => {
+    // C:\Users\John Doe\... contains a space; cross-spawn handles quoting, so the
+    // key path must NOT be manually quoted or split — it stays one argv entry.
+    const winKey = "C:\\Users\\John Doe\\.enpilink\\id_ed25519";
+    const args = srvUsSshArgs(3001, winKey);
+    expect(args[0]).toBe("-i");
+    expect(args[1]).toBe(winKey);
+    // exactly one element equals the key path (not split on the space)
+    expect(args.filter((a) => a === winKey)).toHaveLength(1);
+  });
+});
+
+describe("wrapSshSpawnErrors", () => {
+  function fakeChild(): {
+    child: TunnelChildProcess;
+    emitError: (err: unknown) => void;
+  } {
+    let errListener: ((err: unknown) => void) | undefined;
+    const child: TunnelChildProcess = {
+      stdout: null,
+      stderr: null,
+      kill: () => true,
+      on(event: string, listener: (arg: never) => void) {
+        if (event === "error") {
+          errListener = listener as (err: unknown) => void;
+        }
+        return child;
+      },
+    };
+    return { child, emitError: (err) => errListener?.(err) };
+  }
+
+  it("rewrites a missing-ssh ENOENT into an actionable win32 message", () => {
+    const { child, emitError } = fakeChild();
+    const wrapped = wrapSshSpawnErrors(child, "win32");
+    const seen: Error[] = [];
+    wrapped.on("error", (e) => seen.push(e));
+    emitError(Object.assign(new Error("spawn ssh ENOENT"), { code: "ENOENT" }));
+    expect(seen[0]?.message).toMatch(/OpenSSH client not found.*Optional/s);
+  });
+
+  it("rewrites a missing-ssh ENOENT into an actionable POSIX message", () => {
+    const { child, emitError } = fakeChild();
+    const wrapped = wrapSshSpawnErrors(child, "linux");
+    const seen: Error[] = [];
+    wrapped.on("error", (e) => seen.push(e));
+    emitError(Object.assign(new Error("spawn ssh ENOENT"), { code: "ENOENT" }));
+    expect(seen[0]?.message).toMatch(/OpenSSH client not found.*openssh/s);
+  });
+
+  it("passes non-ENOENT errors through unchanged", () => {
+    const { child, emitError } = fakeChild();
+    const wrapped = wrapSshSpawnErrors(child, "linux");
+    const seen: unknown[] = [];
+    wrapped.on("error", (e) => seen.push(e));
+    const original = Object.assign(new Error("boom"), { code: "EPIPE" });
+    emitError(original);
+    expect(seen[0]).toBe(original);
   });
 });
 

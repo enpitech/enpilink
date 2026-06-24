@@ -69,6 +69,12 @@ deno task dev --tunnel
 
 enpilink opens an account-free [srv.us](https://srv.us) SSH tunnel automatically (no login, no signup) and prints a public `/mcp` URL — e.g. `https://6x7k9m2qwerasdf.srv.us/mcp`. The URL is stable: it's derived from an ed25519 key auto-generated at `~/.enpilink/id_ed25519`, so the same machine gets the same URL every run. Add `--verbose` to stream the raw tunnel logs.
 
+<Note>
+**Windows.** The tunnel uses the OpenSSH client, which ships with Windows 10 (1809+) and Windows 11 — no extra install. If you see `OpenSSH client not found`, enable it via **Settings → Apps → Optional features → Add → OpenSSH Client** (or install OpenSSH), then restart your terminal. On Windows the auto-generated key's permissions are locked to your user account with `icacls` (Windows ignores POSIX file modes), so OpenSSH won't reject it as an "UNPROTECTED PRIVATE KEY FILE".
+
+Windows support was added and verified via platform-mocked tests, but has **not yet been confirmed on real Windows hardware**.
+</Note>
+
 #### 2. Connect to ChatGPT
 
 1. In ChatGPT, go to **Profile → Apps → Create app**

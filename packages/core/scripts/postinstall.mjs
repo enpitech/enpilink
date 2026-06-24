@@ -12,7 +12,7 @@
 
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 
 try {
@@ -32,10 +32,25 @@ try {
   );
 
   if (result.status === 0) {
-    try {
-      chmodSync(keyPath, 0o600);
-    } catch {
-      // ignore
+    if (process.platform === "win32") {
+      // Windows OpenSSH ignores POSIX perms and rejects keys with open ACLs
+      // ("UNPROTECTED PRIVATE KEY FILE"). Lock the ACLs to the current user.
+      // Best-effort here; the provider re-locks lazily before connecting.
+      try {
+        spawnSync(
+          "icacls",
+          [keyPath, "/inheritance:r", "/grant:r", `${userInfo().username}:F`],
+          { stdio: "ignore" },
+        );
+      } catch {
+        // ignore
+      }
+    } else {
+      try {
+        chmodSync(keyPath, 0o600);
+      } catch {
+        // ignore
+      }
     }
   }
 } catch {
