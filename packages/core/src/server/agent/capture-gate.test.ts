@@ -40,11 +40,16 @@ describe("agent capture gate", () => {
     await storage.setConfig("agent.enabled", true);
     await storage.setConfig("agent.sampleRate", 0.5);
     await storage.setConfig("agent.verifyIpRanges", true);
+    await storage.setConfig("agent.serve", true);
+    await storage.setConfig("agent.site.title", "Acme");
     await refreshAgentCaptureGate();
     expect(getAgentCaptureGate()).toEqual({
       enabled: true,
       sampleRate: 0.5,
       verifyIpRanges: true,
+      serve: true,
+      siteTitle: "Acme",
+      siteDescription: "",
     });
 
     await storage.close();

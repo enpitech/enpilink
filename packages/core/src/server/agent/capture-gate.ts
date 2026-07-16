@@ -2,19 +2,21 @@ import { resolveConfig } from "../config/index.js";
 import { getActiveStorage } from "../log-sink.js";
 
 /**
- * Live capture gate for the HTTP agent surface (M1) — a direct clone of the
- * analytics `capture-gate.ts` pattern, kept SEPARATE so the two capture points
- * toggle independently (agent capture is a different, heavier surface and OFF by
- * default regardless of `analytics.enabled`).
+ * Live runtime snapshot of the HTTP agent surface (M1 + M3) — a direct clone of
+ * the analytics `capture-gate.ts` pattern, kept SEPARATE so the agent surface
+ * toggles independently of `analytics.enabled` (it is a different, heavier
+ * surface and OFF by default). Despite the name it now holds the resolved config
+ * for BOTH agent capture (`agent.enabled`/`sampleRate`/`verifyIpRanges`) and
+ * agent SERVING (`agent.serve` + the `agent.site.*` summary), so both hot paths
+ * read one cheap synchronous snapshot.
  *
- * The gate mirrors the resolved runtime config of `agent.enabled` (+
- * `agent.sampleRate`) using the documented env > file > db > default precedence.
- * It is a cheap, synchronous, in-memory snapshot read on the request hot path —
- * no DB read, no async, never throws — re-resolved only when config is written
- * (the config router calls {@link refreshAgentCaptureGate} after a successful
- * PUT/DELETE/preset). So toggling `agent.enabled` in the UI takes effect for
- * subsequent requests WITHOUT a restart, and an env pin (`ENPILINK_AGENT`) still
- * wins (env > db).
+ * The gate mirrors the resolved runtime config using the documented
+ * env > file > db > default precedence. It is read synchronously on the request
+ * hot path — no DB read, no async, never throws — re-resolved only when config is
+ * written (the config router calls {@link refreshAgentCaptureGate} after a
+ * successful PUT/DELETE/preset). So toggling `agent.enabled` or `agent.serve` in
+ * the UI takes effect for subsequent requests WITHOUT a restart, and an env pin
+ * (`ENPILINK_AGENT`, `ENPILINK_CFG_AGENT_SERVE`) still wins (env > db).
  */
 
 /** The cheap, synchronous snapshot read on the hot path. */
@@ -31,11 +33,24 @@ export interface AgentCaptureGate {
    * {@link setAgentCaptureGate} keep compiling; absent/undefined reads as off.
    */
   verifyIpRanges?: boolean;
+  /**
+   * Whether to SERVE the agent representation to eligible chat fetchers (resolved
+   * `agent.serve`, M3). OFF by default and independent of {@link enabled}.
+   * Optional so existing test callers keep compiling; absent/undefined reads off.
+   */
+  serve?: boolean;
+  /** Resolved owner-declared site title (`agent.site.title`), or "" if unset. */
+  siteTitle?: string;
+  /**
+   * Resolved owner-declared site description (`agent.site.description`), or "".
+   */
+  siteDescription?: string;
 }
 
 /**
  * The current gate. Defaults to OFF so that, before the first resolve (or if a
- * resolve fails), capture stays off — preserving the off-by-default guarantee.
+ * resolve fails), both capture and serving stay off — preserving the
+ * off-by-default guarantee.
  */
 let gate: AgentCaptureGate = { enabled: false, sampleRate: 1 };
 
@@ -61,6 +76,9 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
       enabled: values["agent.enabled"] === true,
       sampleRate: values["agent.sampleRate"],
       verifyIpRanges: values["agent.verifyIpRanges"] === true,
+      serve: values["agent.serve"] === true,
+      siteTitle: values["agent.site.title"],
+      siteDescription: values["agent.site.description"],
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or

@@ -7,6 +7,15 @@ export {
   readAdminToken,
 } from "./admin.js";
 export {
+  type AgentSiteInfo,
+  type AgentToolInfo,
+  type AgentToolParam,
+  extractToolParams,
+  type Representation,
+  type RepresentationInput,
+  represent,
+} from "./agent/represent.js";
+export {
   analyticsEnabled,
   type InstallAnalyticsOptions,
   installAnalytics,

@@ -213,6 +213,30 @@ export const runtimeSchema = z.object({
    * Meta) simply yields no IP tier for that client — never a downgrade.
    */
   "agent.verifyIpRanges": z.boolean().default(false),
+
+  // --- Agent surface routing / representation (M3) ---
+  /**
+   * Whether to SERVE the self-sufficient agent representation to eligible AI
+   * chat fetchers (M3). OFF by default and INDEPENDENT of `agent.enabled`
+   * (capture): serving re-encodes the declared source (tool registry + site
+   * summary) as clean markdown/HTML for one-shot chat agents. The cloaking
+   * guardrail is absolute — crawlers (incl. Googlebot) and humans/browsers ALWAYS
+   * get the normal response; only chat fetchers are ever served. Governed live
+   * via the agent capture gate (env > file > db), so toggling takes effect
+   * without a restart.
+   */
+  "agent.serve": z.boolean().default(false),
+  /**
+   * Owner-declared short title of the app, shown at the top of the agent
+   * representation. Falls back to the MCP server name when empty. First-party,
+   * owner-authored text — safe to place in the representation.
+   */
+  "agent.site.title": z.string().default(""),
+  /**
+   * Owner-declared one-line description of what the app is / does, shown in the
+   * agent representation. First-party, owner-authored text.
+   */
+  "agent.site.description": z.string().default(""),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -515,6 +539,27 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Agent",
     editable: "runtime",
   },
+  "agent.serve": {
+    label: "Serve agent representation",
+    description:
+      "Serve a self-sufficient markdown/HTML representation (your site summary + tool index) to AI chat fetchers, which make one request and never come back. Off by default and independent of agent capture. Crawlers (including Googlebot) and humans always get your normal page — only chat fetchers are ever served.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.site.title": {
+    label: "Agent site title",
+    description:
+      "Short title of your app shown at the top of the agent representation. Falls back to the MCP server name when empty.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.site.description": {
+    label: "Agent site description",
+    description:
+      "One-line description of what your app is or does, shown in the agent representation.",
+    group: "Agent",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -554,6 +599,9 @@ export const RUNTIME_KEYS = [
   "agent.sampleRate",
   "agent.retentionDays",
   "agent.verifyIpRanges",
+  "agent.serve",
+  "agent.site.title",
+  "agent.site.description",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -654,6 +702,9 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "agent.sampleRate": "ENPILINK_CFG_AGENT_SAMPLE_RATE",
   "agent.retentionDays": "ENPILINK_CFG_AGENT_RETENTION_DAYS",
   "agent.verifyIpRanges": "ENPILINK_CFG_AGENT_VERIFY_IP_RANGES",
+  "agent.serve": "ENPILINK_CFG_AGENT_SERVE",
+  "agent.site.title": "ENPILINK_CFG_AGENT_SITE_TITLE",
+  "agent.site.description": "ENPILINK_CFG_AGENT_SITE_DESCRIPTION",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);

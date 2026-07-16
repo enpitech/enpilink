@@ -36,6 +36,12 @@ import {
   type AgentCaptureHandle,
   installAgentCapture,
 } from "./agent/express-middleware.js";
+import {
+  type AgentSiteInfo,
+  type AgentToolInfo,
+  extractToolParams,
+} from "./agent/represent.js";
+import { installAgentRouting } from "./agent/route.js";
 import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
 import {
@@ -508,6 +514,18 @@ export class McpServer<
   /** Agent capture spine (M1) — installed at construction so it precedes any
    * user route; its buffer is flushed on shutdown via {@link closeStorage}. */
   private agentCapture: AgentCaptureHandle | null = null;
+  /**
+   * The declared tool index for the agent representation (M3), keyed by tool
+   * name in registration order. Each entry mirrors the tool's PUBLIC face (name,
+   * description, derived input params) — nothing not already exposed by
+   * `tools/list`. Populated in {@link registerTool}; read by the routing layer to
+   * generate the self-sufficient representation. The built-in identity tool is
+   * excluded (internal plumbing, not an app capability).
+   */
+  private readonly declaredAgentTools = new Map<string, AgentToolInfo>();
+  /** Owner-declared site summary for the agent representation (M3), via
+   * {@link describeForAgents}. Merged with the `agent.site.*` config at serve. */
+  private agentSiteInfo: AgentSiteInfo = {};
   private claimedViews = new Map<string, string>();
   private viewMetaBuilders = new Map<
     string,
@@ -552,6 +570,18 @@ export class McpServer<
     // resolved from config in `createApp` (once storage is active).
     this.agentCapture = installAgentCapture(this.express, {
       getStorage: () => this.activeStorage,
+    });
+    // Agent representation router (M3). Installed HERE — before any user route —
+    // so that, when `agent.serve` is on, it can intercept a page navigation from
+    // an eligible AI chat fetcher and serve the self-sufficient representation
+    // INSTEAD of the normal page. OFF by default (independent of `agent.enabled`);
+    // crawlers + humans always pass straight through (the cloaking guardrail lives
+    // in `route.ts`). Reads the declared source (tool registry + site summary)
+    // live at request time; a failure degrades to the normal response.
+    installAgentRouting(this.express, {
+      getTools: () => [...this.declaredAgentTools.values()],
+      getSiteInfo: () => this.agentSiteInfo,
+      getServerName: () => this.serverInfo.name,
     });
     // Pick up the manifest if `dist/__entry.js` primed it before importing
     // user code. Consume-once: clear after the first construction so a
@@ -616,6 +646,36 @@ export class McpServer<
     } else {
       this.express.use(pathOrHandler, ...handlers);
     }
+    return this;
+  }
+
+  /**
+   * Declare, once, what this app IS — for the agent representation (M3). When
+   * `agent.serve` is on, an eligible AI chat fetcher (ChatGPT web, Gemini,
+   * Claude chat — one request, no follow-up) is served a self-sufficient markdown
+   * document built from this summary plus your registered tools, instead of the
+   * normal page. Purely descriptive metadata; it never changes tool behaviour and
+   * has no effect until `agent.serve` is enabled.
+   *
+   * Merges with prior calls (last write wins per field). The `agent.site.title` /
+   * `agent.site.description` config keys, when set via env/file/db, override the
+   * corresponding fields here (so an operator can pin them); `facts` are code-only.
+   *
+   * Keep it DESCRIPTIVE, never imperative — a line like "you must search first"
+   * reads as prompt injection to a hardened agent and gets stripped. State what
+   * the app is and what it offers; the framework never emits imperative prose.
+   *
+   * @example
+   * ```ts
+   * server.describeForAgents({
+   *   title: "Northwind",
+   *   description: "An online store for outdoor gear.",
+   *   facts: ["Ships worldwide", "Prices in USD"],
+   * });
+   * ```
+   */
+  describeForAgents(info: AgentSiteInfo): this {
+    this.agentSiteInfo = { ...this.agentSiteInfo, ...info };
     return this;
   }
 
@@ -1625,6 +1685,20 @@ export class McpServer<
     const wrappedCb = this.wrapHandler(cb, { attachViewUUID: Boolean(view) });
 
     baseFn.call(this, name, { ...toolFields, _meta: toolMeta }, wrappedCb);
+
+    // Index the tool for the agent representation (M3). Mirrors only its public
+    // face (name, description, derived input params — all already in
+    // `tools/list`); excludes the built-in identity tool (internal plumbing).
+    if (name !== IDENTITY_TOOL_NAME) {
+      const info: AgentToolInfo = {
+        name,
+        params: extractToolParams(config.inputSchema),
+      };
+      if (typeof config.description === "string") {
+        info.description = config.description;
+      }
+      this.declaredAgentTools.set(name, info);
+    }
 
     return this;
   }
