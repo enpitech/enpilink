@@ -283,6 +283,104 @@ describe("SqliteStorageAdapter", () => {
       expect(row?.meta).toEqual({ foo: 1 });
     });
 
+    it("persists the M3 served flag + encoding and round-trips them (M4)", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/",
+          status: 200,
+          outcome: "resolved",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "ua+shape",
+          agentClass: "chat-fetcher",
+          agentFamily: "gemini",
+          served: true,
+          servedEncoding: "markdown",
+        },
+        {
+          ts: 2000,
+          siteId: "default",
+          method: "GET",
+          path: "/missing",
+          status: 404,
+          outcome: "dead_end",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "ua+shape",
+          agentClass: "chat-fetcher",
+          agentFamily: "gemini",
+        },
+      ]);
+      const rows = (await store.queryAgentRequests?.()) ?? [];
+      const served = rows.find((r) => r.path === "/");
+      const notServed = rows.find((r) => r.path === "/missing");
+      expect(served?.served).toBe(true);
+      expect(served?.servedEncoding).toBe("markdown");
+      // A non-served row carries no served flag (absent, not false).
+      expect(notServed?.served).toBeUndefined();
+      expect(notServed?.servedEncoding).toBeUndefined();
+    });
+
+    it("filters by class and aggregates outcomes DB-side (M4)", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/",
+          status: 200,
+          outcome: "resolved",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "none",
+          agentClass: "chat-fetcher",
+          agentFamily: "gemini",
+          served: true,
+        },
+        {
+          ts: 2000,
+          siteId: "default",
+          method: "GET",
+          path: "/x",
+          status: 404,
+          outcome: "dead_end",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "none",
+          agentClass: "cli",
+          agentFamily: "claude-code",
+        },
+        {
+          ts: 3000,
+          siteId: "default",
+          method: "POST",
+          path: "/contact",
+          status: 403,
+          outcome: "blocked",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "none",
+          agentClass: "cli",
+          agentFamily: "claude-code",
+        },
+      ]);
+
+      const cliRows =
+        (await store.queryAgentRequests?.({ classes: ["cli"] })) ?? [];
+      expect(cliRows).toHaveLength(2);
+      expect(cliRows.every((r) => r.agentClass === "cli")).toBe(true);
+
+      const groups = (await store.aggregateAgentOutcomes?.()) ?? [];
+      expect(groups.reduce((a, g) => a + g.count, 0)).toBe(3);
+      expect(groups.find((g) => g.served)?.count).toBe(1);
+      const post = groups.find((g) => g.method === "POST");
+      expect(post?.outcome).toBe("blocked");
+      expect(post?.agentClass).toBe("cli");
+    });
+
     it("ensureAgentSite is get-or-create: the salt is stable across calls", async () => {
       const first = await store.ensureAgentSite?.({
         id: "default",

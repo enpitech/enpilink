@@ -208,6 +208,53 @@ describe("MemoryStorageAdapter", () => {
       expect(fresh[0]?.headers).toEqual([["Host", "x"]]);
     });
 
+    it("round-trips the served flag, filters by class, and aggregates outcomes (M4)", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/",
+          status: 200,
+          outcome: "resolved",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "none",
+          agentClass: "chat-fetcher",
+          agentFamily: "gemini",
+          served: true,
+          servedEncoding: "markdown",
+        },
+        {
+          ts: 2000,
+          siteId: "default",
+          method: "POST",
+          path: "/contact",
+          status: 403,
+          outcome: "blocked",
+          httpVersion: "1.1",
+          headers: [["Host", "x"]],
+          confidence: "none",
+          agentClass: "cli",
+          agentFamily: "claude-code",
+        },
+      ]);
+      const served = (await store.queryAgentRequests?.())?.find(
+        (r) => r.path === "/",
+      );
+      expect(served?.served).toBe(true);
+      expect(served?.servedEncoding).toBe("markdown");
+
+      const cli =
+        (await store.queryAgentRequests?.({ classes: ["cli"] })) ?? [];
+      expect(cli).toHaveLength(1);
+
+      const groups = (await store.aggregateAgentOutcomes?.()) ?? [];
+      expect(groups.reduce((a, g) => a + g.count, 0)).toBe(2);
+      expect(groups.find((g) => g.method === "POST")?.outcome).toBe("blocked");
+      expect(groups.find((g) => g.served)?.count).toBe(1);
+    });
+
     it("ensureAgentSite keeps the first salt", async () => {
       const a = await store.ensureAgentSite?.({
         id: "default",

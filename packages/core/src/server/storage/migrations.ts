@@ -140,6 +140,31 @@ ALTER TABLE agent_requests ALTER COLUMN agent_class TYPE TEXT;
 CREATE INDEX IF NOT EXISTS idx_areq_class ON agent_requests (site_id, agent_class, ts);
 `;
 
+/**
+ * Migration 3 — the M3 serve flag (M4).
+ *
+ * Records whether the routing layer served the self-sufficient agent
+ * representation for a request (`served`, an INTEGER 0/1 to match the `ok`
+ * boolean convention) and which encoding (`served_encoding`). Segmenting
+ * served-vs-not is the confabulation-gap headline the product exists to compute.
+ *
+ * A new COLUMN on an existing table is the exact thing `CREATE ... IF NOT EXISTS`
+ * silently NO-OPs, which is why this is a versioned migration. On postgres the
+ * `ADD COLUMN IF NOT EXISTS` is itself idempotent; on sqlite `ADD COLUMN` has no
+ * `IF NOT EXISTS`, so the runner's `user_version` guard is what makes it run
+ * exactly once (identical to how migration 2's postgres `ALTER ... TYPE` relies
+ * on version tracking). The default 0 backfills every pre-M4 row as "not served".
+ */
+const AGENT_SERVED_SQLITE = `
+ALTER TABLE agent_requests ADD COLUMN served INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_requests ADD COLUMN served_encoding TEXT;
+`;
+
+const AGENT_SERVED_POSTGRES = `
+ALTER TABLE agent_requests ADD COLUMN IF NOT EXISTS served INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_requests ADD COLUMN IF NOT EXISTS served_encoding TEXT;
+`;
+
 /** The ordered migration list. Append-only. */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -153,6 +178,12 @@ export const MIGRATIONS: readonly Migration[] = [
     name: "agent_class_text",
     sqlite: AGENT_CLASS_TEXT_SQLITE,
     postgres: AGENT_CLASS_TEXT_POSTGRES,
+  },
+  {
+    version: 3,
+    name: "agent_served_flag",
+    sqlite: AGENT_SERVED_SQLITE,
+    postgres: AGENT_SERVED_POSTGRES,
   },
 ];
 

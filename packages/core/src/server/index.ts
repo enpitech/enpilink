@@ -7,6 +7,22 @@ export {
   readAdminToken,
 } from "./admin.js";
 export {
+  type ClassHistogram,
+  type ClassOutcome,
+  computeAgentOutcomes,
+  type DeadEndStats,
+  type FamilyOutcome,
+  foldOutcomeGroups,
+  groupRecords,
+  isWriteMethod,
+  type OutcomeAggregate,
+  type OutcomeHistogram,
+  type S3Class,
+  type SegmentOutcome,
+  WRITE_METHODS,
+  type WriteOutcome,
+} from "./agent/outcomes.js";
+export {
   type AgentSiteInfo,
   type AgentToolInfo,
   type AgentToolParam,
@@ -15,6 +31,23 @@ export {
   type RepresentationInput,
   represent,
 } from "./agent/represent.js";
+export {
+  computeAgentSessions,
+  type RecoveryStats,
+  SESSIONABLE_CLASSES,
+  type SessionAggregate,
+  type SessionOptions,
+  type UnsessionableClass,
+} from "./agent/sessions.js";
+export {
+  type AgentTelemetryDisabled,
+  type AgentTelemetrySummary,
+  buildHeadline,
+  createAgentTelemetryRouter,
+  readAgentTelemetry,
+  type SummarizeAgentOptions,
+  summarizeAgentTelemetry,
+} from "./agent/telemetry.js";
 export {
   analyticsEnabled,
   type InstallAnalyticsOptions,

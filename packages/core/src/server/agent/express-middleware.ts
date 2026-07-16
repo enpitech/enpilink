@@ -243,6 +243,16 @@ export function installAgentCapture(
         ts: start,
         ms: now() - start,
       };
+      // M4: persist whether the M3 routing layer served the self-sufficient
+      // representation for THIS request. M3 sets these locals synchronously
+      // before it ends the response, so they are populated by the time `finish`
+      // fires. Segmenting served-vs-not is the confabulation-gap headline (F-1).
+      const served = res.locals.enpilinkAgentServed === true;
+      const servedEncoding =
+        res.locals.enpilinkAgentEncoding === "markdown" ||
+        res.locals.enpilinkAgentEncoding === "html"
+          ? (res.locals.enpilinkAgentEncoding as "markdown" | "html")
+          : undefined;
       // Build + enqueue AFTER the response is done, so nothing here touches the
       // request latency. Salt/hash resolution is async but off the hot path.
       void (async () => {
@@ -297,6 +307,12 @@ export function installAgentCapture(
         }
         rec.agentClass = detection.class;
         rec.confidence = confidence;
+        if (served) {
+          rec.served = true;
+          if (servedEncoding !== undefined) {
+            rec.servedEncoding = servedEncoding;
+          }
+        }
         if (spoof) {
           rec.meta = { ...(rec.meta ?? {}), spoof: true };
         }

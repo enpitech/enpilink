@@ -194,6 +194,16 @@ export interface AgentRequestRecord {
   sessionId?: string;
   /** Task-correlation token (C2), when present (M9). */
   taskToken?: string;
+  /**
+   * Whether the M3 routing layer served the self-sufficient agent
+   * representation for THIS request (instead of the normal page). Set true only
+   * when served; absent otherwise. Filled by M4 from
+   * `res.locals.enpilinkAgentServed`. Segmenting served-vs-not is the
+   * confabulation-gap headline (F-1): "we served N self-sufficient responses".
+   */
+  served?: boolean;
+  /** Which encoding M3 served, when {@link served}. From M3's decision. */
+  servedEncoding?: "markdown" | "html";
   /** Arbitrary extra structured data. */
   meta?: Record<string, unknown>;
 }
@@ -206,8 +216,38 @@ export interface AgentRequestQuery {
   until?: number;
   /** Only requests for this site. */
   siteId?: string;
+  /**
+   * Only requests whose {@link AgentRequestRecord.agentClass} is in this set.
+   * Session correlation (M4) queries ONLY the correlatable classes so it never
+   * pulls the full (potentially huge) human/agent row set into JS.
+   */
+  classes?: string[];
   /** Maximum rows returned (most recent first). */
   limit?: number;
+}
+
+/**
+ * A pre-grouped outcome count — the minimal aggregation unit the M4 telemetry
+ * read API folds into its histograms. Produced DB-side by
+ * {@link StorageAdapter.aggregateAgentOutcomes} (a `GROUP BY`, so the dashboard
+ * never pulls raw rows into JS the way the MCP `/summary` does) and, identically,
+ * by grouping records in JS for the pure table tests. The grouping keys are all
+ * low-cardinality, so the number of groups is bounded (outcomes × families ×
+ * classes × methods × served) regardless of request volume.
+ */
+export interface AgentOutcomeGroup {
+  /** The status-derived outcome class for the group. */
+  outcome: AgentOutcome;
+  /** Named vendor/client, or `null` when unnamed. */
+  agentFamily: string | null;
+  /** Behavioural taxonomy class, or `null` when unset. */
+  agentClass: AgentClass | null;
+  /** HTTP method (original casing) — write-attempt is derived from this. */
+  method: string;
+  /** Whether M3 served the representation for the requests in this group. */
+  served: boolean;
+  /** Number of requests in the group. */
+  count: number;
 }
 
 /**
@@ -314,6 +354,15 @@ export interface StorageAdapter {
   recordAgentRequests?(records: AgentRequestRecord[]): Promise<void>;
   /** Query captured agent requests, most recent first. */
   queryAgentRequests?(q?: AgentRequestQuery): Promise<AgentRequestRecord[]>;
+  /**
+   * Aggregate captured agent requests into {@link AgentOutcomeGroup} counts with
+   * a DB-side `GROUP BY` — the scalable path the M4 telemetry summary uses for
+   * its outcome / dead-end / served-segment histograms, so a high-volume site is
+   * never summarised by pulling every row into JS. Optional so custom adapters
+   * predating M4 keep compiling; the read API feature-detects and falls back to a
+   * bounded {@link queryAgentRequests} + in-JS grouping when it is absent.
+   */
+  aggregateAgentOutcomes?(q?: AgentRequestQuery): Promise<AgentOutcomeGroup[]>;
   /**
    * Get-or-create a site row, returning the EFFECTIVE record. If a row for
    * `site.id` already exists its stored salt is kept (so IP hashes stay stable

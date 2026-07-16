@@ -2,6 +2,7 @@ import type DatabaseConstructor from "better-sqlite3";
 import type { Database, Statement } from "better-sqlite3";
 import { runSqliteMigrations } from "./migrations.js";
 import {
+  type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
   type AgentSiteRecord,
@@ -115,11 +116,11 @@ export class SqliteStorageAdapter implements StorageAdapter {
         `INSERT INTO agent_requests
            (ts, site_id, method, path, status, outcome, http_version, headers,
             ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
-            session_id, task_token, meta)
+            session_id, task_token, served, served_encoding, meta)
          VALUES
            (@ts, @site_id, @method, @path, @status, @outcome, @http_version, @headers,
             @ip_hash, @ua, @referer, @ms, @agent_family, @agent_class, @confidence,
-            @session_id, @task_token, @meta)`,
+            @session_id, @task_token, @served, @served_encoding, @meta)`,
       ),
       insertAgentSite: db.prepare(
         `INSERT INTO agent_sites (id, origin, ip_salt, created_at)
@@ -387,6 +388,13 @@ export class SqliteStorageAdapter implements StorageAdapter {
       where.push("site_id = @siteId");
       params.siteId = q.siteId;
     }
+    if (q.classes !== undefined && q.classes.length > 0) {
+      const names = q.classes.map((c, i) => {
+        params[`c${i}`] = c;
+        return `@c${i}`;
+      });
+      where.push(`agent_class IN (${names.join(", ")})`);
+    }
     const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const limit = limitClause(q.limit, params);
     const rows = db
@@ -395,6 +403,37 @@ export class SqliteStorageAdapter implements StorageAdapter {
       )
       .all(params) as AgentRequestRow[];
     return rows.map(rowToAgentRequest);
+  }
+
+  async aggregateAgentOutcomes(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentOutcomeGroup[]> {
+    const { db } = this.require();
+    const where: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (q.since !== undefined) {
+      where.push("ts >= @since");
+      params.since = q.since;
+    }
+    if (q.until !== undefined) {
+      where.push("ts < @until");
+      params.until = q.until;
+    }
+    if (q.siteId !== undefined) {
+      where.push("site_id = @siteId");
+      params.siteId = q.siteId;
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    // GROUP BY the low-cardinality dimensions so a busy site is summarised into
+    // a bounded set of counts DB-side — never 5000 raw rows pulled into JS.
+    const rows = db
+      .prepare(
+        `SELECT outcome, agent_family, agent_class, method, served, COUNT(*) AS count
+           FROM agent_requests ${clause}
+          GROUP BY outcome, agent_family, agent_class, method, served`,
+      )
+      .all(params) as AgentOutcomeGroupRow[];
+    return rows.map(rowToOutcomeGroup);
   }
 
   async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
@@ -597,6 +636,8 @@ interface AgentRequestRow {
   confidence: string;
   session_id: string | null;
   task_token: string | null;
+  served: number | null;
+  served_encoding: string | null;
   meta: string | null;
 }
 
@@ -605,6 +646,26 @@ interface AgentSiteRow {
   origin: string | null;
   ip_salt: string;
   created_at: number;
+}
+
+interface AgentOutcomeGroupRow {
+  outcome: string;
+  agent_family: string | null;
+  agent_class: string | null;
+  method: string;
+  served: number | null;
+  count: number;
+}
+
+function rowToOutcomeGroup(r: AgentOutcomeGroupRow): AgentOutcomeGroup {
+  return {
+    outcome: r.outcome as AgentOutcomeGroup["outcome"],
+    agentFamily: r.agent_family,
+    agentClass: r.agent_class as AgentOutcomeGroup["agentClass"],
+    method: r.method,
+    served: r.served === 1,
+    count: Number(r.count),
+  };
 }
 
 /** Bind-params for an agent-request insert (sqlite `@name` style). */
@@ -627,6 +688,8 @@ function agentRequestParams(r: AgentRequestRecord): Record<string, unknown> {
     confidence: r.confidence ?? "none",
     session_id: r.sessionId ?? null,
     task_token: r.taskToken ?? null,
+    served: r.served ? 1 : 0,
+    served_encoding: r.servedEncoding ?? null,
     meta: r.meta === undefined ? null : JSON.stringify(r.meta),
   };
 }
@@ -666,6 +729,13 @@ function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   }
   if (r.task_token !== null) {
     rec.taskToken = r.task_token;
+  }
+  if (r.served === 1) {
+    rec.served = true;
+  }
+  if (r.served_encoding !== null) {
+    rec.servedEncoding =
+      r.served_encoding as AgentRequestRecord["servedEncoding"];
   }
   if (r.meta !== null) {
     rec.meta = JSON.parse(r.meta);

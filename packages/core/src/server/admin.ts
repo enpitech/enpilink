@@ -102,6 +102,7 @@ function adminTokenVerifier(token: string): {
 /** Path prefixes for the admin DATA APIs (guarded). The shell is everything else. */
 const DATA_API_PREFIXES = [
   "/__enpilink/observability",
+  "/__enpilink/agents",
   "/__enpilink/config",
   "/__enpilink/auth",
 ] as const;
@@ -253,11 +254,13 @@ export async function mountAdmin(
   opts: { auth?: RequestHandler } = {},
 ): Promise<void> {
   const { createObservabilityRouter } = await import("./observability.js");
+  const { createAgentTelemetryRouter } = await import("./agent/telemetry.js");
   const { createConfigRouter } = await import("./config/index.js");
   const { createAuthDataRouter } = await import("./auth-data-router.js");
 
   const staticUi = await loadDevtoolsStaticServer();
   const observability = createObservabilityRouter();
+  const agentTelemetry = createAgentTelemetryRouter();
   const config = createConfigRouter();
   const authData = createAuthDataRouter();
 
@@ -274,6 +277,7 @@ export async function mountAdmin(
     app.use(opts.auth);
   }
   app.use(observability);
+  app.use(agentTelemetry);
   app.use(config);
   app.use(authData);
 }

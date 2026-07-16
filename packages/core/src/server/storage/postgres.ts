@@ -1,5 +1,6 @@
 import { runPostgresMigrations } from "./migrations.js";
 import {
+  type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
   type AgentSiteRecord,
@@ -381,7 +382,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     // One multi-row INSERT (a real batch), pg-mem-compatible. No BEGIN/COMMIT
     // wrapper — pg-mem's transaction semantics differ across versions, and a
     // single statement is atomic anyway.
-    const cols = 18;
+    const cols = 20;
     const values: string[] = [];
     const params: unknown[] = [];
     for (let i = 0; i < records.length; i++) {
@@ -407,6 +408,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
         r.confidence ?? "none",
         r.sessionId ?? null,
         r.taskToken ?? null,
+        r.served ? 1 : 0,
+        r.servedEncoding ?? null,
         r.meta === undefined ? null : JSON.stringify(r.meta),
       );
     }
@@ -414,7 +417,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       `INSERT INTO agent_requests
          (ts, site_id, method, path, status, outcome, http_version, headers,
           ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
-          session_id, task_token, meta)
+          session_id, task_token, served, served_encoding, meta)
        VALUES ${values.join(", ")}`,
       params,
     );
@@ -438,6 +441,13 @@ export class PostgresStorageAdapter implements StorageAdapter {
       params.push(q.siteId);
       where.push(`site_id = $${params.length}`);
     }
+    if (q.classes !== undefined && q.classes.length > 0) {
+      const ph = q.classes.map((c) => {
+        params.push(c);
+        return `$${params.length}`;
+      });
+      where.push(`agent_class IN (${ph.join(", ")})`);
+    }
     const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const limit = limitClause(q.limit, params);
     const { rows } = await pool.query<AgentRequestRow>(
@@ -445,6 +455,34 @@ export class PostgresStorageAdapter implements StorageAdapter {
       params,
     );
     return rows.map(rowToAgentRequest);
+  }
+
+  async aggregateAgentOutcomes(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentOutcomeGroup[]> {
+    const pool = this.require();
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.since !== undefined) {
+      params.push(q.since);
+      where.push(`ts >= $${params.length}`);
+    }
+    if (q.until !== undefined) {
+      params.push(q.until);
+      where.push(`ts < $${params.length}`);
+    }
+    if (q.siteId !== undefined) {
+      params.push(q.siteId);
+      where.push(`site_id = $${params.length}`);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const { rows } = await pool.query<AgentOutcomeGroupRow>(
+      `SELECT outcome, agent_family, agent_class, method, served, COUNT(*) AS count
+         FROM agent_requests ${clause}
+        GROUP BY outcome, agent_family, agent_class, method, served`,
+      params,
+    );
+    return rows.map(rowToOutcomeGroup);
   }
 
   async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
@@ -606,6 +644,8 @@ interface AgentRequestRow {
   confidence: string;
   session_id: string | null;
   task_token: string | null;
+  served: number | string | null;
+  served_encoding: string | null;
   meta: string | null;
 }
 
@@ -614,6 +654,26 @@ interface AgentSiteRow {
   origin: string | null;
   ip_salt: string;
   created_at: number | string;
+}
+
+interface AgentOutcomeGroupRow {
+  outcome: string;
+  agent_family: string | null;
+  agent_class: string | null;
+  method: string;
+  served: number | string | null;
+  count: number | string;
+}
+
+function rowToOutcomeGroup(r: AgentOutcomeGroupRow): AgentOutcomeGroup {
+  return {
+    outcome: r.outcome as AgentOutcomeGroup["outcome"],
+    agentFamily: r.agent_family,
+    agentClass: r.agent_class as AgentOutcomeGroup["agentClass"],
+    method: r.method,
+    served: Number(r.served) === 1,
+    count: Number(r.count),
+  };
 }
 
 function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
@@ -651,6 +711,13 @@ function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   }
   if (r.task_token !== null) {
     rec.taskToken = r.task_token;
+  }
+  if (r.served !== null && Number(r.served) === 1) {
+    rec.served = true;
+  }
+  if (r.served_encoding !== null) {
+    rec.servedEncoding =
+      r.served_encoding as AgentRequestRecord["servedEncoding"];
   }
   if (r.meta !== null) {
     rec.meta = JSON.parse(r.meta);

@@ -304,6 +304,54 @@ describe("PostgresStorageAdapter (pg-mem)", () => {
       ]);
     });
 
+    it("persists served + filters by class + aggregates outcomes DB-side (M4)", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/",
+          status: 200,
+          outcome: "resolved",
+          httpVersion: "2.0",
+          headers: [["Host", "acme.com"]],
+          confidence: "none",
+          agentClass: "chat-fetcher",
+          agentFamily: "gemini",
+          served: true,
+          servedEncoding: "markdown",
+        },
+        {
+          ts: 2000,
+          siteId: "default",
+          method: "POST",
+          path: "/contact",
+          status: 403,
+          outcome: "blocked",
+          httpVersion: "2.0",
+          headers: [["Host", "acme.com"]],
+          confidence: "none",
+          agentClass: "cli",
+          agentFamily: "claude-code",
+        },
+      ]);
+      const served = (await store.queryAgentRequests?.())?.find(
+        (r) => r.path === "/",
+      );
+      expect(served?.served).toBe(true);
+      expect(served?.servedEncoding).toBe("markdown");
+
+      const cli =
+        (await store.queryAgentRequests?.({ classes: ["cli"] })) ?? [];
+      expect(cli).toHaveLength(1);
+      expect(cli[0]?.agentClass).toBe("cli");
+
+      const groups = (await store.aggregateAgentOutcomes?.()) ?? [];
+      expect(groups.reduce((a, g) => a + g.count, 0)).toBe(2);
+      expect(groups.find((g) => g.served)?.count).toBe(1);
+      expect(groups.find((g) => g.method === "POST")?.outcome).toBe("blocked");
+    });
+
     it("ensureAgentSite keeps the first salt (get-or-create)", async () => {
       const a = await store.ensureAgentSite?.({
         id: "default",

@@ -73,6 +73,38 @@ describe("sqlite migrations", () => {
       db.close();
     }
   });
+
+  it("migration 3 adds served + served_encoding to an existing v2 db, idempotently", () => {
+    const db = new Database(":memory:");
+    try {
+      // Simulate a real DB migrated only up to v2 (agent_requests WITHOUT the
+      // M4 served columns; user_version pinned at 2).
+      db.exec(MIGRATIONS[0]?.sqlite ?? "");
+      db.exec(MIGRATIONS[1]?.sqlite ?? "");
+      db.pragma("user_version = 2");
+      const before = (
+        db.prepare("PRAGMA table_info(agent_requests)").all() as {
+          name: string;
+        }[]
+      ).map((c) => c.name);
+      expect(before).not.toContain("served");
+
+      // Running the runner applies ONLY migration 3 and adds the columns.
+      expect(runSqliteMigrations(db)).toEqual([3]);
+      const after = (
+        db.prepare("PRAGMA table_info(agent_requests)").all() as {
+          name: string;
+        }[]
+      ).map((c) => c.name);
+      expect(after).toContain("served");
+      expect(after).toContain("served_encoding");
+
+      // Idempotent: a second run adds nothing (no duplicate-column error).
+      expect(runSqliteMigrations(db)).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("postgres migrations (pg-mem)", () => {
@@ -96,6 +128,20 @@ describe("postgres migrations (pg-mem)", () => {
         "SELECT version FROM schema_migrations ORDER BY version",
       );
       expect(rows.map((r) => Number(r.version))).toEqual(ALL_VERSIONS);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("migration 3 adds the served columns (selectable after migrating)", async () => {
+    const pool = makePool();
+    try {
+      await runPostgresMigrations(pool);
+      // If migration 3 did not run, referencing `served` here would throw.
+      const { rows } = await pool.query(
+        "SELECT served, served_encoding FROM agent_requests",
+      );
+      expect(rows).toEqual([]);
     } finally {
       await pool.end();
     }
