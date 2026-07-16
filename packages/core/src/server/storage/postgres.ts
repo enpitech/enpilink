@@ -1,12 +1,18 @@
+import { runPostgresMigrations } from "./migrations.js";
 import {
+  type AgentRequestQuery,
+  type AgentRequestRecord,
+  type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
   type AuthUser,
   type ConfigAuditEntry,
   type EventQuery,
+  type HeaderPair,
   isGuestSub,
   type LogEntry,
   type LogQuery,
+  type PruneOptions,
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterOptions,
@@ -107,6 +113,10 @@ export class PostgresStorageAdapter implements StorageAdapter {
         : new Pool();
     }
     await this.pool.query(SCHEMA);
+    // Versioned migrations (agent_* tables etc.) run AFTER the legacy schema.
+    // Idempotent + tracked via a `schema_migrations` table — safe on an
+    // existing database.
+    await runPostgresMigrations(this.pool);
   }
 
   private require(): PgPoolLike {
@@ -363,6 +373,104 @@ export class PostgresStorageAdapter implements StorageAdapter {
     await pool.query("DELETE FROM auth_users WHERE sub = $1", [sub]);
   }
 
+  async recordAgentRequests(records: AgentRequestRecord[]): Promise<void> {
+    if (records.length === 0) {
+      return;
+    }
+    const pool = this.require();
+    // One multi-row INSERT (a real batch), pg-mem-compatible. No BEGIN/COMMIT
+    // wrapper — pg-mem's transaction semantics differ across versions, and a
+    // single statement is atomic anyway.
+    const cols = 18;
+    const values: string[] = [];
+    const params: unknown[] = [];
+    for (let i = 0; i < records.length; i++) {
+      const base = i * cols;
+      const ph = Array.from({ length: cols }, (_, j) => `$${base + j + 1}`);
+      values.push(`(${ph.join(", ")})`);
+      const r = records[i] as AgentRequestRecord;
+      params.push(
+        r.ts,
+        r.siteId,
+        r.method,
+        r.path,
+        r.status,
+        r.outcome,
+        r.httpVersion,
+        JSON.stringify(r.headers),
+        r.ipHash ?? null,
+        r.ua ?? null,
+        r.referer ?? null,
+        r.ms ?? null,
+        r.agentFamily ?? null,
+        r.agentClass ?? null,
+        r.confidence ?? "none",
+        r.sessionId ?? null,
+        r.taskToken ?? null,
+        r.meta === undefined ? null : JSON.stringify(r.meta),
+      );
+    }
+    await pool.query(
+      `INSERT INTO agent_requests
+         (ts, site_id, method, path, status, outcome, http_version, headers,
+          ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
+          session_id, task_token, meta)
+       VALUES ${values.join(", ")}`,
+      params,
+    );
+  }
+
+  async queryAgentRequests(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRequestRecord[]> {
+    const pool = this.require();
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.since !== undefined) {
+      params.push(q.since);
+      where.push(`ts >= $${params.length}`);
+    }
+    if (q.until !== undefined) {
+      params.push(q.until);
+      where.push(`ts < $${params.length}`);
+    }
+    if (q.siteId !== undefined) {
+      params.push(q.siteId);
+      where.push(`site_id = $${params.length}`);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const { rows } = await pool.query<AgentRequestRow>(
+      `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${limit}`,
+      params,
+    );
+    return rows.map(rowToAgentRequest);
+  }
+
+  async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
+    const pool = this.require();
+    await pool.query(
+      `INSERT INTO agent_sites (id, origin, ip_salt, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO NOTHING`,
+      [site.id, site.origin ?? null, site.ipSalt, site.createdAt],
+    );
+    const { rows } = await pool.query<AgentSiteRow>(
+      "SELECT * FROM agent_sites WHERE id = $1",
+      [site.id],
+    );
+    return rowToAgentSite(rows[0] as AgentSiteRow);
+  }
+
+  async prune(opts: PruneOptions): Promise<number> {
+    const pool = this.require();
+    const { rows } = await pool.query<{ id: number | string }>(
+      "DELETE FROM agent_requests WHERE ts < $1 RETURNING id",
+      [opts.before],
+    );
+    return rows.length;
+  }
+
   async close(): Promise<void> {
     if (this.pool) {
       await this.pool.end();
@@ -478,6 +586,88 @@ function rowToUser(r: UserRow): AuthUser {
     u.name = r.name;
   }
   return u;
+}
+
+interface AgentRequestRow {
+  ts: number | string;
+  site_id: string;
+  method: string;
+  path: string;
+  status: number | string;
+  outcome: string;
+  http_version: string;
+  headers: string;
+  ip_hash: string | null;
+  ua: string | null;
+  referer: string | null;
+  ms: number | string | null;
+  agent_family: string | null;
+  agent_class: number | string | null;
+  confidence: string;
+  session_id: string | null;
+  task_token: string | null;
+  meta: string | null;
+}
+
+interface AgentSiteRow {
+  id: string;
+  origin: string | null;
+  ip_salt: string;
+  created_at: number | string;
+}
+
+function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
+  const rec: AgentRequestRecord = {
+    ts: Number(r.ts),
+    siteId: r.site_id,
+    method: r.method,
+    path: r.path,
+    status: Number(r.status),
+    outcome: r.outcome as AgentRequestRecord["outcome"],
+    httpVersion: r.http_version,
+    headers: JSON.parse(r.headers) as HeaderPair[],
+    confidence: r.confidence as AgentRequestRecord["confidence"],
+  };
+  if (r.ip_hash !== null) {
+    rec.ipHash = r.ip_hash;
+  }
+  if (r.ua !== null) {
+    rec.ua = r.ua;
+  }
+  if (r.referer !== null) {
+    rec.referer = r.referer;
+  }
+  if (r.ms !== null) {
+    rec.ms = Number(r.ms);
+  }
+  if (r.agent_family !== null) {
+    rec.agentFamily = r.agent_family;
+  }
+  if (r.agent_class !== null) {
+    rec.agentClass = Number(r.agent_class);
+  }
+  if (r.session_id !== null) {
+    rec.sessionId = r.session_id;
+  }
+  if (r.task_token !== null) {
+    rec.taskToken = r.task_token;
+  }
+  if (r.meta !== null) {
+    rec.meta = JSON.parse(r.meta);
+  }
+  return rec;
+}
+
+function rowToAgentSite(r: AgentSiteRow): AgentSiteRecord {
+  const site: AgentSiteRecord = {
+    id: r.id,
+    ipSalt: r.ip_salt,
+    createdAt: Number(r.created_at),
+  };
+  if (r.origin !== null) {
+    site.origin = r.origin;
+  }
+  return site;
 }
 
 function rowToSession(r: SessionRow): AuthSession {

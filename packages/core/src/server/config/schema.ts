@@ -187,6 +187,22 @@ export const runtimeSchema = z.object({
   "flags.liveLogs": z.boolean().default(true),
   /** Display preference: dashboard time-bucket width (ms). */
   "display.bucketMs": z.number().int().positive().default(60_000),
+
+  // --- Agent surface capture (M1) ---
+  /**
+   * Whether the HTTP agent-capture spine records requests. OFF by default (a
+   * capture must be an explicit opt-in). Governed live via the agent capture
+   * gate (env > file > db), so toggling it takes effect without a restart.
+   */
+  "agent.enabled": z.boolean().default(false),
+  /** Fraction of HTTP requests the agent capture samples `[0, 1]`. */
+  "agent.sampleRate": z.number().min(0).max(1).default(1),
+  /**
+   * Days to retain captured agent requests before they are pruned. `0` keeps
+   * rows forever (no pruning). Unlike `retention.events`/`retention.logs` (which
+   * are historically decorative), this value is actually enforced by `prune()`.
+   */
+  "agent.retentionDays": z.number().int().nonnegative().default(30),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -458,6 +474,30 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     unit: "ms",
     editable: "runtime",
   },
+  // --- Agent surface capture (runtime) ---
+  "agent.enabled": {
+    label: "Agent capture",
+    description:
+      "Record every HTTP request (raw header order + casing, client IP, timing, outcome) into the agent_* tables so the agent surface can detect and measure AI agents. Off by default.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.sampleRate": {
+    label: "Agent sampling rate",
+    description:
+      "Fraction of HTTP requests the agent capture records. 1 records everything; lower values reduce overhead and storage on busy sites.",
+    group: "Agent",
+    unit: "0–1 ratio",
+    editable: "runtime",
+  },
+  "agent.retentionDays": {
+    label: "Agent data retention",
+    description:
+      "How many days captured agent requests are kept before being pruned. 0 keeps them forever. Enforced by the pruner (rows past the window are actually deleted).",
+    group: "Agent",
+    unit: "days",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -493,6 +533,9 @@ export const RUNTIME_KEYS = [
   "retention.logs",
   "flags.liveLogs",
   "display.bucketMs",
+  "agent.enabled",
+  "agent.sampleRate",
+  "agent.retentionDays",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -589,6 +632,9 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "retention.logs": "ENPILINK_CFG_RETENTION_LOGS",
   "flags.liveLogs": "ENPILINK_CFG_FLAGS_LIVE_LOGS",
   "display.bucketMs": "ENPILINK_CFG_DISPLAY_BUCKET_MS",
+  "agent.enabled": "ENPILINK_AGENT",
+  "agent.sampleRate": "ENPILINK_CFG_AGENT_SAMPLE_RATE",
+  "agent.retentionDays": "ENPILINK_CFG_AGENT_RETENTION_DAYS",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);

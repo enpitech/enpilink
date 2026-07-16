@@ -32,6 +32,10 @@ import express, {
   type Express,
   type RequestHandler,
 } from "express";
+import {
+  type AgentCaptureHandle,
+  installAgentCapture,
+} from "./agent/express-middleware.js";
 import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
 import {
@@ -501,6 +505,9 @@ export class McpServer<
    * endpoint are configured. Shut down on server shutdown via {@link closeStorage}.
    */
   private otelSink: OtelSink | null = null;
+  /** Agent capture spine (M1) — installed at construction so it precedes any
+   * user route; its buffer is flushed on shutdown via {@link closeStorage}. */
+  private agentCapture: AgentCaptureHandle | null = null;
   private claimedViews = new Map<string, string>();
   private viewMetaBuilders = new Map<
     string,
@@ -535,6 +542,17 @@ export class McpServer<
     this.authConfig = enpilinkOptions?.auth;
     this.express = express();
     this.express.use(express.json());
+    // Agent capture spine (M1). Installed HERE — before any route the user
+    // registers via `server.express.*` / `server.use()` — so it wraps EVERY
+    // request (matched routes, /mcp, and unmatched-404 fall-through alike) and
+    // records the outcome after the response finishes. Sets `trust proxy`, reads
+    // `req.rawHeaders` (never `req.headers`), and is a cheap no-op until the live
+    // gate (resolved `agent.enabled`) is on. Off by default; a storage failure
+    // never breaks a response; the request never blocks on a write. The gate is
+    // resolved from config in `createApp` (once storage is active).
+    this.agentCapture = installAgentCapture(this.express, {
+      getStorage: () => this.activeStorage,
+    });
     // Pick up the manifest if `dist/__entry.js` primed it before importing
     // user code. Consume-once: clear after the first construction so a
     // subsequent test that doesn't prime can't inherit stale state.
@@ -1024,6 +1042,17 @@ export class McpServer<
         await otel.shutdown();
       } catch {
         // Shutdown must not hang or throw on an OTel flush/close failure.
+      }
+    }
+    // Flush any buffered agent captures before the store closes. Best-effort:
+    // the buffer's timer is unref'd, so skipping this only loses in-flight rows.
+    const capture = this.agentCapture;
+    if (capture) {
+      this.agentCapture = null;
+      try {
+        await capture.stop();
+      } catch {
+        // Shutdown must not hang or throw on a capture-flush failure.
       }
     }
     const storage = this.activeStorage;

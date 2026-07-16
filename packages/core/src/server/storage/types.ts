@@ -67,6 +67,122 @@ export interface LogQuery {
 }
 
 /**
+ * A single raw HTTP header, as `[name, value]` — preserving the ORIGINAL casing
+ * and, across the array, the original wire ORDER. Both are load-bearing agent
+ * fingerprint signals (a real Chrome sends `sec-ch-ua` lowercase; a disguised
+ * library title-cases it to `Sec-Ch-Ua`), so this MUST come from Node's
+ * `req.rawHeaders`, never `req.headers` (which lowercases, de-dupes and
+ * re-orders). See `server/agent/`.
+ */
+export type HeaderPair = [name: string, value: string];
+
+/**
+ * Outcome class of a request, derived purely from its HTTP status (S3 in the
+ * architecture — zero config, always available):
+ * - `resolved` — 2xx/3xx (and any other non-error status);
+ * - `dead_end` — 404 / 410 (the ~35% agent-404 signal);
+ * - `blocked` — 401 / 403 / 429 (auth/rate-limit walls);
+ * - `broken`  — 5xx (the site's own bug).
+ */
+export type AgentOutcome = "resolved" | "dead_end" | "blocked" | "broken";
+
+/**
+ * Recognition confidence tier for an agent-attributed request. `none` until the
+ * M2 detection engine fills the higher tiers; rendered honestly so a verified-IP
+ * hit and an unverified UA string never carry equal weight.
+ */
+export type AgentConfidence =
+  | "crypto"
+  | "ip_verified"
+  | "ua_only"
+  | "heuristic"
+  | "none";
+
+/**
+ * One captured agent-attributed HTTP request — the hot row of the agent surface.
+ * Written to the `agent_requests` table (NEVER the `events` table, which the MCP
+ * dashboard reads unfiltered). M1 populates the request + fingerprint columns;
+ * the detection/session columns (`agentFamily`/`agentClass`/`confidence`/
+ * `sessionId`/`taskToken`) are present now but only filled by later milestones,
+ * so no column has to be ALTERed onto an existing DB later.
+ *
+ * Privacy: NEVER holds a raw client IP. {@link ipHash} is `SHA-256(salt + ip)`
+ * with a per-site salt — the same one-way discipline as {@link AuthSession.tokenRef}.
+ */
+export interface AgentRequestRecord {
+  /** Unix epoch milliseconds when the request started. */
+  ts: number;
+  /** The site this request belongs to (per-site salt + scoping). */
+  siteId: string;
+  /** HTTP method (`GET`, `POST`, …), original casing. */
+  method: string;
+  /** Request path (pathname only — no query string). */
+  path: string;
+  /** Final HTTP status code. */
+  status: number;
+  /** Outcome class derived from {@link status}. */
+  outcome: AgentOutcome;
+  /** HTTP version string (`"1.1"`, `"2.0"`) — an HTTP-fingerprint signal. */
+  httpVersion: string;
+  /** Raw header pairs, original order AND casing — the primary fingerprint. */
+  headers: HeaderPair[];
+  /** `SHA-256(site salt + client IP)`. NEVER the raw IP. Absent if unknown. */
+  ipHash?: string;
+  /** The `User-Agent` value (verbatim), when present. */
+  ua?: string;
+  /** The `Referer` value, when present. */
+  referer?: string;
+  /** Duration from receipt to response finish, in milliseconds. */
+  ms?: number;
+  /** Agent family (`gptbot`, `claudebot`, …) — filled by M2. */
+  agentFamily?: string;
+  /** Agent taxonomy class 1..6 — filled by M2. */
+  agentClass?: number;
+  /** Recognition confidence — defaults to `none` until M2. */
+  confidence?: AgentConfidence;
+  /** Correlated session id — NULL for the unsessionable majority (M5). */
+  sessionId?: string;
+  /** Task-correlation token (C2), when present (M9). */
+  taskToken?: string;
+  /** Arbitrary extra structured data. */
+  meta?: Record<string, unknown>;
+}
+
+/** Filter for {@link StorageAdapter.queryAgentRequests}. */
+export interface AgentRequestQuery {
+  /** Only requests with `ts >= since` (epoch ms). */
+  since?: number;
+  /** Only requests with `ts < until` (epoch ms). */
+  until?: number;
+  /** Only requests for this site. */
+  siteId?: string;
+  /** Maximum rows returned (most recent first). */
+  limit?: number;
+}
+
+/**
+ * A site the agent surface captures for. Holds the per-site {@link ipSalt} used
+ * to one-way-hash client IPs so hashes are neither reversible nor cross-site
+ * joinable.
+ */
+export interface AgentSiteRecord {
+  /** Stable site id. */
+  id: string;
+  /** Human-facing origin (e.g. `https://acme.com`), when known. */
+  origin?: string;
+  /** Per-site salt for {@link AgentRequestRecord.ipHash}. */
+  ipSalt: string;
+  /** When the site row was created (epoch ms). */
+  createdAt: number;
+}
+
+/** Options for {@link StorageAdapter.prune}. */
+export interface PruneOptions {
+  /** Delete captured agent requests with `ts < before` (epoch ms). */
+  before: number;
+}
+
+/**
  * Pluggable persistence interface backing the observability + config plane.
  *
  * Implementations MUST:
@@ -135,6 +251,31 @@ export interface StorageAdapter {
    * no-op when the `sub` is unknown. Optional, like {@link deleteSession}.
    */
   deleteUser?(sub: string): Promise<void>;
+
+  // --- Agent surface capture (M1). Optional so custom adapters predating the
+  // agent surface keep compiling; the capture path feature-detects and swallows
+  // when absent (exactly like the auth methods above). ---
+
+  /**
+   * Batch-insert captured agent requests. Called by the bounded write buffer,
+   * off the request hot path. MUST never throw into the caller (best-effort,
+   * like {@link recordEvent}); the buffer additionally swallows failures.
+   */
+  recordAgentRequests?(records: AgentRequestRecord[]): Promise<void>;
+  /** Query captured agent requests, most recent first. */
+  queryAgentRequests?(q?: AgentRequestQuery): Promise<AgentRequestRecord[]>;
+  /**
+   * Get-or-create a site row, returning the EFFECTIVE record. If a row for
+   * `site.id` already exists its stored salt is kept (so IP hashes stay stable
+   * across restarts); otherwise `site` is inserted and returned.
+   */
+  ensureAgentSite?(site: AgentSiteRecord): Promise<AgentSiteRecord>;
+  /**
+   * Delete captured agent requests past a retention boundary and return the
+   * number of rows removed. This is REAL retention — unlike the decorative
+   * `retention.events` / `retention.logs` config, which no adapter enforces.
+   */
+  prune?(opts: PruneOptions): Promise<number>;
 
   /** Release resources / close connections. */
   close(): Promise<void>;

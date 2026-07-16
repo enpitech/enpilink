@@ -11,6 +11,7 @@ import {
   mountAdmin,
   readAdminToken,
 } from "./admin.js";
+import { refreshAgentCaptureGate } from "./agent/capture-gate.js";
 import {
   InsufficientScopeError,
   InvalidTokenError,
@@ -79,6 +80,12 @@ export async function createApp({
   }[];
 }): Promise<express.Express> {
   const app = mcpServer.express;
+
+  // The agent capture middleware is installed in the McpServer constructor (so
+  // it precedes any user route). Here — after `applyMcpMiddleware` has activated
+  // storage — resolve its live gate from env/file/db. Fire-and-forget; the gate
+  // stays OFF until this resolves, preserving off-by-default.
+  void refreshAgentCaptureGate();
 
   // Read `process.env.NODE_ENV` inline: wrangler/esbuild only substitute the literal expression,
   // so a local const would defeat dead-code elimination of the dev-only imports below.

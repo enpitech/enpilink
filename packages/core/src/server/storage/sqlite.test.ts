@@ -239,4 +239,92 @@ describe("SqliteStorageAdapter", () => {
       expect((await store.listSessions?.()) ?? []).toHaveLength(0);
     });
   });
+
+  describe("agent capture (M1)", () => {
+    it("batch-records and round-trips a request, preserving header order + casing", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/products/blue",
+          status: 404,
+          outcome: "dead_end",
+          httpVersion: "1.1",
+          headers: [
+            ["Host", "acme.com"],
+            ["Sec-Ch-Ua", '"Chromium";v="128"'],
+            ["User-Agent", "GPTBot/1.0"],
+          ],
+          ipHash: "abc123",
+          ua: "GPTBot/1.0",
+          confidence: "none",
+          meta: { foo: 1 },
+        },
+      ]);
+      const [row] = (await store.queryAgentRequests?.()) ?? [];
+      expect(row).toMatchObject({
+        ts: 1000,
+        siteId: "default",
+        path: "/products/blue",
+        status: 404,
+        outcome: "dead_end",
+        httpVersion: "1.1",
+        ipHash: "abc123",
+        ua: "GPTBot/1.0",
+        confidence: "none",
+      });
+      // Header order + original casing survive the DB round-trip.
+      expect(row?.headers).toEqual([
+        ["Host", "acme.com"],
+        ["Sec-Ch-Ua", '"Chromium";v="128"'],
+        ["User-Agent", "GPTBot/1.0"],
+      ]);
+      expect(row?.meta).toEqual({ foo: 1 });
+    });
+
+    it("ensureAgentSite is get-or-create: the salt is stable across calls", async () => {
+      const first = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-A",
+        createdAt: 1,
+      });
+      expect(first?.ipSalt).toBe("salt-A");
+      // A second call with a DIFFERENT candidate salt must keep the first.
+      const second = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-B",
+        createdAt: 2,
+      });
+      expect(second?.ipSalt).toBe("salt-A");
+    });
+
+    it("prune deletes rows older than the boundary and returns the count", async () => {
+      await store.recordAgentRequests?.([
+        mkReq(1000),
+        mkReq(2000),
+        mkReq(5000),
+      ]);
+      expect((await store.queryAgentRequests?.()) ?? []).toHaveLength(3);
+      const removed = (await store.prune?.({ before: 3000 })) ?? 0;
+      expect(removed).toBe(2);
+      const left = (await store.queryAgentRequests?.()) ?? [];
+      expect(left.map((r) => r.ts)).toEqual([5000]);
+    });
+  });
 });
+
+/** A minimal agent request at a given timestamp (for prune tests). */
+function mkReq(ts: number) {
+  return {
+    ts,
+    siteId: "default",
+    method: "GET",
+    path: "/",
+    status: 200,
+    outcome: "resolved" as const,
+    httpVersion: "1.1",
+    headers: [["Host", "x"]] as [string, string][],
+    confidence: "none" as const,
+  };
+}

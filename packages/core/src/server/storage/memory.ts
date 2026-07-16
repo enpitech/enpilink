@@ -1,4 +1,7 @@
 import {
+  type AgentRequestQuery,
+  type AgentRequestRecord,
+  type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
   type AuthUser,
@@ -7,6 +10,7 @@ import {
   isGuestSub,
   type LogEntry,
   type LogQuery,
+  type PruneOptions,
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterOptions,
@@ -30,6 +34,8 @@ export class MemoryStorageAdapter implements StorageAdapter {
   private readonly audit: ConfigAuditEntry[] = [];
   private readonly users = new Map<string, AuthUser>();
   private readonly sessions = new Map<string, AuthSession>();
+  private readonly agentRequests: AgentRequestRecord[] = [];
+  private readonly agentSites = new Map<string, AgentSiteRecord>();
 
   constructor(opts?: StorageAdapterOptions) {
     const cap = opts?.cap ?? DEFAULT_MEMORY_CAP;
@@ -186,6 +192,63 @@ export class MemoryStorageAdapter implements StorageAdapter {
         this.sessions.delete(id);
       }
     }
+  }
+
+  async recordAgentRequests(records: AgentRequestRecord[]): Promise<void> {
+    for (const r of records) {
+      // Defensive copy so callers can't mutate the buffer (headers included).
+      push(
+        this.agentRequests,
+        {
+          ...r,
+          headers: r.headers.map((p) => [p[0], p[1]] as [string, string]),
+        },
+        this.cap,
+      );
+    }
+  }
+
+  async queryAgentRequests(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRequestRecord[]> {
+    let out = this.agentRequests;
+    if (q.since !== undefined) {
+      out = out.filter((r) => r.ts >= (q.since as number));
+    }
+    if (q.until !== undefined) {
+      out = out.filter((r) => r.ts < (q.until as number));
+    }
+    if (q.siteId !== undefined) {
+      out = out.filter((r) => r.siteId === q.siteId);
+    }
+    out = out.slice().reverse();
+    if (q.limit !== undefined && q.limit >= 0) {
+      out = out.slice(0, q.limit);
+    }
+    return out.map((r) => ({
+      ...r,
+      headers: r.headers.map((p) => [p[0], p[1]] as [string, string]),
+    }));
+  }
+
+  async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
+    const existing = this.agentSites.get(site.id);
+    if (existing) {
+      return { ...existing };
+    }
+    this.agentSites.set(site.id, { ...site });
+    return { ...site };
+  }
+
+  async prune(opts: PruneOptions): Promise<number> {
+    let removed = 0;
+    for (let i = this.agentRequests.length - 1; i >= 0; i--) {
+      if ((this.agentRequests[i] as AgentRequestRecord).ts < opts.before) {
+        this.agentRequests.splice(i, 1);
+        removed++;
+      }
+    }
+    return removed;
   }
 
   async close(): Promise<void> {

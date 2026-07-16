@@ -265,7 +265,88 @@ describe("PostgresStorageAdapter (pg-mem)", () => {
       expect((await store.listSessions?.()) ?? []).toHaveLength(0);
     });
   });
+
+  describe("agent capture (M1)", () => {
+    it("batch-records multiple requests in one INSERT, preserving header casing", async () => {
+      await store.recordAgentRequests?.([
+        {
+          ts: 1000,
+          siteId: "default",
+          method: "GET",
+          path: "/a",
+          status: 200,
+          outcome: "resolved",
+          httpVersion: "2.0",
+          headers: [
+            ["Host", "acme.com"],
+            ["Sec-Ch-Ua", '"Chromium";v="128"'],
+          ],
+          confidence: "none",
+        },
+        {
+          ts: 2000,
+          siteId: "default",
+          method: "GET",
+          path: "/b",
+          status: 404,
+          outcome: "dead_end",
+          httpVersion: "2.0",
+          headers: [["Host", "acme.com"]],
+          confidence: "none",
+        },
+      ]);
+      const rows = (await store.queryAgentRequests?.()) ?? [];
+      expect(rows.map((r) => r.ts)).toEqual([2000, 1000]); // most recent first
+      const first = rows.find((r) => r.path === "/a");
+      expect(first?.headers).toEqual([
+        ["Host", "acme.com"],
+        ["Sec-Ch-Ua", '"Chromium";v="128"'],
+      ]);
+    });
+
+    it("ensureAgentSite keeps the first salt (get-or-create)", async () => {
+      const a = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-A",
+        createdAt: 1,
+      });
+      const b = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-B",
+        createdAt: 2,
+      });
+      expect(a?.ipSalt).toBe("salt-A");
+      expect(b?.ipSalt).toBe("salt-A");
+    });
+
+    it("prune deletes rows older than the boundary and returns the count", async () => {
+      await store.recordAgentRequests?.([
+        pgReq(1000),
+        pgReq(2000),
+        pgReq(5000),
+      ]);
+      const removed = (await store.prune?.({ before: 3000 })) ?? 0;
+      expect(removed).toBe(2);
+      const left = (await store.queryAgentRequests?.()) ?? [];
+      expect(left.map((r) => r.ts)).toEqual([5000]);
+    });
+  });
 });
+
+/** A minimal agent request at a given timestamp (for prune tests). */
+function pgReq(ts: number) {
+  return {
+    ts,
+    siteId: "default",
+    method: "GET",
+    path: "/",
+    status: 200,
+    outcome: "resolved" as const,
+    httpVersion: "1.1",
+    headers: [["Host", "x"]] as [string, string][],
+    confidence: "none" as const,
+  };
+}
 
 describe("resolvePostgresConnectionString", () => {
   const saved = {

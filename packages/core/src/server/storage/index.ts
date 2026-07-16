@@ -68,6 +68,13 @@ export function resolveStorageAdapter(
 
 export { DEFAULT_MEMORY_CAP, MemoryStorageAdapter } from "./memory.js";
 export {
+  LATEST_MIGRATION_VERSION,
+  MIGRATIONS,
+  type Migration,
+  runPostgresMigrations,
+  runSqliteMigrations,
+} from "./migrations.js";
+export {
   type PgPoolLike,
   PostgresStorageAdapter,
   type PostgresStorageOptions,
@@ -75,15 +82,22 @@ export {
 } from "./postgres.js";
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
 export {
+  type AgentConfidence,
+  type AgentOutcome,
+  type AgentRequestQuery,
+  type AgentRequestRecord,
+  type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
   type AuthUser,
   type ConfigAuditEntry,
   type EventQuery,
   GUEST_SUB_PREFIX,
+  type HeaderPair,
   isGuestSub,
   type LogEntry,
   type LogQuery,
+  type PruneOptions,
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterFactory,

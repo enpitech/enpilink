@@ -1,14 +1,20 @@
 import type DatabaseConstructor from "better-sqlite3";
 import type { Database, Statement } from "better-sqlite3";
+import { runSqliteMigrations } from "./migrations.js";
 import {
+  type AgentRequestQuery,
+  type AgentRequestRecord,
+  type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
   type AuthUser,
   type ConfigAuditEntry,
   type EventQuery,
+  type HeaderPair,
   isGuestSub,
   type LogEntry,
   type LogQuery,
+  type PruneOptions,
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterOptions,
@@ -45,6 +51,10 @@ export class SqliteStorageAdapter implements StorageAdapter {
     deleteSession: Statement;
     deleteUser: Statement;
     deleteUserSessions: Statement;
+    insertAgentRequest: Statement;
+    insertAgentSite: Statement;
+    getAgentSite: Statement;
+    pruneAgentRequests: Statement;
   } | null = null;
 
   constructor(opts?: StorageAdapterOptions) {
@@ -63,6 +73,9 @@ export class SqliteStorageAdapter implements StorageAdapter {
     const db = new Database(this.path);
     db.pragma("journal_mode = WAL");
     db.exec(SCHEMA);
+    // Versioned migrations (agent_* tables etc.) run AFTER the legacy schema.
+    // Idempotent + tracked via PRAGMA user_version — safe on an existing DB.
+    runSqliteMigrations(db);
     this.db = db;
     this.stmts = {
       insertEvent: db.prepare(
@@ -98,6 +111,23 @@ export class SqliteStorageAdapter implements StorageAdapter {
       deleteSession: db.prepare("DELETE FROM auth_sessions WHERE id = ?"),
       deleteUser: db.prepare("DELETE FROM auth_users WHERE sub = ?"),
       deleteUserSessions: db.prepare("DELETE FROM auth_sessions WHERE sub = ?"),
+      insertAgentRequest: db.prepare(
+        `INSERT INTO agent_requests
+           (ts, site_id, method, path, status, outcome, http_version, headers,
+            ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
+            session_id, task_token, meta)
+         VALUES
+           (@ts, @site_id, @method, @path, @status, @outcome, @http_version, @headers,
+            @ip_hash, @ua, @referer, @ms, @agent_family, @agent_class, @confidence,
+            @session_id, @task_token, @meta)`,
+      ),
+      insertAgentSite: db.prepare(
+        `INSERT INTO agent_sites (id, origin, ip_salt, created_at)
+         VALUES (@id, @origin, @ip_salt, @created_at)
+         ON CONFLICT(id) DO NOTHING`,
+      ),
+      getAgentSite: db.prepare("SELECT * FROM agent_sites WHERE id = ?"),
+      pruneAgentRequests: db.prepare("DELETE FROM agent_requests WHERE ts < ?"),
     };
   }
 
@@ -326,6 +356,65 @@ export class SqliteStorageAdapter implements StorageAdapter {
     tx();
   }
 
+  async recordAgentRequests(records: AgentRequestRecord[]): Promise<void> {
+    if (records.length === 0) {
+      return;
+    }
+    const { db, stmts } = this.require();
+    const insertAll = db.transaction((rows: AgentRequestRecord[]) => {
+      for (const r of rows) {
+        stmts.insertAgentRequest.run(agentRequestParams(r));
+      }
+    });
+    insertAll(records);
+  }
+
+  async queryAgentRequests(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRequestRecord[]> {
+    const { db } = this.require();
+    const where: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (q.since !== undefined) {
+      where.push("ts >= @since");
+      params.since = q.since;
+    }
+    if (q.until !== undefined) {
+      where.push("ts < @until");
+      params.until = q.until;
+    }
+    if (q.siteId !== undefined) {
+      where.push("site_id = @siteId");
+      params.siteId = q.siteId;
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const limit = limitClause(q.limit, params);
+    const rows = db
+      .prepare(
+        `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${limit}`,
+      )
+      .all(params) as AgentRequestRow[];
+    return rows.map(rowToAgentRequest);
+  }
+
+  async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
+    const { stmts } = this.require();
+    stmts.insertAgentSite.run({
+      id: site.id,
+      origin: site.origin ?? null,
+      ip_salt: site.ipSalt,
+      created_at: site.createdAt,
+    });
+    const row = stmts.getAgentSite.get(site.id) as AgentSiteRow;
+    return rowToAgentSite(row);
+  }
+
+  async prune(opts: PruneOptions): Promise<number> {
+    const { stmts } = this.require();
+    const info = stmts.pruneAgentRequests.run(opts.before);
+    return info.changes;
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       this.db.close();
@@ -488,6 +577,112 @@ function rowToLog(r: LogRow): LogEntry {
     l.data = JSON.parse(r.data);
   }
   return l;
+}
+
+interface AgentRequestRow {
+  ts: number;
+  site_id: string;
+  method: string;
+  path: string;
+  status: number;
+  outcome: string;
+  http_version: string;
+  headers: string;
+  ip_hash: string | null;
+  ua: string | null;
+  referer: string | null;
+  ms: number | null;
+  agent_family: string | null;
+  agent_class: number | null;
+  confidence: string;
+  session_id: string | null;
+  task_token: string | null;
+  meta: string | null;
+}
+
+interface AgentSiteRow {
+  id: string;
+  origin: string | null;
+  ip_salt: string;
+  created_at: number;
+}
+
+/** Bind-params for an agent-request insert (sqlite `@name` style). */
+function agentRequestParams(r: AgentRequestRecord): Record<string, unknown> {
+  return {
+    ts: r.ts,
+    site_id: r.siteId,
+    method: r.method,
+    path: r.path,
+    status: r.status,
+    outcome: r.outcome,
+    http_version: r.httpVersion,
+    headers: JSON.stringify(r.headers),
+    ip_hash: r.ipHash ?? null,
+    ua: r.ua ?? null,
+    referer: r.referer ?? null,
+    ms: r.ms ?? null,
+    agent_family: r.agentFamily ?? null,
+    agent_class: r.agentClass ?? null,
+    confidence: r.confidence ?? "none",
+    session_id: r.sessionId ?? null,
+    task_token: r.taskToken ?? null,
+    meta: r.meta === undefined ? null : JSON.stringify(r.meta),
+  };
+}
+
+function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
+  const rec: AgentRequestRecord = {
+    ts: Number(r.ts),
+    siteId: r.site_id,
+    method: r.method,
+    path: r.path,
+    status: Number(r.status),
+    outcome: r.outcome as AgentRequestRecord["outcome"],
+    httpVersion: r.http_version,
+    headers: JSON.parse(r.headers) as HeaderPair[],
+    confidence: r.confidence as AgentRequestRecord["confidence"],
+  };
+  if (r.ip_hash !== null) {
+    rec.ipHash = r.ip_hash;
+  }
+  if (r.ua !== null) {
+    rec.ua = r.ua;
+  }
+  if (r.referer !== null) {
+    rec.referer = r.referer;
+  }
+  if (r.ms !== null) {
+    rec.ms = Number(r.ms);
+  }
+  if (r.agent_family !== null) {
+    rec.agentFamily = r.agent_family;
+  }
+  if (r.agent_class !== null) {
+    rec.agentClass = Number(r.agent_class);
+  }
+  if (r.session_id !== null) {
+    rec.sessionId = r.session_id;
+  }
+  if (r.task_token !== null) {
+    rec.taskToken = r.task_token;
+  }
+  if (r.meta !== null) {
+    rec.meta = JSON.parse(r.meta);
+  }
+  return rec;
+}
+
+function rowToAgentSite(r: AgentSiteRow): AgentSiteRecord {
+  const site: AgentSiteRecord = {
+    id: r.id,
+    ipSalt: r.ip_salt,
+    createdAt: Number(r.created_at),
+  };
+  if (r.origin !== null) {
+    site.origin = r.origin;
+  }
+  return site;
 }
 
 const SCHEMA = `

@@ -184,4 +184,70 @@ describe("MemoryStorageAdapter", () => {
       expect((await store.listSessions?.()) ?? []).toHaveLength(0);
     });
   });
+
+  describe("agent capture (M1)", () => {
+    it("round-trips records (defensive header copy) and filters by since/until", async () => {
+      await store.recordAgentRequests?.([
+        memReq(1000),
+        memReq(2000),
+        memReq(5000),
+      ]);
+      const all = (await store.queryAgentRequests?.()) ?? [];
+      expect(all.map((r) => r.ts)).toEqual([5000, 2000, 1000]);
+      expect((await store.queryAgentRequests?.({ since: 2000 }))?.length).toBe(
+        2,
+      );
+      expect((await store.queryAgentRequests?.({ until: 2000 }))?.length).toBe(
+        1,
+      );
+
+      // The stored headers are a copy — mutating a returned row is harmless.
+      const [row] = all;
+      row?.headers.push(["X", "y"]);
+      const fresh = (await store.queryAgentRequests?.()) ?? [];
+      expect(fresh[0]?.headers).toEqual([["Host", "x"]]);
+    });
+
+    it("ensureAgentSite keeps the first salt", async () => {
+      const a = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-A",
+        createdAt: 1,
+      });
+      const b = await store.ensureAgentSite?.({
+        id: "default",
+        ipSalt: "salt-B",
+        createdAt: 2,
+      });
+      expect(a?.ipSalt).toBe("salt-A");
+      expect(b?.ipSalt).toBe("salt-A");
+    });
+
+    it("prune deletes rows older than the boundary and returns the count", async () => {
+      await store.recordAgentRequests?.([
+        memReq(1000),
+        memReq(2000),
+        memReq(5000),
+      ]);
+      const removed = (await store.prune?.({ before: 3000 })) ?? 0;
+      expect(removed).toBe(2);
+      const left = (await store.queryAgentRequests?.()) ?? [];
+      expect(left.map((r) => r.ts)).toEqual([5000]);
+    });
+  });
 });
+
+/** A minimal agent request at a given timestamp. */
+function memReq(ts: number) {
+  return {
+    ts,
+    siteId: "default",
+    method: "GET",
+    path: "/",
+    status: 200,
+    outcome: "resolved" as const,
+    httpVersion: "1.1",
+    headers: [["Host", "x"]] as [string, string][],
+    confidence: "none" as const,
+  };
+}
