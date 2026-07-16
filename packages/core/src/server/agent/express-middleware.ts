@@ -17,6 +17,8 @@ import {
   toCaptureRecord,
 } from "./capture.js";
 import { getAgentCaptureGate } from "./capture-gate.js";
+import { classify } from "./detect.js";
+import { IpRangeVerifier, vendorForFamily } from "./ip-ranges.js";
 
 /**
  * Express adapter for the agent capture spine (M1).
@@ -56,6 +58,13 @@ export interface InstallAgentCaptureOptions {
   now?: () => number;
   /** Site id to attribute captures to. Defaults to {@link DEFAULT_SITE_ID}. */
   siteId?: string;
+  /**
+   * The optional IP-range verifier for the `agent.verifyIpRanges` tier.
+   * Injectable so tests never hit the network; defaults to a real
+   * {@link IpRangeVerifier} that fetches published lists on a daily cache (and
+   * only when the flag is on).
+   */
+  ipVerifier?: IpRangeVerifier;
 }
 
 /** Handle returned by {@link installAgentCapture} for clean shutdown. */
@@ -126,6 +135,10 @@ export function installAgentCapture(
   const rng = opts.rng ?? Math.random;
   const now = opts.now ?? Date.now;
   const siteId = opts.siteId ?? DEFAULT_SITE_ID;
+  // The optional IP tier. Constructed unconditionally (cheap — it fetches
+  // NOTHING until `ensureFresh` is called, which only happens when the
+  // `agent.verifyIpRanges` gate is on).
+  const ipVerifier = opts.ipVerifier ?? new IpRangeVerifier();
 
   // Real client IP requires trusting the proxy/tunnel in front of us.
   app.set("trust proxy", true);
@@ -233,6 +246,31 @@ export function installAgentCapture(
       // Build + enqueue AFTER the response is done, so nothing here touches the
       // request latency. Salt/hash resolution is async but off the hot path.
       void (async () => {
+        // (1) Classify from SHAPE + UA (pure, no IO). Always runs.
+        const detection = classify(rawHeaders);
+        let confidence = detection.confidence;
+        let spoof = false;
+
+        // (2) OPTIONAL IP tier — on the RAW ip, BEFORE it is hashed and
+        // discarded. We keep only the verdict (confidence / spoof), never the
+        // ip. Only for a family whose vendor publishes a list AND is expected to
+        // originate from that vendor's ranges (crawlers/fetchers, not CLIs).
+        if (ip && gate.verifyIpRanges === true) {
+          const vendor = vendorForFamily(detection.family);
+          if (vendor) {
+            ipVerifier.ensureFresh(vendor);
+            const verdict = ipVerifier.verify(vendor, ip);
+            if (verdict === "match") {
+              confidence = "ip-verified";
+            } else if (verdict === "miss") {
+              // UA claims a vendor its IP does not back — a spoof. Keep the
+              // (spoofable) ua-only confidence and flag it.
+              spoof = true;
+            }
+          }
+        }
+
+        // (3) Hash the ip (never stored raw) and assemble the record.
         let ipHash: string | undefined;
         if (ip) {
           const salt = await ensureSalt();
@@ -254,6 +292,14 @@ export function installAgentCapture(
           outcome,
           siteId,
         );
+        if (detection.family !== null) {
+          rec.agentFamily = detection.family;
+        }
+        rec.agentClass = detection.class;
+        rec.confidence = confidence;
+        if (spoof) {
+          rec.meta = { ...(rec.meta ?? {}), spoof: true };
+        }
         buffer.enqueue(rec);
       })();
     };

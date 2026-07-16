@@ -119,6 +119,27 @@ CREATE INDEX IF NOT EXISTS idx_areq_path     ON agent_requests (site_id, path, t
 CREATE INDEX IF NOT EXISTS idx_areq_ts       ON agent_requests (ts);
 `;
 
+/**
+ * Migration 2 — the detection engine (M2).
+ *
+ * M2 stores the behavioural taxonomy STRING (`crawler`, `chat-fetcher`, …) in
+ * `agent_class`, which migration 1 declared `INTEGER` (an earlier numeric-class
+ * draft, never populated). On sqlite that column has INTEGER affinity, which
+ * stores a non-numeric string verbatim — so no type change is needed there; we
+ * only add the class index. On postgres a strict `INTEGER` column would reject
+ * the string, so we widen it to `TEXT` (the column is all-NULL, so the cast is
+ * trivial and safe). Both dialects gain `idx_areq_class` for the class-grouped
+ * dashboard queries M5 will run.
+ */
+const AGENT_CLASS_TEXT_SQLITE = `
+CREATE INDEX IF NOT EXISTS idx_areq_class ON agent_requests (site_id, agent_class, ts);
+`;
+
+const AGENT_CLASS_TEXT_POSTGRES = `
+ALTER TABLE agent_requests ALTER COLUMN agent_class TYPE TEXT;
+CREATE INDEX IF NOT EXISTS idx_areq_class ON agent_requests (site_id, agent_class, ts);
+`;
+
 /** The ordered migration list. Append-only. */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -126,6 +147,12 @@ export const MIGRATIONS: readonly Migration[] = [
     name: "agent_capture_spine",
     sqlite: AGENT_REQUESTS_SQLITE,
     postgres: AGENT_REQUESTS_POSTGRES,
+  },
+  {
+    version: 2,
+    name: "agent_class_text",
+    sqlite: AGENT_CLASS_TEXT_SQLITE,
+    postgres: AGENT_CLASS_TEXT_POSTGRES,
   },
 ];
 

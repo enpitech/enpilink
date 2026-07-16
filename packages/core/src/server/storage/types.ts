@@ -87,16 +87,65 @@ export type HeaderPair = [name: string, value: string];
 export type AgentOutcome = "resolved" | "dead_end" | "blocked" | "broken";
 
 /**
- * Recognition confidence tier for an agent-attributed request. `none` until the
- * M2 detection engine fills the higher tiers; rendered honestly so a verified-IP
- * hit and an unverified UA string never carry equal weight.
+ * Recognition confidence tier for an agent-attributed request, produced by the
+ * M2 detection engine and rendered honestly so a verified-IP hit and an
+ * unverified UA string never carry equal weight (a dashboard that shows them
+ * with the same weight is lying to the customer — CONTEXT §3). Ordered strongest
+ * → weakest:
+ * - `crypto`      — Web Bot Auth / RFC 9421 signature verified. RESERVED: M2
+ *   ships no signature verifier, so nothing emits this yet; kept so M3+ can.
+ * - `ip-verified` — the UA names a vendor AND the client IP falls inside that
+ *   vendor's published IP range (the optional IP tier, `agent.verifyIpRanges`).
+ * - `ua+shape`    — named by the UA AND the request SHAPE corroborates the claim
+ *   (e.g. `ChatGPT-User` with no `Sec-Fetch-*` + an `X-Envoy-*` header).
+ * - `shape`       — classified by request shape ALONE — the UA was absent,
+ *   spoofed, or disguised (e.g. Claude's Chrome disguise, caught by title-cased
+ *   client hints; or "no `Sec-Fetch-*` → not a browser").
+ * - `ua-only`     — named purely by an unverified, spoofable UA string.
+ * - `none`        — unclassified (the pre-detection default, or an empty request).
  */
 export type AgentConfidence =
   | "crypto"
-  | "ip_verified"
-  | "ua_only"
-  | "heuristic"
+  | "ip-verified"
+  | "ua+shape"
+  | "shape"
+  | "ua-only"
   | "none";
+
+/**
+ * Behavioural taxonomy of a detected client — the axis that predicts what the
+ * client can and will do (HOW-AGENTS-READ-PAGES §1: "it is not the vendor, it is
+ * the mode"). This is what M3 routing switches on. Produced by the M2 classifier
+ * ({@link classify} in `server/agent/detect.ts`); stored in `agent_class`.
+ * - `crawler`          — a bulk training/indexing crawler (GPTBot, ClaudeBot,
+ *   PerplexityBot, Googlebot, Bytespider). NOTE: Googlebot/search indexers must
+ *   ALWAYS get the normal page (the cloaking guardrail lives at the M3 boundary).
+ * - `chat-fetcher`     — a one-shot on-demand fetcher answering a user's question
+ *   NOW (ChatGPT-User, Gemini, Claude-User, Perplexity-User). Makes exactly one
+ *   request — the first response is the entire product.
+ * - `agent-mode`       — a multi-fetch vendor-hosted agent harness. RESERVED: a
+ *   single request's shape can't distinguish work-mode from chat-mode, so M2's
+ *   shape pass never emits this; it needs a signed/crypto signal (M3+).
+ * - `browser-agent`    — an on-device browser agent, POSITIVELY identified.
+ *   RESERVED: by shape alone it is indistinguishable from a human, so M2 reports
+ *   `human-or-browser`; a positive id needs a signature.
+ * - `cli`              — a coding-agent CLI (Claude Code, Codex, …).
+ * - `tool`             — a plain HTTP client / scraper (curl, wget,
+ *   python-requests, axios, …).
+ * - `human-or-browser` — a real browser SHAPE: a human OR an on-device browser
+ *   agent. The two are byte-for-byte indistinguishable; we say so, we do not
+ *   pretend to separate them.
+ * - `unknown`          — could not be attributed (surfaced for corpus growth).
+ */
+export type AgentClass =
+  | "crawler"
+  | "chat-fetcher"
+  | "agent-mode"
+  | "browser-agent"
+  | "cli"
+  | "tool"
+  | "human-or-browser"
+  | "unknown";
 
 /**
  * One captured agent-attributed HTTP request — the hot row of the agent surface.
@@ -134,11 +183,12 @@ export interface AgentRequestRecord {
   referer?: string;
   /** Duration from receipt to response finish, in milliseconds. */
   ms?: number;
-  /** Agent family (`gptbot`, `claudebot`, …) — filled by M2. */
+  /** Named vendor/client (`gptbot`, `chatgpt-user`, `claude-web`, …), or unset
+   * when unnamed. Filled by M2. */
   agentFamily?: string;
-  /** Agent taxonomy class 1..6 — filled by M2. */
-  agentClass?: number;
-  /** Recognition confidence — defaults to `none` until M2. */
+  /** Behavioural taxonomy class ({@link AgentClass}) — filled by M2. */
+  agentClass?: AgentClass;
+  /** Recognition confidence — defaults to `none` until M2 classifies. */
   confidence?: AgentConfidence;
   /** Correlated session id — NULL for the unsessionable majority (M5). */
   sessionId?: string;

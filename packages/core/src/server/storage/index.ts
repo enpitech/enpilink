@@ -82,6 +82,7 @@ export {
 } from "./postgres.js";
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
 export {
+  type AgentClass,
   type AgentConfidence,
   type AgentOutcome,
   type AgentRequestQuery,

@@ -203,6 +203,16 @@ export const runtimeSchema = z.object({
    * are historically decorative), this value is actually enforced by `prune()`.
    */
   "agent.retentionDays": z.number().int().nonnegative().default(30),
+  /**
+   * Whether to run the OPTIONAL IP confidence tier (M2). OFF by default: the
+   * detection engine is fully fingerprint-first and works without it. When on,
+   * capture fetches vendors' published IP-range lists (OpenAI, Google, Anthropic,
+   * Perplexity) on a daily cache and cross-checks a UA-claimed vendor against
+   * them — upgrading confidence to `ip-verified` on a match, or flagging a spoof
+   * when the UA claims a vendor whose IP does not match. A missing list (e.g.
+   * Meta) simply yields no IP tier for that client — never a downgrade.
+   */
+  "agent.verifyIpRanges": z.boolean().default(false),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -498,6 +508,13 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     unit: "days",
     editable: "runtime",
   },
+  "agent.verifyIpRanges": {
+    label: "Verify agent IP ranges",
+    description:
+      "Optional. Cross-check a request's IP against vendors' published IP-range lists (OpenAI, Google, Anthropic, Perplexity) to prove a User-Agent claim — raising confidence to ip-verified on a match, or flagging a spoof on a mismatch. Off by default; detection works fingerprint-first without it. Lists are fetched at runtime on a daily cache.",
+    group: "Agent",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -536,6 +553,7 @@ export const RUNTIME_KEYS = [
   "agent.enabled",
   "agent.sampleRate",
   "agent.retentionDays",
+  "agent.verifyIpRanges",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -635,6 +653,7 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "agent.enabled": "ENPILINK_AGENT",
   "agent.sampleRate": "ENPILINK_CFG_AGENT_SAMPLE_RATE",
   "agent.retentionDays": "ENPILINK_CFG_AGENT_RETENTION_DAYS",
+  "agent.verifyIpRanges": "ENPILINK_CFG_AGENT_VERIFY_IP_RANGES",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);

@@ -39,8 +39,13 @@ describe("agent capture gate", () => {
 
     await storage.setConfig("agent.enabled", true);
     await storage.setConfig("agent.sampleRate", 0.5);
+    await storage.setConfig("agent.verifyIpRanges", true);
     await refreshAgentCaptureGate();
-    expect(getAgentCaptureGate()).toEqual({ enabled: true, sampleRate: 0.5 });
+    expect(getAgentCaptureGate()).toEqual({
+      enabled: true,
+      sampleRate: 0.5,
+      verifyIpRanges: true,
+    });
 
     await storage.close();
   });

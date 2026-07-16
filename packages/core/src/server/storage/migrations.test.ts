@@ -55,7 +55,7 @@ describe("sqlite migrations", () => {
       expect(db.pragma("user_version", { simple: true })).toBe(0);
 
       const applied = runSqliteMigrations(db);
-      expect(applied).toEqual([1]);
+      expect(applied).toEqual(ALL_VERSIONS);
 
       // The agent table now exists AND the legacy data is untouched.
       const events = db.prepare("SELECT count(*) AS c FROM events").get() as {

@@ -23,6 +23,14 @@ export interface AgentCaptureGate {
   enabled: boolean;
   /** Fraction of requests to capture `[0, 1]` (resolved `agent.sampleRate`). */
   sampleRate: number;
+  /**
+   * Whether the OPTIONAL IP confidence tier is on (resolved
+   * `agent.verifyIpRanges`). Off by default. When on, capture cross-checks a
+   * UA-claimed vendor against its published IP ranges to upgrade confidence to
+   * `ip-verified` (or flag a spoof). Optional field so existing callers of
+   * {@link setAgentCaptureGate} keep compiling; absent/undefined reads as off.
+   */
+  verifyIpRanges?: boolean;
 }
 
 /**
@@ -52,6 +60,7 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
     gate = {
       enabled: values["agent.enabled"] === true,
       sampleRate: values["agent.sampleRate"],
+      verifyIpRanges: values["agent.verifyIpRanges"] === true,
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or

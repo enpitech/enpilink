@@ -602,7 +602,7 @@ interface AgentRequestRow {
   referer: string | null;
   ms: number | string | null;
   agent_family: string | null;
-  agent_class: number | string | null;
+  agent_class: string | null;
   confidence: string;
   session_id: string | null;
   task_token: string | null;
@@ -644,7 +644,7 @@ function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
     rec.agentFamily = r.agent_family;
   }
   if (r.agent_class !== null) {
-    rec.agentClass = Number(r.agent_class);
+    rec.agentClass = r.agent_class as AgentRequestRecord["agentClass"];
   }
   if (r.session_id !== null) {
     rec.sessionId = r.session_id;

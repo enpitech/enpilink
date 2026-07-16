@@ -9,6 +9,7 @@ import {
   installAgentCapture,
   pruneAgentData,
 } from "./express-middleware.js";
+import { IpRangeVerifier, type Vendor } from "./ip-ranges.js";
 
 /**
  * Raw HTTP GET that PRESERVES outgoing header-name casing (unlike `fetch`, whose
@@ -126,6 +127,41 @@ describe("installAgentCapture (Express, end-to-end)", () => {
     expect(await storage.queryEvents({})).toHaveLength(0);
   });
 
+  it("classifies a GPTBot request as gptbot / crawler / ua-only", async () => {
+    setAgentCaptureGate({ enabled: true, sampleRate: 1 });
+    await rawGet(port, "/", { "User-Agent": "GPTBot/1.0" });
+    await waitForRows(1);
+    const row = (await storage.queryAgentRequests()).find(
+      (r) => r.path === "/",
+    );
+    expect(row?.agentFamily).toBe("gptbot");
+    expect(row?.agentClass).toBe("crawler");
+    // No IP tier ran (flag off) → the UA claim stays unverified/spoofable.
+    expect(row?.confidence).toBe("ua-only");
+    expect(row?.meta?.spoof).toBeUndefined();
+  });
+
+  it("classifies a browser-shaped request as human-or-browser (unnamed)", async () => {
+    setAgentCaptureGate({ enabled: true, sampleRate: 1 });
+    await rawGet(port, "/", {
+      // LOWERCASE client hints + full Sec-Fetch = a real browser shape.
+      "sec-ch-ua": '"Chromium";v="149", "Google Chrome";v="149"',
+      "sec-ch-ua-mobile": "?0",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Dest": "document",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    });
+    await waitForRows(1);
+    const row = (await storage.queryAgentRequests()).find(
+      (r) => r.path === "/",
+    );
+    expect(row?.agentClass).toBe("human-or-browser");
+    expect(row?.agentFamily).toBeUndefined();
+    expect(row?.confidence).toBe("shape");
+  });
+
   it("prune() with a 1-day window deletes rows older than the window", async () => {
     // Seed one fresh row and one that is 2 days old.
     const now = Date.now();
@@ -160,5 +196,95 @@ describe("installAgentCapture (Express, end-to-end)", () => {
     const left = await storage.queryAgentRequests();
     expect(left).toHaveLength(1);
     expect(left[0]?.path).toBe("/fresh");
+  });
+});
+
+describe("installAgentCapture — the optional IP tier (agent.verifyIpRanges)", () => {
+  let storage: MemoryStorageAdapter;
+  let handle: AgentCaptureHandle;
+  let server: http.Server;
+  let port: number;
+  const OPENAI_URL = "https://openai.com/chatgpt-user.json";
+
+  beforeEach(async () => {
+    storage = new MemoryStorageAdapter();
+    await storage.init();
+    setActiveStorage(storage);
+
+    // A verifier pre-loaded with OpenAI's published ChatGPT-User range (the real
+    // `52.153.130.64/28` from the probe), served from a stub — no network.
+    const lists: Record<Vendor, readonly string[]> = {
+      openai: [OPENAI_URL],
+      google: [],
+      anthropic: [],
+      perplexity: [],
+    };
+    const ipVerifier = new IpRangeVerifier({
+      vendorLists: lists,
+      fetchJson: async (url) =>
+        url === OPENAI_URL
+          ? { prefixes: [{ ipv4Prefix: "52.153.130.64/28" }] }
+          : {},
+    });
+    await ipVerifier.refresh("openai");
+
+    const app = express();
+    handle = installAgentCapture(app, {
+      getStorage: () => storage,
+      ipVerifier,
+    });
+    app.get("/", (_req, res) => {
+      res.status(200).send("ok");
+    });
+    server = http.createServer(app);
+    await new Promise<void>((r) => server.listen(0, r));
+    port = (server.address() as { port: number }).port;
+    // Enable capture AND the IP tier.
+    setAgentCaptureGate({ enabled: true, sampleRate: 1, verifyIpRanges: true });
+  });
+
+  afterEach(async () => {
+    await handle.stop();
+    await new Promise<void>((r) => server.close(() => r()));
+    setActiveStorage(null);
+    setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    await storage.close();
+  });
+
+  async function firstRow() {
+    for (let i = 0; i < 50; i++) {
+      await new Promise<void>((r) => setTimeout(r, 20));
+      await handle.stop();
+      const rows = await storage.queryAgentRequests();
+      if (rows.length >= 1) {
+        return rows.find((r) => r.path === "/");
+      }
+    }
+    return undefined;
+  }
+
+  it("ChatGPT-User from an OpenAI IP → ip-verified", async () => {
+    await rawGet(port, "/", {
+      "User-Agent":
+        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0",
+      // Cloudflare's authoritative client IP header (resolveClientIp prefers it).
+      "CF-Connecting-IP": "52.153.130.71",
+    });
+    const row = await firstRow();
+    expect(row?.agentFamily).toBe("chatgpt-user");
+    expect(row?.confidence).toBe("ip-verified");
+    expect(row?.meta?.spoof).toBeUndefined();
+  });
+
+  it("GPTBot UA from a NON-OpenAI IP → NOT ip-verified, flagged as a spoof", async () => {
+    await rawGet(port, "/", {
+      "User-Agent": "GPTBot/1.0",
+      "CF-Connecting-IP": "8.8.8.8",
+    });
+    const row = await firstRow();
+    expect(row?.agentFamily).toBe("gptbot");
+    // Stays at the spoofable UA-only tier — the IP did not back the claim.
+    expect(row?.confidence).toBe("ua-only");
+    expect(row?.meta?.spoof).toBe(true);
   });
 });
