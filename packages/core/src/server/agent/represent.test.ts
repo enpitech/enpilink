@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  type AgentGetAffordance,
   type AgentToolInfo,
   extractToolParams,
   represent,
@@ -165,5 +166,76 @@ describe("represent", () => {
     });
     expect(html).toContain("A &amp; B &lt;Store&gt;");
     expect(html).not.toContain("<Store>");
+  });
+});
+
+describe("represent — GET affordance declaration (M7, standard signals only)", () => {
+  const affTools: AgentToolInfo[] = [
+    {
+      name: "search_catalog",
+      description: "Search the product catalog.",
+      params: [{ name: "q", required: true, type: "string" }],
+    },
+  ];
+  const searchAff: AgentGetAffordance = {
+    urlPath: "/agent/search",
+    name: "search_catalog",
+    description: "Search the product catalog.",
+    queryParam: "q",
+    params: [{ name: "q", required: true, type: "string" }],
+  };
+  const base = {
+    serverName: "srv",
+    site: { title: "Acme" },
+    tools: affTools,
+    path: "/",
+  };
+
+  it("declares a search affordance as JSON-LD SearchAction + rel=search in HTML", () => {
+    const { html } = represent({ ...base, affordances: [searchAff] });
+    expect(html).toContain('"@type": "SearchAction"');
+    expect(html).toContain("search_term_string");
+    expect(html).toContain('rel="search"');
+    expect(html).toContain('type="application/opensearchdescription+xml"');
+    expect(html).toContain("/agent/opensearch.xml");
+    // Standard signals, never prose addressed to an agent.
+    assertNoImperativeProse(html);
+  });
+
+  it("declares the affordance as a factual GET URL in markdown (no imperative prose)", () => {
+    const { markdown } = represent({ ...base, affordances: [searchAff] });
+    expect(markdown).toContain("Data endpoints");
+    expect(markdown).toContain("GET /agent/search?q={query}");
+    assertNoImperativeProse(markdown);
+  });
+
+  it("carries the affordance in BOTH encodings (cloaking guardrail)", () => {
+    const { markdown, html } = represent({ ...base, affordances: [searchAff] });
+    for (const doc of [markdown, html]) {
+      expect(doc).toContain("/agent/search");
+    }
+  });
+
+  it("declares a non-search GET tool as a plain Action / declarative link", () => {
+    const stockAff: AgentGetAffordance = {
+      urlPath: "/agent/stock",
+      name: "check_stock",
+      queryParam: null,
+      params: [{ name: "sku", required: true, type: "string" }],
+    };
+    const { html, markdown } = represent({
+      ...base,
+      tools: [],
+      affordances: [stockAff],
+    });
+    expect(html).toContain('"@type": "Action"');
+    expect(html).toContain("/agent/stock?sku={sku}");
+    expect(markdown).toContain("GET /agent/stock?sku={string}");
+  });
+
+  it("emits NO affordance signals when there are none (the default)", () => {
+    const { html } = represent(base);
+    expect(html).not.toContain("application/ld+json");
+    expect(html).not.toContain('rel="search"');
   });
 });

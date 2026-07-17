@@ -37,12 +37,26 @@ import {
   installAgentCapture,
 } from "./agent/express-middleware.js";
 import {
+  type AgentGetAffordance,
   type AgentSiteInfo,
   type AgentToolInfo,
+  type AgentToolParam,
   extractToolParams,
 } from "./agent/represent.js";
 import { installAgentResponseTransform } from "./agent/response-transform.js";
 import { installAgentRouting } from "./agent/route.js";
+import {
+  pickSearchParam,
+  toAffordance,
+} from "./agent/transports/affordance.js";
+import { installAgentGetTransport } from "./agent/transports/get-router.js";
+import { assertGetExposable } from "./agent/transports/safety.js";
+import type {
+  GetExposedTool,
+  GetToolResult,
+  GetTransport,
+  ToolTransports,
+} from "./agent/transports/types.js";
 import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
 import {
@@ -349,6 +363,14 @@ interface ToolConfig<TInput extends ZodRawShapeCompat | AnySchema> {
    * enhanced behavior to authenticated ones.
    */
   securitySchemes?: SecurityScheme[];
+  /**
+   * Which agent transports this tool is projected onto (M7). `mcp` is always on;
+   * `get` opts the tool into a plain, handshake-free `GET /agent/<path>` — allowed
+   * ONLY for a read-only, non-destructive, public (no-auth) tool with a flat input
+   * schema, enforced at registration (the server refuses to start otherwise).
+   * `webmcp` is reserved for a later milestone.
+   */
+  transports?: ToolTransports;
   _meta?: ToolMeta;
 }
 
@@ -524,6 +546,14 @@ export class McpServer<
    * excluded (internal plumbing, not an app capability).
    */
   private readonly declaredAgentTools = new Map<string, AgentToolInfo>();
+  /**
+   * The safety-gated GET-exposed tools (M7), keyed by tool name. Populated in
+   * {@link registerTool} ONLY for a tool that declared `transports.get` and passed
+   * the registration-time safety gate. Read live by the GET transport router (to
+   * run a tool from a query string) and by the representation (to declare the tool
+   * as a standard affordance). Empty unless a tool opts in.
+   */
+  private readonly declaredGetTools = new Map<string, GetExposedTool>();
   /** Owner-declared site summary for the agent representation (M3), via
    * {@link describeForAgents}. Merged with the `agent.site.*` config at serve. */
   private agentSiteInfo: AgentSiteInfo = {};
@@ -583,6 +613,16 @@ export class McpServer<
       getTools: () => [...this.declaredAgentTools.values()],
       getSiteInfo: () => this.agentSiteInfo,
       getServerName: () => this.serverInfo.name,
+      getGetAffordances: () => this.agentGetAffordances(),
+    });
+    // Agent GET transport (M7). Installed HERE — early, before user routes — so it
+    // owns the `/agent` namespace ahead of any user route. A cheap no-op until
+    // `agent.getTransport` is on AND the path names a registered, safety-gated
+    // GET-exposed tool; otherwise it calls `next()`. Mutating/authed tools can
+    // never be here (the registration gate refuses them). It reads the exposed-tool
+    // map live, so tools registered after construction are still served.
+    installAgentGetTransport(this.express, {
+      getExposedTools: () => [...this.declaredGetTools.values()],
     });
     // NOTE: the agent representation router (M3/M3.5) is NOT installed here. It is
     // a TRAILING 404-rescue fallback — see {@link installAgentRoutingFallback},
@@ -685,6 +725,16 @@ export class McpServer<
   }
 
   /**
+   * The GET-exposed tools projected as declarative affordances (M7), for the
+   * standard-signal declaration in the representation. The route/transform layers
+   * only actually include them when `agent.getTransport` is on.
+   * @internal
+   */
+  private agentGetAffordances(): AgentGetAffordance[] {
+    return [...this.declaredGetTools.values()].map(toAffordance);
+  }
+
+  /**
    * Install the agent representation router (M3/M3.5) as a TRAILING 404-rescue
    * fallback. Called by `createApp` AFTER all user routes and the `/mcp` mount,
    * so it runs ONLY when nothing matched — i.e. for a request that would
@@ -703,6 +753,7 @@ export class McpServer<
       getTools: () => [...this.declaredAgentTools.values()],
       getSiteInfo: () => this.agentSiteInfo,
       getServerName: () => this.serverInfo.name,
+      getGetAffordances: () => this.agentGetAffordances(),
     });
   }
 
@@ -1686,9 +1737,28 @@ export class McpServer<
       name,
       view,
       securitySchemes,
+      transports,
       _meta: userToolMeta,
       ...toolFields
     } = config;
+
+    // Derive the declared params once — used by the agent representation index,
+    // the GET safety gate, and the GET registration.
+    const agentParams =
+      name === IDENTITY_TOOL_NAME ? [] : extractToolParams(config.inputSchema);
+
+    // M7 SAFETY GATE — enforced at REGISTRATION, before the tool exists. If a tool
+    // declares `transports.get` but is not read-only / public / non-destructive /
+    // flat, this THROWS and the server does not start (with the tool named).
+    if (transports?.get) {
+      assertGetExposable(name, {
+        safe: transports.get.safe,
+        readOnlyHint: config.annotations?.readOnlyHint,
+        destructiveHint: config.annotations?.destructiveHint,
+        securitySchemes,
+        params: agentParams,
+      });
+    }
 
     const toolMeta: InternalToolMeta = { ...userToolMeta };
 
@@ -1717,16 +1787,110 @@ export class McpServer<
     // face (name, description, derived input params — all already in
     // `tools/list`); excludes the built-in identity tool (internal plumbing).
     if (name !== IDENTITY_TOOL_NAME) {
-      const info: AgentToolInfo = {
-        name,
-        params: extractToolParams(config.inputSchema),
-      };
+      const info: AgentToolInfo = { name, params: agentParams };
       if (typeof config.description === "string") {
         info.description = config.description;
       }
       this.declaredAgentTools.set(name, info);
+
+      // M7 GET transport: the safety gate above already passed, so record the
+      // exposed tool (path, coercible params, executor) for the router.
+      if (transports?.get) {
+        this.registerGetTransport(
+          name,
+          config,
+          transports.get,
+          agentParams,
+          cb,
+        );
+      }
     }
 
     return this;
   }
+
+  /**
+   * Record a safety-gated GET-exposed tool (M7). The safety gate has already run
+   * in {@link registerTool}. Builds the executor that runs the tool's own handler
+   * with a synthesised, no-op MCP `extra` (there is no MCP session on a GET), and
+   * throws on an invalid or duplicate path (the server does not start).
+   * @internal
+   */
+  private registerGetTransport(
+    name: string,
+    config: ToolConfig<ZodRawShapeCompat>,
+    get: GetTransport,
+    params: AgentToolParam[],
+    cb: ToolHandler<ZodRawShapeCompat>,
+  ): void {
+    const path = normalizeGetPath(name, get.path);
+    for (const existing of this.declaredGetTools.values()) {
+      if (existing.path === path) {
+        throw new Error(
+          `Tool "${name}" cannot use GET path "${path}": it is already used by tool "${existing.name}".`,
+        );
+      }
+    }
+
+    const execute = async (
+      args: Record<string, unknown>,
+    ): Promise<GetToolResult> => {
+      // No MCP session exists on a plain GET; synthesise a minimal, no-op extra.
+      const controller = new AbortController();
+      const extra = {
+        signal: controller.signal,
+        requestId: 0,
+        sendNotification: async () => {},
+        sendRequest: async () => {
+          throw new Error("sendRequest is unavailable on the GET transport");
+        },
+      } as unknown as Parameters<typeof cb>[1];
+      const result = await cb(args as Parameters<typeof cb>[0], extra);
+      return {
+        content: normalizeContent(result.content),
+        structuredContent: (result as { structuredContent?: unknown })
+          .structuredContent,
+        isError: (result as { isError?: boolean }).isError,
+      };
+    };
+
+    const exposed: GetExposedTool = {
+      name,
+      path,
+      params,
+      queryParam: pickSearchParam(params, get.queryParam),
+      execute,
+    };
+    if (typeof config.description === "string") {
+      exposed.description = config.description;
+    }
+    if (config.inputSchema) {
+      exposed.inputSchema = config.inputSchema;
+    }
+    if (get.render) {
+      exposed.render = get.render;
+    }
+    if (get.rateLimit) {
+      exposed.rateLimit = get.rateLimit;
+    }
+    if (typeof get.maxAge === "number") {
+      exposed.maxAge = get.maxAge;
+    }
+    this.declaredGetTools.set(name, exposed);
+  }
+}
+
+/**
+ * Normalise + validate a per-tool GET path (`"search"` → `"search"` under
+ * `/agent`). Throws (server does not start) on an empty path or one containing
+ * `?`, `#` or `..`.
+ */
+function normalizeGetPath(toolName: string, raw: string): string {
+  const trimmed = raw.replace(/^\/+|\/+$/g, "");
+  if (trimmed === "" || /[?#]/.test(trimmed) || trimmed.includes("..")) {
+    throw new Error(
+      `Tool "${toolName}" has an invalid GET path "${raw}": it must be a non-empty path segment without ?, # or "..".`,
+    );
+  }
+  return trimmed;
 }

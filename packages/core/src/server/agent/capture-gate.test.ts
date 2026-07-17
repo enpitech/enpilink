@@ -52,6 +52,9 @@ describe("agent capture gate", () => {
       siteDescription: "",
       spa: false,
       reencode: false,
+      getTransport: false,
+      getRateLimit: 60,
+      getRateBurst: 10,
     });
 
     await storage.close();

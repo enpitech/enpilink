@@ -11,6 +11,7 @@ import { type AgentCaptureGate, getAgentCaptureGate } from "./capture-gate.js";
 import { classify, type Detection } from "./detect.js";
 import { safeHtmlToMarkdown } from "./html-to-markdown.js";
 import {
+  type AgentGetAffordance,
   type AgentSiteInfo,
   type AgentToolInfo,
   represent,
@@ -62,6 +63,12 @@ export interface InstallAgentResponseTransformOptions {
   getSiteInfo: () => AgentSiteInfo;
   /** Fallback title when the site declares none (the MCP server name). */
   getServerName: () => string;
+  /**
+   * The GET-exposed tools projected as affordances (M7), for the standard-signal
+   * declaration in the SPA-replace representation. Only included when
+   * `agent.getTransport` is on. Optional — defaults to none.
+   */
+  getGetAffordances?: () => AgentGetAffordance[];
   /** Live gate reader. Defaults to {@link getAgentCaptureGate}. */
   getGate?: () => AgentCaptureGate;
   /** Classifier. Injectable for tests. Defaults to {@link classify}. */
@@ -148,10 +155,15 @@ export function installAgentResponseTransform(
         encoding: elig.encoding,
         getRepresentation: (path: string) => {
           const site = resolveSiteInfo(gate, opts.getSiteInfo());
+          const affordances =
+            gate.getTransport === true
+              ? (opts.getGetAffordances?.() ?? [])
+              : [];
           return represent({
             serverName: opts.getServerName(),
             site,
             tools: opts.getTools(),
+            affordances,
             path,
           });
         },

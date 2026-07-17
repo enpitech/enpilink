@@ -10,6 +10,7 @@ import { pairRawHeaders } from "./capture.js";
 import { type AgentCaptureGate, getAgentCaptureGate } from "./capture-gate.js";
 import { classify, type Detection } from "./detect.js";
 import {
+  type AgentGetAffordance,
   type AgentSiteInfo,
   type AgentToolInfo,
   represent,
@@ -284,6 +285,12 @@ export interface InstallAgentRoutingOptions {
   getSiteInfo: () => AgentSiteInfo;
   /** Fallback title when the site declares none (the MCP server name). */
   getServerName: () => string;
+  /**
+   * The GET-exposed tools projected as affordances (M7), for the standard-signal
+   * declaration in the representation. Only included when `agent.getTransport` is
+   * on. Optional — defaults to none.
+   */
+  getGetAffordances?: () => AgentGetAffordance[];
   /** Live gate reader. Defaults to {@link getAgentCaptureGate}. */
   getGate?: () => AgentCaptureGate;
   /** Classifier. Injectable for tests. Defaults to {@link classify}. */
@@ -363,10 +370,15 @@ export function installAgentRouting(
       }
 
       const site = resolveSiteInfo(gate, opts.getSiteInfo());
+      // Advertise the GET affordances only when the transport is actually on, so
+      // the representation never names an endpoint that would 404.
+      const affordances =
+        gate.getTransport === true ? (opts.getGetAffordances?.() ?? []) : [];
       const doc = represent({
         serverName: opts.getServerName(),
         site,
         tools: opts.getTools(),
+        affordances,
         path: req.path,
       });
 

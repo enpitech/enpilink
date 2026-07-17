@@ -58,6 +58,17 @@ export interface AgentCaptureGate {
    * existing test callers keep compiling; absent/undefined reads as off.
    */
   reencode?: boolean;
+  /**
+   * Whether the plain-GET transport is mounted (resolved `agent.getTransport`,
+   * M7). OFF by default. When on, safety-gated read-only public tools are
+   * reachable at `GET /agent/<path>` and declared as standard affordances in the
+   * representation. Optional so existing test callers keep compiling.
+   */
+  getTransport?: boolean;
+  /** Default GET-transport rate limit (requests/min per IP+tool), M7. */
+  getRateLimit?: number;
+  /** Default GET-transport burst (token-bucket capacity), M7. */
+  getRateBurst?: number;
 }
 
 /**
@@ -94,6 +105,9 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
       siteDescription: values["agent.site.description"],
       spa: values["agent.spa"] === true,
       reencode: values["agent.reencode"] === true,
+      getTransport: values["agent.getTransport"] === true,
+      getRateLimit: values["agent.getRateLimit"],
+      getRateBurst: values["agent.getRateBurst"],
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or

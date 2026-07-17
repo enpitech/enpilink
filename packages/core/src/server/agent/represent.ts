@@ -79,6 +79,23 @@ export interface AgentToolInfo {
   params: AgentToolParam[];
 }
 
+/**
+ * A GET-exposed tool projected as a declarative AFFORDANCE (M7). Present only when
+ * the GET transport is enabled. The representation DECLARES it through STANDARD
+ * signals — JSON-LD `SearchAction`, `<link rel="search">`, OpenSearch, and a
+ * factual capability list with the GET URL — never prose addressed to an agent
+ * (FINDINGS F-9). `urlPath` is the fully-composed path under the agent prefix
+ * (e.g. `/agent/search`); `queryParam` names the free-text search param, or is
+ * `null` for a non-search endpoint.
+ */
+export interface AgentGetAffordance {
+  urlPath: string;
+  name: string;
+  description?: string;
+  queryParam: string | null;
+  params: AgentToolParam[];
+}
+
 /** Everything the generator needs. All fields are owner-declared or framework. */
 export interface RepresentationInput {
   /** Fallback title when the site declares none (the MCP server name). */
@@ -87,6 +104,12 @@ export interface RepresentationInput {
   site: AgentSiteInfo;
   /** The declared tool index (may be empty). */
   tools: AgentToolInfo[];
+  /**
+   * The GET-exposed tools projected as declarative affordances (M7). Empty (or
+   * omitted) when the GET transport is off — so the representation only ever
+   * advertises endpoints that actually exist.
+   */
+  affordances?: AgentGetAffordance[];
   /**
    * The requested path — context only. It is deliberately NOT interpolated into
    * the body: it is attacker-controlled, so it never reaches the document.
@@ -102,13 +125,22 @@ export interface Representation {
   html: string;
 }
 
+/** One declarative capability line: a GET URL template and what it does. */
+interface AffordanceLine {
+  /** The call template, e.g. `GET /agent/search?q={query}`. */
+  call: string;
+  /** What the endpoint does (the tool description), if any. */
+  description?: string;
+}
+
 /** The internal block model — one source of truth rendered to BOTH encodings. */
 type Block =
   | { kind: "h1"; text: string }
   | { kind: "h2"; text: string }
   | { kind: "h3"; text: string }
   | { kind: "p"; text: string }
-  | { kind: "ul"; items: string[] };
+  | { kind: "ul"; items: string[] }
+  | { kind: "affordances"; items: AffordanceLine[] };
 
 /** Collapse whitespace and trim — keep a declared string to a single tidy line. */
 function oneLine(s: string): string {
@@ -128,6 +160,127 @@ function paramsLine(params: readonly AgentToolParam[]): string {
       return `${p.name} (${bits.join(", ")})`;
     })
     .join(", ");
+}
+
+/** The GET call template for an affordance, e.g. `GET /agent/search?q={query}`. */
+function affordanceCall(aff: AgentGetAffordance): string {
+  if (aff.queryParam) {
+    return `GET ${aff.urlPath}?${aff.queryParam}={query}`;
+  }
+  const required = aff.params.filter((p) => p.required);
+  if (required.length === 0) {
+    return `GET ${aff.urlPath}`;
+  }
+  const qs = required.map((p) => `${p.name}={${p.type ?? "value"}}`).join("&");
+  return `GET ${aff.urlPath}?${qs}`;
+}
+
+/** The schema.org EntryPoint urlTemplate for a non-search GET affordance. */
+function nonSearchTemplate(aff: AgentGetAffordance): string {
+  const required = aff.params.filter((p) => p.required);
+  if (required.length === 0) {
+    return aff.urlPath;
+  }
+  const qs = required.map((p) => `${p.name}={${p.name}}`).join("&");
+  return `${aff.urlPath}?${qs}`;
+}
+
+/**
+ * Build the JSON-LD `WebSite.potentialAction` block declaring the GET affordances
+ * as STANDARD schema.org actions: a `SearchAction` for a search-shaped tool, a
+ * generic `Action` (with an EntryPoint urlTemplate) for the rest. `<` is escaped
+ * to `<` so the JSON can never break out of the `<script>` element.
+ */
+function buildJsonLd(
+  affordances: readonly AgentGetAffordance[],
+  title: string,
+): string {
+  const potentialAction = affordances.map((a) => {
+    if (a.queryParam) {
+      return {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${a.urlPath}?${a.queryParam}={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      };
+    }
+    return {
+      "@type": "Action",
+      name: a.name,
+      target: { "@type": "EntryPoint", urlTemplate: nonSearchTemplate(a) },
+    };
+  });
+  const doc = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: title,
+    potentialAction,
+  };
+  return JSON.stringify(doc, null, 2).replace(/</g, "\\u003c");
+}
+
+/**
+ * Build the HTML `<head>` signals declaring the GET affordances: `<link
+ * rel="search">` (OpenSearch + a direct markdown template) for a search-shaped
+ * tool, and the JSON-LD block. HTML-only (a `<link>`/`<script>` has no markdown
+ * analogue); the same facts also appear in the body affordance list, so both
+ * encodings carry them. Returns "" when there are no affordances.
+ */
+function buildHeadExtra(
+  affordances: readonly AgentGetAffordance[],
+  title: string,
+): string {
+  if (affordances.length === 0) {
+    return "";
+  }
+  const lines: string[] = [];
+  const searchAff = affordances.find((a) => a.queryParam !== null);
+  if (searchAff?.queryParam) {
+    lines.push(
+      `<link rel="search" type="application/opensearchdescription+xml" title="${escapeHtml(
+        title,
+      )}" href="/agent/opensearch.xml">`,
+    );
+    lines.push(
+      `<link rel="search" type="text/markdown" href="${escapeHtml(
+        `${searchAff.urlPath}?${searchAff.queryParam}={q}`,
+      )}">`,
+    );
+  }
+  lines.push(
+    `<script type="application/ld+json">${buildJsonLd(affordances, title)}</script>`,
+  );
+  return lines.join("\n");
+}
+
+/** Append the declarative affordance list to the block model, if any. */
+function appendAffordanceBlocks(
+  blocks: Block[],
+  affordances: readonly AgentGetAffordance[],
+): void {
+  if (affordances.length === 0) {
+    return;
+  }
+  blocks.push({ kind: "h2", text: "Data endpoints" });
+  // Descriptive framing only — this states what the endpoints are, it does not
+  // instruct the reader to call them.
+  blocks.push({
+    kind: "p",
+    text: "Each endpoint below answers a plain HTTP GET and returns markdown (or JSON on request).",
+  });
+  blocks.push({
+    kind: "affordances",
+    items: affordances.map((a) => {
+      const line: AffordanceLine = { call: affordanceCall(a) };
+      const desc = oneLine(a.description ?? "");
+      if (desc) {
+        line.description = desc;
+      }
+      return line;
+    }),
+  });
 }
 
 /** Build the block model from the declared source. Pure. */
@@ -155,6 +308,7 @@ function buildBlocks(input: RepresentationInput): Block[] {
       kind: "p",
       text: "This app currently declares no tools.",
     });
+    appendAffordanceBlocks(blocks, input.affordances ?? []);
     return blocks;
   }
 
@@ -174,6 +328,7 @@ function buildBlocks(input: RepresentationInput): Block[] {
       blocks.push({ kind: "p", text: `Parameters: ${line}` });
     }
   }
+  appendAffordanceBlocks(blocks, input.affordances ?? []);
   return blocks;
 }
 
@@ -197,6 +352,17 @@ function blocksToMarkdown(blocks: readonly Block[]): string {
       case "ul":
         out.push(b.items.map((i) => `- ${i}`).join("\n"));
         break;
+      case "affordances":
+        out.push(
+          b.items
+            .map((i) =>
+              i.description
+                ? `- \`${i.call}\` — ${i.description}`
+                : `- \`${i.call}\``,
+            )
+            .join("\n"),
+        );
+        break;
     }
   }
   return `${out.join("\n\n")}\n`;
@@ -212,8 +378,14 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Render the block model to a minimal, self-contained HTML5 document. */
-function blocksToHtml(blocks: readonly Block[], title: string): string {
+/** Render the block model to a minimal, self-contained HTML5 document. The
+ * `headExtra` (JSON-LD + `<link rel="search">`, an HTML-only projection of the
+ * affordances) is injected into `<head>`. */
+function blocksToHtml(
+  blocks: readonly Block[],
+  title: string,
+  headExtra: string,
+): string {
   const body: string[] = [];
   for (const b of blocks) {
     switch (b.kind) {
@@ -234,16 +406,34 @@ function blocksToHtml(blocks: readonly Block[], title: string): string {
           `<ul>${b.items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`,
         );
         break;
+      case "affordances":
+        body.push(
+          `<ul>${b.items
+            .map((i) => {
+              const call = `<code>${escapeHtml(i.call)}</code>`;
+              return i.description
+                ? `<li>${call} — ${escapeHtml(i.description)}</li>`
+                : `<li>${call}</li>`;
+            })
+            .join("")}</ul>`,
+        );
+        break;
     }
   }
-  return [
-    "<!doctype html>",
-    '<html lang="en">',
+  const head = [
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${escapeHtml(title)}</title>`,
-    "</head>",
+  ];
+  if (headExtra) {
+    head.push(headExtra);
+  }
+  head.push("</head>");
+  return [
+    "<!doctype html>",
+    '<html lang="en">',
+    ...head,
     "<body>",
     "<main>",
     body.join("\n"),
@@ -265,9 +455,10 @@ export function represent(input: RepresentationInput): Representation {
   const blocks = buildBlocks(input);
   const title =
     oneLine(input.site.title ?? "") || oneLine(input.serverName) || "This app";
+  const headExtra = buildHeadExtra(input.affordances ?? [], title);
   return {
     markdown: blocksToMarkdown(blocks),
-    html: blocksToHtml(blocks, title),
+    html: blocksToHtml(blocks, title, headExtra),
   };
 }
 

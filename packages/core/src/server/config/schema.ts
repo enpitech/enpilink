@@ -260,6 +260,27 @@ export const runtimeSchema = z.object({
    * the original bytes untouched. Governed live via the agent gate.
    */
   "agent.reencode": z.boolean().default(false),
+
+  // --- Agent surface GET transport (M7) ---
+  /**
+   * Whether the plain-GET transport is mounted (M7). OFF by default. When on, a
+   * read-only, public tool that declared `transports.get` (and passed the
+   * registration-time safety gate) is reachable at `GET /agent/<path>?<params>`
+   * with NO MCP handshake, returning markdown (default) or JSON — the only channel
+   * reachable by agent classes that cannot speak a protocol. Mutating/authed tools
+   * can never be exposed this way (the server refuses to start). Governed live via
+   * the agent gate (env > file > db).
+   *
+   * ⚠️ Unproven-in-use: the probe (FINDINGS F-10) proved chat-mode agents — the
+   * majority — never make a second request and cannot reach this; it serves the
+   * multi-fetch / agent-mode minority, and no specific agent has yet been observed
+   * calling a standard affordance. Ships off by default.
+   */
+  "agent.getTransport": z.boolean().default(false),
+  /** GET-transport default rate limit — requests per minute per IP+tool (M7). */
+  "agent.getRateLimit": z.number().int().positive().default(60),
+  /** GET-transport default burst — token-bucket capacity per IP+tool (M7). */
+  "agent.getRateBurst": z.number().int().positive().default(10),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -597,6 +618,29 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Agent",
     editable: "runtime",
   },
+  "agent.getTransport": {
+    label: "GET transport",
+    description:
+      "Expose read-only, public tools that declared transports.get as plain GET /agent/<path> endpoints (no MCP handshake), returning markdown or JSON. Only tools that pass the registration safety gate (read-only, non-destructive, no auth) can be exposed; mutating or authed tools can never be. Reaches agent-mode/multi-fetch clients that cannot speak MCP. Off by default; unproven that any specific agent calls it.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.getRateLimit": {
+    label: "GET transport rate limit",
+    description:
+      "Default sustained requests per minute, per IP and per tool, for the GET transport (an unauthenticated scraping surface). A tool can override it. Over-limit requests get 429 with Retry-After.",
+    group: "Agent",
+    unit: "requests/min",
+    editable: "runtime",
+  },
+  "agent.getRateBurst": {
+    label: "GET transport burst",
+    description:
+      "Default token-bucket burst size, per IP and per tool, for the GET transport — how many requests can arrive at once before the per-minute rate applies.",
+    group: "Agent",
+    unit: "requests",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -641,6 +685,9 @@ export const RUNTIME_KEYS = [
   "agent.site.description",
   "agent.spa",
   "agent.reencode",
+  "agent.getTransport",
+  "agent.getRateLimit",
+  "agent.getRateBurst",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -746,6 +793,9 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "agent.site.description": "ENPILINK_CFG_AGENT_SITE_DESCRIPTION",
   "agent.spa": "ENPILINK_CFG_AGENT_SPA",
   "agent.reencode": "ENPILINK_CFG_AGENT_REENCODE",
+  "agent.getTransport": "ENPILINK_CFG_AGENT_GET_TRANSPORT",
+  "agent.getRateLimit": "ENPILINK_CFG_AGENT_GET_RATE_LIMIT",
+  "agent.getRateBurst": "ENPILINK_CFG_AGENT_GET_RATE_BURST",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);
