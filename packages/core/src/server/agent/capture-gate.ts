@@ -45,6 +45,19 @@ export interface AgentCaptureGate {
    * Resolved owner-declared site description (`agent.site.description`), or "".
    */
   siteDescription?: string;
+  /**
+   * Whether the app is a client-rendered SPA (resolved `agent.spa`, M6). OFF by
+   * default. When on, an eligible chat fetcher's 2xx HTML shell is replaced with
+   * the declared representation. Optional so existing test callers keep
+   * compiling; absent/undefined reads as off.
+   */
+  spa?: boolean;
+  /**
+   * Whether to re-encode a real route's HTML response to markdown for eligible
+   * chat fetchers (resolved `agent.reencode`, M6). OFF by default. Optional so
+   * existing test callers keep compiling; absent/undefined reads as off.
+   */
+  reencode?: boolean;
 }
 
 /**
@@ -79,6 +92,8 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
       serve: values["agent.serve"] === true,
       siteTitle: values["agent.site.title"],
       siteDescription: values["agent.site.description"],
+      spa: values["agent.spa"] === true,
+      reencode: values["agent.reencode"] === true,
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or

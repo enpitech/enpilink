@@ -261,6 +261,14 @@ export function installAgentCapture(
         res.locals.enpilinkAgentEncoding === "html"
           ? (res.locals.enpilinkAgentEncoding as "markdown" | "html")
           : undefined;
+      // M6: the response-transform middleware may re-encode a real route's HTML
+      // to markdown (`agent.reencode`) or replace an SPA shell with the
+      // representation (`agent.spa`). These are distinct from the 404-rescue's
+      // `served`, so they ride in `meta` (no new column, no migration) for a
+      // future dashboard to surface. `enpilinkAgentServed` is set by the SPA path
+      // too, so `spa` marks WHY the representation was served on a 2xx route.
+      const reencoded = res.locals.enpilinkAgentReencoded === true;
+      const spa = res.locals.enpilinkAgentSpa === true;
       // Build + enqueue AFTER the response is done, so nothing here touches the
       // request latency. Salt/hash resolution is async but off the hot path.
       void (async () => {
@@ -323,6 +331,12 @@ export function installAgentCapture(
         }
         if (spoof) {
           rec.meta = { ...(rec.meta ?? {}), spoof: true };
+        }
+        if (reencoded) {
+          rec.meta = { ...(rec.meta ?? {}), reencoded: true };
+        }
+        if (spa) {
+          rec.meta = { ...(rec.meta ?? {}), spa: true };
         }
         buffer.enqueue(rec);
       })();

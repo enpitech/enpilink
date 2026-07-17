@@ -237,6 +237,29 @@ export const runtimeSchema = z.object({
    * agent representation. First-party, owner-authored text.
    */
   "agent.site.description": z.string().default(""),
+
+  // --- Agent surface response transforms (M6) ---
+  /**
+   * Whether the app is a client-rendered SPA — its pages return a 200 shell
+   * (`<div id="app">`) with no server content, so the M3.5 404-rescue never fires
+   * and a one-shot chat fetcher (which runs no JS) sees nothing. OFF by default.
+   * When on, an eligible AI chat fetcher's 2xx HTML shell is REPLACED with the
+   * declared-source representation (site summary + tool index) — the only real
+   * content an SPA has. This replaces a 200 response, so it is strictly opt-in
+   * (you are asserting your pages are client-rendered); the cloaking guardrail is
+   * absolute — crawlers (incl. Googlebot) and humans/browsers ALWAYS get the
+   * normal shell. Governed live via the agent gate (env > file > db).
+   */
+  "agent.spa": z.boolean().default(false),
+  /**
+   * Whether to re-encode a real route's HTML response to markdown for eligible AI
+   * chat fetchers (M6). OFF by default. Same facts, ~80% fewer tokens — a change
+   * of ENCODING, never of claims, so it is clean under the cloaking guardrail.
+   * Only detected assistant fetchers on a 2xx `text/html` response are ever
+   * re-encoded; crawlers, humans, non-HTML and compressed responses always get
+   * the original bytes untouched. Governed live via the agent gate.
+   */
+  "agent.reencode": z.boolean().default(false),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -560,6 +583,20 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Agent",
     editable: "runtime",
   },
+  "agent.spa": {
+    label: "SPA mode",
+    description:
+      "Turn on if your app is a client-rendered SPA (a 200 shell with no server content on every route). AI chat fetchers run no JavaScript, so they see nothing; when on, an eligible fetcher gets the declared representation (site summary + tool index) instead of the empty shell. Crawlers (including Googlebot) and humans always get your normal shell. Off by default.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.reencode": {
+    label: "Re-encode HTML to markdown",
+    description:
+      "Re-encode a real route's HTML response to markdown for AI chat fetchers — same facts, ~80% fewer tokens. Crawlers, humans, non-HTML and compressed responses always get the original bytes. Off by default.",
+    group: "Agent",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -602,6 +639,8 @@ export const RUNTIME_KEYS = [
   "agent.serve",
   "agent.site.title",
   "agent.site.description",
+  "agent.spa",
+  "agent.reencode",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -705,6 +744,8 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "agent.serve": "ENPILINK_CFG_AGENT_SERVE",
   "agent.site.title": "ENPILINK_CFG_AGENT_SITE_TITLE",
   "agent.site.description": "ENPILINK_CFG_AGENT_SITE_DESCRIPTION",
+  "agent.spa": "ENPILINK_CFG_AGENT_SPA",
+  "agent.reencode": "ENPILINK_CFG_AGENT_REENCODE",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);

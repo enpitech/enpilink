@@ -50,6 +50,8 @@ describe("agent capture gate", () => {
       serve: true,
       siteTitle: "Acme",
       siteDescription: "",
+      spa: false,
+      reencode: false,
     });
 
     await storage.close();

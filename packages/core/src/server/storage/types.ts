@@ -195,11 +195,14 @@ export interface AgentRequestRecord {
   /** Task-correlation token (C2), when present (M9). */
   taskToken?: string;
   /**
-   * Whether the M3 routing layer served the self-sufficient agent
-   * representation for THIS request (instead of the normal page). Set true only
-   * when served; absent otherwise. Filled by M4 from
-   * `res.locals.enpilinkAgentServed`. Segmenting served-vs-not is the
-   * confabulation-gap headline (F-1): "we served N self-sufficient responses".
+   * Whether the routing layer served the self-sufficient agent representation for
+   * THIS request (instead of the normal page). Set true only when served; absent
+   * otherwise. Filled from `res.locals.enpilinkAgentServed` by (a) the M3.5
+   * 404-rescue (paired with `outcome = "dead_end"` — a rescued would-be-404), or
+   * (b) the M6 SPA-replace of a 200 shell (paired with `outcome = "resolved"` and
+   * `meta.spa = true`). Segmenting served-vs-not is the confabulation-gap headline
+   * (F-1). Note: `served ∩ dead_end` (the rescued segment) is NOT the same as
+   * `served ∩ resolved` (the SPA segment); a consumer must split by outcome.
    */
   served?: boolean;
   /** Which encoding M3 served, when {@link served}. From M3's decision. */

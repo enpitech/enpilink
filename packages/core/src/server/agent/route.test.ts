@@ -10,7 +10,11 @@ import {
   type AgentCaptureHandle,
   installAgentCapture,
 } from "./express-middleware.js";
-import { decideAgentServe, installAgentRouting } from "./route.js";
+import {
+  agentServeEligibility,
+  decideAgentServe,
+  installAgentRouting,
+} from "./route.js";
 
 /** Real classifier output for representative header sets (grounds the tests in
  * M2's actual behaviour rather than hand-built stubs). */
@@ -125,6 +129,65 @@ describe("decideAgentServe (the guardrail, pure)", () => {
       detection: classify(CHATGPT),
     });
     expect(d).toEqual({ action: "serve", encoding: "html" });
+  });
+});
+
+describe("agentServeEligibility (the shared guardrail, pure)", () => {
+  const base = { method: "GET", path: "/", accept: "*/*" };
+
+  it("is eligible for a chat fetcher, encoding markdown by default", () => {
+    expect(
+      agentServeEligibility({ ...base, detection: classify(CHATGPT) }),
+    ).toEqual({ eligible: true, encoding: "markdown", reason: "eligible" });
+  });
+
+  it("negotiates HTML for a strict text/html chat fetcher", () => {
+    const e = agentServeEligibility({
+      ...base,
+      accept: "text/html",
+      detection: classify(CHATGPT),
+    });
+    expect(e).toEqual({ eligible: true, encoding: "html", reason: "eligible" });
+  });
+
+  it("is NEVER eligible for a crawler (Googlebot) — the guardrail", () => {
+    expect(
+      agentServeEligibility({ ...base, detection: classify(GOOGLEBOT) }),
+    ).toMatchObject({ eligible: false, reason: "crawler" });
+  });
+
+  it("is NEVER eligible for human-or-browser", () => {
+    expect(
+      agentServeEligibility({
+        ...base,
+        accept: "text/html,application/xhtml+xml,*/*",
+        detection: classify(HUMAN),
+      }),
+    ).toMatchObject({ eligible: false });
+  });
+
+  it("is ineligible for a subresource, an excluded surface, and non-GET", () => {
+    expect(
+      agentServeEligibility({
+        ...base,
+        path: "/app.js",
+        detection: classify(CHATGPT),
+      }),
+    ).toMatchObject({ eligible: false, reason: "subresource" });
+    expect(
+      agentServeEligibility({
+        ...base,
+        path: "/mcp",
+        detection: classify(CHATGPT),
+      }),
+    ).toMatchObject({ eligible: false, reason: "excluded-path" });
+    expect(
+      agentServeEligibility({
+        ...base,
+        method: "POST",
+        detection: classify(CHATGPT),
+      }),
+    ).toMatchObject({ eligible: false, reason: "non-get" });
   });
 });
 

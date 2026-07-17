@@ -177,16 +177,87 @@ function acceptStrictlyHtml(accept: string): boolean {
   return hasHtml && !hasWildcard;
 }
 
+/** The eligibility verdict for one request — WHO may be served, if serving runs. */
+export interface AgentServeEligibility {
+  /** Whether this client is eligible to be served the agent representation. */
+  eligible: boolean;
+  /** The encoding to serve when eligible (meaningless when not). */
+  encoding: ServeEncoding;
+  /** Why — for logging/telemetry and readable pass-through reasons. */
+  reason: string;
+}
+
 /**
- * Decide what to do with one request — the whole guardrail, as a PURE function so
- * it is exhaustively testable without Express. Returns `pass` (serve the normal
- * response / real 404, untouched) or `serve` with the negotiated encoding.
+ * The WHOLE cloaking guardrail as a PURE function: given a request's method,
+ * path, detection and `Accept`, decide whether this client may be served the
+ * agent representation — the crawler/human exemptions, the excluded framework
+ * surfaces, the subresource skip, and the eligible-class / explicit-markdown
+ * rules, all in one place. It is the SINGLE source of truth shared by both
+ * serving paths ({@link decideAgentServe} for the trailing 404-rescue, and the
+ * M6 response-transform middleware for SPA-replace / HTML re-encode), so they can
+ * never diverge on who is protected.
  *
- * This decides ELIGIBILITY only (class + the crawler/human exemptions + the
- * excluded surfaces). The "is this actually a would-be-404" gate is STRUCTURAL,
- * not encoded here: the middleware is installed as a trailing fallback, so it
- * only ever runs when no route matched. A `serve` verdict therefore always
- * applies to a request that was about to 404.
+ * It does NOT consider whether serving is enabled or whether a route exists —
+ * those are the caller's concern (a flag read; the structural install position).
+ */
+export function agentServeEligibility(input: {
+  method: string;
+  path: string;
+  detection: Detection;
+  accept: string;
+}): AgentServeEligibility {
+  const no = (reason: string): AgentServeEligibility => ({
+    eligible: false,
+    encoding: "markdown",
+    reason,
+  });
+  // Representations replace page navigations only; every other method (POST form
+  // submits, API writes, …) is left entirely alone.
+  if (input.method !== "GET") {
+    return no("non-get");
+  }
+  if (isExcludedPath(input.path)) {
+    return no("excluded-path");
+  }
+  if (looksLikeSubresource(input.path)) {
+    return no("subresource");
+  }
+  // 🚩 GUARDRAIL: crawlers (incl. Googlebot / every search indexer) ALWAYS get
+  // the normal response. No differentiation, ever — not even on an explicit
+  // markdown Accept. Torching organic search to optimise the agentic slice is a
+  // catastrophic trade.
+  if (input.detection.class === "crawler") {
+    return no("crawler");
+  }
+
+  const wantsMarkdown = acceptWantsMarkdown(input.accept);
+  const eligibleClass = ELIGIBLE_CLASSES.has(input.detection.class);
+  // Eligible when the client EITHER is a recognised one-shot agent (serve
+  // proactively — it never sends `Accept: text/markdown`) OR explicitly asked for
+  // markdown (content negotiation, any non-crawler). Everything else —
+  // `human-or-browser`, plain `tool`/`cli` with no markdown ask, `unknown` — gets
+  // the normal response.
+  if (!eligibleClass && !wantsMarkdown) {
+    return no("ineligible");
+  }
+
+  let encoding: ServeEncoding = "markdown";
+  if (!wantsMarkdown && acceptStrictlyHtml(input.accept)) {
+    encoding = "html";
+  }
+  return { eligible: true, encoding, reason: "eligible" };
+}
+
+/**
+ * Decide what to do with one request — the trailing 404-rescue verdict. Returns
+ * `pass` (serve the normal response / real 404, untouched) or `serve` with the
+ * negotiated encoding. Thin wrapper over {@link agentServeEligibility} plus the
+ * `agent.serve` flag.
+ *
+ * This decides ELIGIBILITY only. The "is this actually a would-be-404" gate is
+ * STRUCTURAL, not encoded here: the middleware is installed as a trailing
+ * fallback, so it only ever runs when no route matched. A `serve` verdict
+ * therefore always applies to a request that was about to 404.
  */
 export function decideAgentServe(input: {
   serve: boolean;
@@ -198,41 +269,11 @@ export function decideAgentServe(input: {
   if (!input.serve) {
     return { action: "pass", reason: "serve-disabled" };
   }
-  // Representations replace page navigations only; every other method (POST form
-  // submits, API writes, …) is left entirely alone.
-  if (input.method !== "GET") {
-    return { action: "pass", reason: "non-get" };
+  const elig = agentServeEligibility(input);
+  if (!elig.eligible) {
+    return { action: "pass", reason: elig.reason };
   }
-  if (isExcludedPath(input.path)) {
-    return { action: "pass", reason: "excluded-path" };
-  }
-  if (looksLikeSubresource(input.path)) {
-    return { action: "pass", reason: "subresource" };
-  }
-  // 🚩 GUARDRAIL: crawlers (incl. Googlebot / every search indexer) ALWAYS get
-  // the normal response. No differentiation, ever — not even on an explicit
-  // markdown Accept. Torching organic search to optimise the agentic slice is a
-  // catastrophic trade.
-  if (input.detection.class === "crawler") {
-    return { action: "pass", reason: "crawler" };
-  }
-
-  const wantsMarkdown = acceptWantsMarkdown(input.accept);
-  const eligibleClass = ELIGIBLE_CLASSES.has(input.detection.class);
-  // Eligible when the client EITHER is a recognised one-shot agent (serve
-  // proactively — it never sends `Accept: text/markdown`) OR explicitly asked for
-  // markdown (content negotiation, any non-crawler). Everything else —
-  // `human-or-browser`, plain `tool`/`cli` with no markdown ask, `unknown` — gets
-  // the normal response.
-  if (!eligibleClass && !wantsMarkdown) {
-    return { action: "pass", reason: "ineligible" };
-  }
-
-  let encoding: ServeEncoding = "markdown";
-  if (!wantsMarkdown && acceptStrictlyHtml(input.accept)) {
-    encoding = "html";
-  }
-  return { action: "serve", encoding };
+  return { action: "serve", encoding: elig.encoding };
 }
 
 /** Options for {@link installAgentRouting}. */
@@ -256,7 +297,7 @@ export interface InstallAgentRoutingOptions {
  * (an array does not fit a scalar config value). The server name is the final
  * title fallback and is handled by the generator.
  */
-function resolveSiteInfo(
+export function resolveSiteInfo(
   gate: AgentCaptureGate,
   declared: AgentSiteInfo,
 ): AgentSiteInfo {

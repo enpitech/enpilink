@@ -41,6 +41,7 @@ import {
   type AgentToolInfo,
   extractToolParams,
 } from "./agent/represent.js";
+import { installAgentResponseTransform } from "./agent/response-transform.js";
 import { installAgentRouting } from "./agent/route.js";
 import { installAnalytics } from "./analytics.js";
 import type { AuthConfig } from "./auth.js";
@@ -570,6 +571,18 @@ export class McpServer<
     // resolved from config in `createApp` (once storage is active).
     this.agentCapture = installAgentCapture(this.express, {
       getStorage: () => this.activeStorage,
+    });
+    // Agent RESPONSE-TRANSFORM middleware (M6). Installed HERE — early, before any
+    // user route — because unlike the trailing 404-rescue it acts on a REAL 2xx
+    // HTML response, so it must wrap `res.write`/`res.end` before the handler
+    // runs. It reads the declared source LIVE (same closures as the router below),
+    // so tools registered after construction are still seen. A cheap no-op until
+    // `agent.spa` or `agent.reencode` is on AND the client is an eligible fetcher;
+    // any failure degrades to the normal response.
+    installAgentResponseTransform(this.express, {
+      getTools: () => [...this.declaredAgentTools.values()],
+      getSiteInfo: () => this.agentSiteInfo,
+      getServerName: () => this.serverInfo.name,
     });
     // NOTE: the agent representation router (M3/M3.5) is NOT installed here. It is
     // a TRAILING 404-rescue fallback — see {@link installAgentRoutingFallback},
