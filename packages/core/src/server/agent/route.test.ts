@@ -1,9 +1,15 @@
 import http from "node:http";
 import express from "express";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setActiveStorage } from "../log-sink.js";
+import { MemoryStorageAdapter } from "../storage/memory.js";
 import type { HeaderPair } from "../storage/types.js";
 import { setAgentCaptureGate } from "./capture-gate.js";
 import { classify } from "./detect.js";
+import {
+  type AgentCaptureHandle,
+  installAgentCapture,
+} from "./express-middleware.js";
 import { decideAgentServe, installAgentRouting } from "./route.js";
 
 /** Real classifier output for representative header sets (grounds the tests in
@@ -151,12 +157,20 @@ function rawGet(
   });
 }
 
-describe("installAgentRouting (Express, end-to-end)", () => {
+describe("installAgentRouting (trailing 404-rescue fallback, end-to-end)", () => {
   let server: http.Server;
   let port: number;
 
   beforeEach(async () => {
     const app = express();
+    // User routes FIRST: a real 2xx route must respond BEFORE the fallback runs,
+    // so its content passes through untouched. The fallback is installed LAST.
+    app.get("/", (_req, res) => {
+      res.status(200).send("NORMAL HOMEPAGE");
+    });
+    app.get("/products/blue", (_req, res) => {
+      res.status(200).send("NORMAL PRODUCT PAGE");
+    });
     installAgentRouting(app, {
       getTools: () => [
         {
@@ -170,12 +184,6 @@ describe("installAgentRouting (Express, end-to-end)", () => {
       getSiteInfo: () => ({ facts: ["Ships worldwide"] }),
       getServerName: () => "fallback-name",
     });
-    app.get("/", (_req, res) => {
-      res.status(200).send("NORMAL HOMEPAGE");
-    });
-    app.get("/products/blue", (_req, res) => {
-      res.status(200).send("NORMAL PRODUCT PAGE");
-    });
 
     server = http.createServer(app);
     await new Promise<void>((r) => server.listen(0, r));
@@ -187,10 +195,13 @@ describe("installAgentRouting (Express, end-to-end)", () => {
     setAgentCaptureGate({ enabled: false, sampleRate: 1 });
   });
 
-  it("does nothing while agent.serve is off (default)", async () => {
+  it("does nothing while agent.serve is off — a would-be-404 stays a 404", async () => {
     setAgentCaptureGate({ enabled: false, sampleRate: 1, serve: false });
-    const res = await rawGet(port, "/", { "User-Agent": "ChatGPT-User/1.0" });
-    expect(res.body).toBe("NORMAL HOMEPAGE");
+    const res = await rawGet(port, "/nope", {
+      "User-Agent": "ChatGPT-User/1.0",
+    });
+    expect(res.status).toBe(404);
+    expect(res.contentType).not.toContain("text/markdown");
   });
 
   describe("with agent.serve on", () => {
@@ -204,36 +215,49 @@ describe("installAgentRouting (Express, end-to-end)", () => {
       });
     });
 
-    it("serves a self-sufficient markdown doc to a chat fetcher", async () => {
-      const res = await rawGet(port, "/", {
+    it("RESCUES a chat fetcher's would-be-404 with a self-sufficient markdown doc", async () => {
+      const res = await rawGet(port, "/nope", {
         "User-Agent": "Mozilla/5.0; compatible; ChatGPT-User/1.0",
       });
+      // A missing page becomes a useful 200 answer for the one-shot agent.
       expect(res.status).toBe(200);
       expect(res.contentType).toContain("text/markdown");
       // Names the app (config title) + the tool + the code-declared fact.
       expect(res.body).toContain("Acme Store");
       expect(res.body).toContain("search_catalog");
       expect(res.body).toContain("Ships worldwide");
-      // It REPLACED the normal page — the whole point for a one-shot agent.
-      expect(res.body).not.toContain("NORMAL HOMEPAGE");
     });
 
-    it("gives Googlebot the NORMAL page, byte-identical to no-agent-layer", async () => {
-      const withLayer = await rawGet(port, "/", {
+    it("passes a REAL 2xx route through UNTOUCHED (never replaces real content)", async () => {
+      const home = await rawGet(port, "/", {
+        "User-Agent": "Mozilla/5.0; compatible; ChatGPT-User/1.0",
+      });
+      expect(home.status).toBe(200);
+      expect(home.body).toBe("NORMAL HOMEPAGE");
+      expect(home.contentType).not.toContain("text/markdown");
+      const prod = await rawGet(port, "/products/blue", {
+        "User-Agent": "ChatGPT-User/1.0",
+      });
+      expect(prod.body).toBe("NORMAL PRODUCT PAGE");
+    });
+
+    it("gives Googlebot the REAL 404 on a missing URL — never rescued (guardrail)", async () => {
+      const withLayer = await rawGet(port, "/nope", {
         "User-Agent": "Googlebot/2.1",
       });
-      // Compare against the same request with serving OFF.
+      // Byte-identical to the same request with serving OFF: no differentiation.
       setAgentCaptureGate({ enabled: false, sampleRate: 1, serve: false });
-      const noLayer = await rawGet(port, "/", {
+      const noLayer = await rawGet(port, "/nope", {
         "User-Agent": "Googlebot/2.1",
       });
-      expect(withLayer.body).toBe("NORMAL HOMEPAGE");
+      expect(withLayer.status).toBe(404);
+      expect(withLayer.contentType).not.toContain("text/markdown");
       expect(withLayer.body).toBe(noLayer.body);
       expect(withLayer.status).toBe(noLayer.status);
     });
 
-    it("gives a real browser the normal page", async () => {
-      const res = await rawGet(port, "/", {
+    it("gives a real browser the real 404 on a missing URL", async () => {
+      const res = await rawGet(port, "/nope", {
         "sec-ch-ua": '"Chromium";v="149"',
         "Sec-Fetch-Site": "none",
         "Sec-Fetch-Mode": "navigate",
@@ -242,25 +266,132 @@ describe("installAgentRouting (Express, end-to-end)", () => {
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml,*/*",
       });
-      expect(res.body).toBe("NORMAL HOMEPAGE");
+      expect(res.status).toBe(404);
+      expect(res.contentType).not.toContain("text/markdown");
     });
 
-    it("honours Accept: text/markdown regardless of UA", async () => {
-      const res = await rawGet(port, "/", {
+    it("honours Accept: text/markdown as a RESCUE only, never over real content", async () => {
+      // Real route: real content passes through even with a markdown ask.
+      const real = await rawGet(port, "/", {
         "User-Agent": "curl/8.7.1",
         Accept: "text/markdown",
       });
-      expect(res.contentType).toContain("text/markdown");
-      expect(res.body).toContain("search_catalog");
+      expect(real.body).toBe("NORMAL HOMEPAGE");
+      // Missing route: the markdown ask rescues the would-be-404.
+      const missing = await rawGet(port, "/nope", {
+        "User-Agent": "curl/8.7.1",
+        Accept: "text/markdown",
+      });
+      expect(missing.status).toBe(200);
+      expect(missing.contentType).toContain("text/markdown");
+      expect(missing.body).toContain("search_catalog");
     });
 
-    it("makes every entry point a front door (deep path, no homepage seen)", async () => {
-      const res = await rawGet(port, "/products/blue", {
+    it("makes every MISSING deep path a front door (rescued, no product page seen)", async () => {
+      const res = await rawGet(port, "/products/does-not-exist", {
         "User-Agent": "ChatGPT-User/1.0",
       });
+      expect(res.status).toBe(200);
       expect(res.contentType).toContain("text/markdown");
       expect(res.body).toContain("search_catalog");
       expect(res.body).not.toContain("NORMAL PRODUCT PAGE");
     });
+  });
+});
+
+describe("honest 404-rescue recording (capture + routing together)", () => {
+  let storage: MemoryStorageAdapter;
+  let handle: AgentCaptureHandle;
+  let server: http.Server;
+  let port: number;
+
+  beforeEach(async () => {
+    storage = new MemoryStorageAdapter();
+    await storage.init();
+    setActiveStorage(storage);
+
+    const app = express();
+    // Capture FIRST (constructor order): it registers `res.on("finish", record)`
+    // at request entry, so it reads the locals the trailing fallback sets.
+    handle = installAgentCapture(app, { getStorage: () => storage });
+    app.get("/", (_req, res) => {
+      res.status(200).send("HOME");
+    });
+    // Rescue fallback LAST.
+    installAgentRouting(app, {
+      getTools: () => [{ name: "search_catalog", params: [] }],
+      getSiteInfo: () => ({ title: "Acme", description: "Sells shoes." }),
+      getServerName: () => "srv",
+    });
+
+    server = http.createServer(app);
+    await new Promise<void>((r) => server.listen(0, r));
+    port = (server.address() as { port: number }).port;
+
+    // Both capture AND serving on (they share one gate).
+    setAgentCaptureGate({
+      enabled: true,
+      sampleRate: 1,
+      serve: true,
+      siteTitle: "Acme",
+      siteDescription: "Sells shoes.",
+    });
+  });
+
+  afterEach(async () => {
+    await handle.stop();
+    await new Promise<void>((r) => server.close(() => r()));
+    setActiveStorage(null);
+    setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    await storage.close();
+  });
+
+  async function waitForRow(path: string) {
+    for (let i = 0; i < 50; i++) {
+      await new Promise<void>((r) => setTimeout(r, 20));
+      await handle.stop();
+      const row = (await storage.queryAgentRequests()).find(
+        (r) => r.path === path,
+      );
+      if (row) {
+        return row;
+      }
+    }
+    return undefined;
+  }
+
+  it("records a rescued would-be-404 as dead_end + served=1, status 200", async () => {
+    const res = await rawGet(port, "/nope", {
+      "User-Agent": "Mozilla/5.0; compatible; ChatGPT-User/1.0",
+    });
+    expect(res.status).toBe(200);
+    expect(res.contentType).toContain("text/markdown");
+
+    const row = await waitForRow("/nope");
+    // The honest record: 200 sent, but outcome is the pre-rescue dead-end, and
+    // the served flag marks it as rescued — so deadEndRate stays truthful and the
+    // served+dead_end segment counts as `rescuedDeadEnds`.
+    expect(row?.status).toBe(200);
+    expect(row?.outcome).toBe("dead_end");
+    expect(row?.served).toBe(true);
+    expect(row?.servedEncoding).toBe("markdown");
+  });
+
+  it("records a human's real 404 as dead_end + served unset (never rescued)", async () => {
+    const res = await rawGet(port, "/nope", {
+      "sec-ch-ua": '"Chromium";v="149"',
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Dest": "document",
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,*/*",
+    });
+    expect(res.status).toBe(404);
+
+    const row = await waitForRow("/nope");
+    expect(row?.status).toBe(404);
+    expect(row?.outcome).toBe("dead_end");
+    expect(row?.served).toBeUndefined();
   });
 });

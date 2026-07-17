@@ -48,6 +48,16 @@ export interface CaptureOutcome {
   ts: number;
   /** Duration from receipt to response finish, in milliseconds. */
   ms: number;
+  /**
+   * When true, the request would otherwise have 404'd but the agent routing
+   * layer (M3.5) RESCUED it — it served the self-sufficient representation with a
+   * 200 instead. Record the PRE-rescue truth: `outcome = "dead_end"`, even though
+   * the status sent was 200. This keeps the headline dead-end rate honest (a
+   * missing page is a dead-end, not a resolve) while the record's `served` flag
+   * marks that we answered it. The rescued segment is exactly `served` +
+   * `outcome = "dead_end"`. See `route.ts` and ARCHITECTURE §7.
+   */
+  rescuedDeadEnd?: boolean;
 }
 
 /**
@@ -115,7 +125,13 @@ export function toCaptureRecord(
     method: req.method,
     path: req.path,
     status: outcome.status,
-    outcome: classifyOutcome(outcome.status),
+    // A rescued would-be-404 is recorded as the dead-end it truly was, not as
+    // the 200 we sent it — otherwise the routing layer would MASK the very metric
+    // it exists to surface (a served representation on a 200 status would read as
+    // `resolved` and drop `deadEndRate` to zero by construction).
+    outcome: outcome.rescuedDeadEnd
+      ? "dead_end"
+      : classifyOutcome(outcome.status),
     httpVersion: req.httpVersion,
     headers: [...req.rawHeaders],
     ms: outcome.ms,

@@ -57,6 +57,12 @@ export interface AgentTelemetrySummary {
   outcomes: OutcomeAggregate;
   /** Recovery/escalation + coverage (a bounded sample at high volume). */
   sessions: SessionAggregate;
+  /**
+   * Dead-ends the routing layer RESCUED with a served representation (M3.5) —
+   * exactly the `served` + `outcome = "dead_end"` segment. The money contrast M5
+   * renders: of `outcomes.deadEnds` dead-ends, `rescuedDeadEnds` were answered.
+   */
+  rescuedDeadEnds: number;
   /** One-sentence headline; each clause names its source + coverage. */
   headline: string;
   /**
@@ -86,18 +92,24 @@ function pct(rate: number): number {
 
 /**
  * Build the single headline sentence. Every clause is grounded and labelled:
- * requests + dead-ends + served come from the accurate outcome aggregate; the
- * recovery clause carries its coverage; escalation is flagged best-effort.
+ * requests + dead-ends + rescued come from the accurate outcome aggregate; the
+ * recovery clause carries its coverage; escalation is flagged best-effort. The
+ * rescued clause is the M3.5 money view — of the dead-ends, how many did the
+ * served representation answer.
  */
 export function buildHeadline(
   outcomes: OutcomeAggregate,
   sessions: SessionAggregate,
 ): string {
+  const rescued = outcomes.served.deadEnds;
   const clauses: string[] = [];
   clauses.push(`Agents made ${outcomes.total} requests`);
   clauses.push(
     `hit ${outcomes.deadEnds} dead-ends (${pct(outcomes.deadEndRate)}%)`,
   );
+  if (rescued > 0) {
+    clauses.push(`${rescued} rescued by a served representation`);
+  }
   if (sessions.recovery.deadEnds > 0) {
     clauses.push(
       `of ${sessions.recovery.deadEnds} correlatable, ${
@@ -105,7 +117,6 @@ export function buildHeadline(
       } never recovered (${pct(sessions.recovery.coverage)}% coverage)`,
     );
   }
-  clauses.push(`we served ${outcomes.served.total} self-sufficient responses`);
   clauses.push(`${sessions.escalations} escalated to a browser (best-effort)`);
   return `${clauses.join(" · ")}.`;
 }
@@ -122,6 +133,7 @@ function assemble(
     since,
     outcomes,
     sessions,
+    rescuedDeadEnds: outcomes.served.deadEnds,
     headline: buildHeadline(outcomes, sessions),
     coverage: {
       sessionable: sessions.sessionableCoverage,

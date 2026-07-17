@@ -17,6 +17,7 @@ const MIN = 60_000;
 function rec(p: {
   ts: number;
   outcome?: AgentRequestRecord["outcome"];
+  status?: number;
   agentFamily?: string;
   agentClass?: AgentClass;
   ipHash?: string;
@@ -28,7 +29,7 @@ function rec(p: {
     siteId: "default",
     method: p.method ?? "GET",
     path: "/",
-    status: p.outcome === "dead_end" ? 404 : 200,
+    status: p.status ?? (p.outcome === "dead_end" ? 404 : 200),
     outcome: p.outcome ?? "resolved",
     httpVersion: "1.1",
     headers: [],
@@ -40,17 +41,26 @@ function rec(p: {
   };
 }
 
-/** A representative seed: chat-fetchers (served + dead-ends) plus a recovering CLI. */
+/**
+ * A representative seed under the M3.5 rescue model: two chat-fetcher
+ * would-be-404s RESCUED by a served representation (status 200, but recorded as
+ * the dead-ends they were, with served=1), two chat-fetcher dead-ends that were
+ * NOT rescued, plus a recovering CLI.
+ */
 function seedRecords(now: number): AgentRequestRecord[] {
   return [
     rec({
       ts: now - 5 * MIN,
+      outcome: "dead_end",
+      status: 200,
       agentFamily: "gemini",
       agentClass: "chat-fetcher",
       served: true,
     }),
     rec({
       ts: now - 5 * MIN,
+      outcome: "dead_end",
+      status: 200,
       agentFamily: "gemini",
       agentClass: "chat-fetcher",
       served: true,
@@ -89,13 +99,16 @@ describe("summarizeAgentTelemetry + buildHeadline (pure)", () => {
     const summary = summarizeAgentTelemetry(seedRecords(now), { since: 0 });
     expect(summary.enabled).toBe(true);
     expect(summary.outcomes.total).toBe(6);
-    expect(summary.outcomes.deadEnds).toBe(3);
+    expect(summary.outcomes.deadEnds).toBe(5);
     expect(summary.outcomes.served.total).toBe(2);
+    // The rescued segment: served + outcome=dead_end (the two rescued 404s).
+    expect(summary.rescuedDeadEnds).toBe(2);
+    expect(summary.outcomes.served.deadEnds).toBe(2);
     expect(summary.sessions.recovery.recovered).toBe(1);
-    // The headline names requests, dead-ends and the served count.
+    // The headline names requests, dead-ends and the rescued count (M3.5 money view).
     expect(summary.headline).toContain("6 requests");
-    expect(summary.headline).toContain("3 dead-ends");
-    expect(summary.headline).toContain("served 2 self-sufficient responses");
+    expect(summary.headline).toContain("5 dead-ends");
+    expect(summary.headline).toContain("2 rescued by a served representation");
     // Coverage metadata is present so M5 can render confidence.
     expect(summary.coverage.escalationBestEffort).toBe(true);
     expect(summary.coverage.sessionable).toBeGreaterThan(0);
@@ -167,8 +180,10 @@ describe("createAgentTelemetryRouter (with storage)", () => {
     expect(body.enabled).toBe(true);
     // Outcome numbers come from the DB-side aggregate — accurate over the window.
     expect(body.outcomes.total).toBe(6);
-    expect(body.outcomes.deadEnds).toBe(3);
+    expect(body.outcomes.deadEnds).toBe(5);
     expect(body.outcomes.served.total).toBe(2);
+    // Of the 5 dead-ends, 2 were rescued by a served representation (M3.5).
+    expect(body.rescuedDeadEnds).toBe(2);
     // Correlation: the CLI dead-end recovered; coverage is honest (2 of 6).
     expect(body.sessions.sessionableRequests).toBe(2);
     expect(body.sessions.sessionableCoverage).toBeCloseTo(2 / 6, 5);

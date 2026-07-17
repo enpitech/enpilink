@@ -16,28 +16,43 @@ import {
 } from "./represent.js";
 
 /**
- * The agent REPRESENTATION router (M3).
+ * The agent REPRESENTATION router (M3, refined by M3.5).
  *
- * One Express middleware, installed ahead of user content routes (in the
- * McpServer constructor, alongside capture), that — only when `agent.serve` is on
- * — recognises an eligible AI chat fetcher and serves it the self-sufficient
- * {@link represent | representation} INSTEAD of the normal page. Chat-mode agents
- * make exactly one request and never come back (FINDINGS F-10), so the first
- * response is the entire product; this is the layer that makes that response
- * self-sufficient.
+ * One Express middleware — installed as a TRAILING 404-fallback, AFTER all user
+ * content routes and the `/mcp` mount (see `installAgentRoutingFallback` in
+ * `server.ts`) — that, only when `agent.serve` is on, RESCUES a request that
+ * would otherwise 404 for an eligible AI chat fetcher by serving the
+ * self-sufficient {@link represent | representation}. Chat-mode agents make
+ * exactly one request and never come back (FINDINGS F-10), so a 404 is the whole
+ * conversation lost; answering it with a useful body — the site index + tools,
+ * inline — is the recovery.
+ *
+ * Two properties fall out of the trailing-fallback position, and both are the
+ * point of M3.5:
+ * - **A real 2xx route responds first, so the fallback never runs for it** — the
+ *   agent gets the REAL page content, untouched. (Re-encoding real HTML to
+ *   markdown is M6, deferred; passing real HTML through is strictly better than
+ *   replacing it.) The representation ONLY ever stands in for a missing page.
+ * - **A rescue is recorded HONESTLY as the dead-end it was.** The handler sends a
+ *   `200` (a chat agent discards a 404 body) but sets
+ *   `res.locals.enpilinkAgentRescuedDeadEnd`, so the capture spine records
+ *   `outcome = "dead_end"` + `served = 1` — never `resolved`. The headline
+ *   dead-end rate stays truthful, and "of D dead-ends, R were rescued" becomes a
+ *   first-class metric.
  *
  * 🚩 THE CLOAKING GUARDRAIL is enforced in {@link decideAgentServe}, and it is the
  * load-bearing constraint of this milestone:
  * - **Crawlers ALWAYS get the normal response — no differentiation, ever.** M2
- *   names Googlebot (and every indexer) `class: "crawler"`; those are routed
- *   straight through, untouched, even if they send `Accept: text/markdown`.
+ *   names Googlebot (and every indexer) `class: "crawler"`; a missing page 404s
+ *   for them exactly as it would with no agent layer, even on
+ *   `Accept: text/markdown`. Because the rescue only fires for detected assistant
+ *   fetchers, never crawlers or humans, there is zero soft-404 / SEO exposure.
  * - **`human-or-browser` ALWAYS gets the normal response** — it is very likely a
  *   real human and there is no passive signal to separate a human from an
  *   on-device agent, so we never gamble a customer's organic search on it.
  * - **Only chat fetchers (and the reserved `agent-mode`/`browser-agent`) are
- *   eligible** for the representation — plus anyone who EXPLICITLY asks for
- *   markdown via `Accept: text/markdown` (standard content negotiation, and never
- *   a crawler).
+ *   eligible** for a rescue — plus anyone who EXPLICITLY asks for markdown via
+ *   `Accept: text/markdown` (standard content negotiation, and never a crawler).
  *
  * The whole layer is OFF by default behind `agent.serve`, independent of
  * `agent.enabled` (capture). It follows the same operational discipline as the
@@ -165,7 +180,13 @@ function acceptStrictlyHtml(accept: string): boolean {
 /**
  * Decide what to do with one request — the whole guardrail, as a PURE function so
  * it is exhaustively testable without Express. Returns `pass` (serve the normal
- * response, untouched) or `serve` with the negotiated encoding.
+ * response / real 404, untouched) or `serve` with the negotiated encoding.
+ *
+ * This decides ELIGIBILITY only (class + the crawler/human exemptions + the
+ * excluded surfaces). The "is this actually a would-be-404" gate is STRUCTURAL,
+ * not encoded here: the middleware is installed as a trailing fallback, so it
+ * only ever runs when no route matched. A `serve` verdict therefore always
+ * applies to a request that was about to 404.
  */
 export function decideAgentServe(input: {
   serve: boolean;
@@ -256,10 +277,12 @@ function resolveSiteInfo(
 }
 
 /**
- * Install the agent representation router on an Express app. Idempotent per app
- * in the sense that it registers exactly one middleware; install it in the
- * constructor (before user routes) so it can intercept a page navigation and
- * serve the representation in the eligible-agent case.
+ * Install the agent representation router on an Express app as a TRAILING
+ * 404-rescue fallback. It registers exactly one middleware; install it AFTER all
+ * user routes and the `/mcp` mount, so it runs ONLY when nothing matched — i.e.
+ * for a request that would otherwise 404. On a rescue it sends `200` + the
+ * representation and marks `res.locals.enpilinkAgentRescuedDeadEnd` so the capture
+ * spine records the dead-end honestly.
  */
 export function installAgentRouting(
   app: Express,
@@ -306,11 +329,15 @@ export function installAgentRouting(
         path: req.path,
       });
 
-      // M4 hook: mark that M3 served a representation for THIS request, so the
+      // M4 hook: mark that we served a representation for THIS request, so the
       // capture path (which records on `res.finish`) can attribute the outcome to
-      // the serving layer — did the served response actually help the agent, or
-      // did it still dead-end / escalate? Telemetry (M4) reads these locals.
+      // the serving layer. Because this is a trailing 404-fallback, reaching here
+      // means the request was a would-be-404, so ALSO flag it as a rescued
+      // dead-end: the capture spine forces `outcome = "dead_end"` (the pre-rescue
+      // truth) even though we send a 200. `served` + `dead_end` is the rescued
+      // segment M4 counts as `rescuedDeadEnds`.
       res.locals.enpilinkAgentServed = true;
+      res.locals.enpilinkAgentRescuedDeadEnd = true;
       res.locals.enpilinkAgentEncoding = decision.encoding;
       res.locals.enpilinkAgentDetection = detection;
 

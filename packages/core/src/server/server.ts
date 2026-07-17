@@ -571,18 +571,10 @@ export class McpServer<
     this.agentCapture = installAgentCapture(this.express, {
       getStorage: () => this.activeStorage,
     });
-    // Agent representation router (M3). Installed HERE — before any user route —
-    // so that, when `agent.serve` is on, it can intercept a page navigation from
-    // an eligible AI chat fetcher and serve the self-sufficient representation
-    // INSTEAD of the normal page. OFF by default (independent of `agent.enabled`);
-    // crawlers + humans always pass straight through (the cloaking guardrail lives
-    // in `route.ts`). Reads the declared source (tool registry + site summary)
-    // live at request time; a failure degrades to the normal response.
-    installAgentRouting(this.express, {
-      getTools: () => [...this.declaredAgentTools.values()],
-      getSiteInfo: () => this.agentSiteInfo,
-      getServerName: () => this.serverInfo.name,
-    });
+    // NOTE: the agent representation router (M3/M3.5) is NOT installed here. It is
+    // a TRAILING 404-rescue fallback — see {@link installAgentRoutingFallback},
+    // called by `createApp` AFTER user routes + `/mcp` — so that a real 2xx route
+    // passes its content through untouched and only a would-be-404 is rescued.
     // Pick up the manifest if `dist/__entry.js` primed it before importing
     // user code. Consume-once: clear after the first construction so a
     // subsequent test that doesn't prime can't inherit stale state.
@@ -677,6 +669,28 @@ export class McpServer<
   describeForAgents(info: AgentSiteInfo): this {
     this.agentSiteInfo = { ...this.agentSiteInfo, ...info };
     return this;
+  }
+
+  /**
+   * Install the agent representation router (M3/M3.5) as a TRAILING 404-rescue
+   * fallback. Called by `createApp` AFTER all user routes and the `/mcp` mount,
+   * so it runs ONLY when nothing matched — i.e. for a request that would
+   * otherwise 404. When `agent.serve` is on, a would-be-404 from an eligible AI
+   * chat fetcher is answered with the self-sufficient representation (200),
+   * recorded honestly as a rescued dead-end; a real 2xx route already responded
+   * so its content passes through untouched, and crawlers/humans always get the
+   * real 404 (the cloaking guardrail lives in `route.ts`). OFF by default
+   * (independent of `agent.enabled`); a failure degrades to the normal response.
+   * Reads the declared source (tool registry + site summary) live at request time.
+   *
+   * @internal — call site is `createApp`; not part of the user-facing API.
+   */
+  installAgentRoutingFallback(): void {
+    installAgentRouting(this.express, {
+      getTools: () => [...this.declaredAgentTools.values()],
+      getSiteInfo: () => this.agentSiteInfo,
+      getServerName: () => this.serverInfo.name,
+    });
   }
 
   /**

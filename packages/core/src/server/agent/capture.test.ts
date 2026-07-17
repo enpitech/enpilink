@@ -103,6 +103,18 @@ describe("toCaptureRecord", () => {
     expect(rec.outcome).toBe("dead_end");
   });
 
+  // M3.5: a rescued would-be-404 is sent as a 200 but recorded as the dead-end
+  // it was, so the routing layer never masks the metric it exists to surface.
+  it("forces outcome to dead_end for a rescued would-be-404 (status stays 200)", () => {
+    const rec = toCaptureRecord(
+      base,
+      { status: 200, ts: 1, ms: 1, rescuedDeadEnd: true },
+      "s",
+    );
+    expect(rec.status).toBe(200);
+    expect(rec.outcome).toBe("dead_end");
+  });
+
   it("omits ipHash when the adapter could not hash the IP (never a raw IP)", () => {
     const noHash: MinimalRequest = { ...base, ipHash: undefined };
     const rec = toCaptureRecord(noHash, { status: 200, ts: 1, ms: 1 }, "s");

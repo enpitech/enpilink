@@ -169,6 +169,14 @@ export async function createApp({
 
   app.use("/mcp", mcpMiddleware(mcpServer, authRuntime));
 
+  // Agent representation router (M3/M3.5) — installed HERE, as a TRAILING
+  // 404-rescue fallback, after every user route and the `/mcp` mount. It runs
+  // only when nothing matched (a would-be-404): an eligible AI chat fetcher is
+  // then served the self-sufficient representation and the dead-end is recorded
+  // honestly; a real 2xx route already responded and passes through untouched;
+  // crawlers/humans always get the real 404. OFF by default (`agent.serve`).
+  mcpServer.installAgentRoutingFallback();
+
   applyMiddlewares(app, errorMiddleware);
 
   app.use("/mcp", defaultErrorHandler);

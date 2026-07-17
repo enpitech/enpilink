@@ -238,15 +238,23 @@ export function installAgentCapture(
         return;
       }
       recorded = true;
+      // M3.5: a rescued would-be-404. The routing fallback (installed AFTER user
+      // routes, so it only runs when nothing matched) sets this synchronously
+      // before it sends the 200 representation, so it is populated by the time
+      // `finish` fires. When set, `toCaptureRecord` forces `outcome = "dead_end"`
+      // regardless of the 200 status — the honest pre-rescue truth.
+      const rescuedDeadEnd = res.locals.enpilinkAgentRescuedDeadEnd === true;
       const outcome: CaptureOutcome = {
         status: res.statusCode,
         ts: start,
         ms: now() - start,
+        ...(rescuedDeadEnd ? { rescuedDeadEnd: true } : {}),
       };
       // M4: persist whether the M3 routing layer served the self-sufficient
       // representation for THIS request. M3 sets these locals synchronously
       // before it ends the response, so they are populated by the time `finish`
-      // fires. Segmenting served-vs-not is the confabulation-gap headline (F-1).
+      // fires. Segmenting served-vs-not is the confabulation-gap headline (F-1);
+      // `served` + `outcome = "dead_end"` is the rescued-dead-end segment (M3.5).
       const served = res.locals.enpilinkAgentServed === true;
       const servedEncoding =
         res.locals.enpilinkAgentEncoding === "markdown" ||
