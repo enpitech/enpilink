@@ -1,6 +1,6 @@
 {
   "name": "enpilink",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "enpilink is a framework for building ChatGPT and MCP Apps",
   "repository": {
     "type": "git",
