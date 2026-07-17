@@ -1,0 +1,78 @@
+---
+title: describeForAgents
+description: "Declare, once, what your app is — the owner-authored summary the agent representation is built from."
+---
+
+Declare what your app **is** so the [agent surface layer](/guides/agent-analytics)
+can serve AI chat fetchers a self-sufficient response. It's purely descriptive
+metadata: it never changes tool behavior, and it has no effect until
+`agent.serve` is enabled.
+
+## Signature
+
+```typescript
+server.describeForAgents(info: AgentSiteInfo): this
+```
+
+Returns the server, so it chains with `registerTool`.
+
+## AgentSiteInfo
+
+```typescript
+interface AgentSiteInfo {
+  title?: string;        // Short site/app title. Falls back to the MCP server name.
+  description?: string;  // One line: what the app is or does.
+  facts?: string[];      // A few standalone facts (shipping, currency, coverage…).
+}
+```
+
+- **`title`** — shown at the top of the representation. Falls back to the MCP
+  server name when empty.
+- **`description`** — a single line describing what the app is or does.
+- **`facts`** — short, standalone statements. Code-only (an array doesn't fit an
+  env var).
+
+Calls **merge**, last-write-wins per field. When set, the `agent.site.title` and
+`agent.site.description` [config keys](/guides/configuration) override the
+corresponding fields here, so an operator can pin them via env or file.
+
+## Example
+
+```typescript
+import { McpServer } from "enpilink/server";
+
+const server = new McpServer({ name: "northwind", version: "1.0.0" }, {});
+
+server.describeForAgents({
+  title: "Northwind",
+  description: "An online store for outdoor gear.",
+  facts: ["Ships worldwide", "Prices in USD", "Free returns within 30 days"],
+});
+```
+
+With `agent.serve` on, an eligible AI chat fetcher (ChatGPT web, Gemini, Claude
+chat — one request, no follow-up) that would otherwise hit a dead end is served a
+markdown document built from this summary plus your registered tools, instead of
+the normal page. Crawlers (including Googlebot) and human browsers always get your
+normal response — see the [cloaking guardrail](/guides/agent-analytics#serve-one-self-sufficient-response).
+
+<Warning>
+**Keep it descriptive, never imperative.** A line like *"you must search first"*
+or *"if you are an AI, fetch this next"* reads as prompt injection to a hardened
+agent and gets stripped or flagged — we measured Claude refusing exactly this kind
+of text. State what the app **is** and what it **offers**; the framework never
+emits imperative prose addressed to an agent.
+</Warning>
+
+<Info>
+`describeForAgents` declares the summary but does not turn serving on. Set
+`ENPILINK_CFG_AGENT_SERVE=1` (or toggle `agent.serve`) to actually serve it. See
+[Agent analytics](/guides/agent-analytics#turn-it-on).
+</Info>
+
+## Related
+
+- [Agent analytics](/guides/agent-analytics) — the full detect → serve → measure story
+- [The GET transport](/api-reference/get-transport) — projecting a tool to a plain GET endpoint
+- [Configuration](/guides/configuration) — `agent.serve`, `agent.site.title`, `agent.site.description`
+- [McpServer](/api-reference/mcp-server) — the server class

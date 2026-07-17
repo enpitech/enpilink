@@ -55,8 +55,9 @@ resolved setting:
   value it booted with; the UI shows a **"requires restart"** badge and, once
   you change one, a "takes effect after restart" note.
 - **`readonly`** — environment-only, never web-editable. These are the `admin`
-  gate, the secrets (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`),
-  and the **startup-only** keys `port`, `storage`, and `dbPath`.
+  gate, the secrets (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`,
+  `agent.ingestToken`), and the **startup-only** keys `port`, `storage`, and
+  `dbPath`.
 
 All tiers still honour env > file > DB precedence, so pinning a `runtime` or
 `restart` key via env/file makes it **env-locked** (read-only in the UI).
@@ -81,6 +82,18 @@ rejects any write to them (403).
 | `retention.logs` | `ENPILINK_CFG_RETENTION_LOGS` | `5000` | runtime | Retention | Max logs retained |
 | `flags.liveLogs` | `ENPILINK_CFG_FLAGS_LIVE_LOGS` | `true` | runtime | Features | Expose the live-log stream |
 | `display.bucketMs` | `ENPILINK_CFG_DISPLAY_BUCKET_MS` | `60000` | runtime | Display | Dashboard time-bucket width (ms) |
+| `agent.enabled` | `ENPILINK_AGENT` | `false` | runtime | Agent | Capture agent HTTP requests (fingerprint + detection) |
+| `agent.sampleRate` | `ENPILINK_CFG_AGENT_SAMPLE_RATE` | `1` | runtime | Agent | Fraction of requests captured `[0,1]` |
+| `agent.retentionDays` | `ENPILINK_CFG_AGENT_RETENTION_DAYS` | `30` | runtime | Agent | Days to keep captured requests (`0` = forever); enforced by the pruner |
+| `agent.verifyIpRanges` | `ENPILINK_CFG_AGENT_VERIFY_IP_RANGES` | `false` | runtime | Agent | Optional IP-range verification confidence tier |
+| `agent.serve` | `ENPILINK_CFG_AGENT_SERVE` | `false` | runtime | Agent | Serve the self-sufficient representation to eligible chat fetchers |
+| `agent.site.title` | `ENPILINK_CFG_AGENT_SITE_TITLE` | `""` | runtime | Agent | Site title in the representation (overrides `describeForAgents`) |
+| `agent.site.description` | `ENPILINK_CFG_AGENT_SITE_DESCRIPTION` | `""` | runtime | Agent | Site description in the representation |
+| `agent.spa` | `ENPILINK_CFG_AGENT_SPA` | `false` | runtime | Agent | Replace a client-rendered SPA's `200` shell with the representation |
+| `agent.reencode` | `ENPILINK_CFG_AGENT_REENCODE` | `false` | runtime | Agent | Re-encode a real route's HTML response to markdown |
+| `agent.getTransport` | `ENPILINK_CFG_AGENT_GET_TRANSPORT` | `false` | runtime | Agent | Mount the plain-GET transport (off by default; [unproven-in-use](/api-reference/get-transport)) |
+| `agent.getRateLimit` | `ENPILINK_CFG_AGENT_GET_RATE_LIMIT` | `60` | runtime | Agent | GET transport default rate (requests/min per IP+tool) |
+| `agent.getRateBurst` | `ENPILINK_CFG_AGENT_GET_RATE_BURST` | `10` | runtime | Agent | GET transport default burst (per IP+tool) |
 | `auth.enabled` | `ENPILINK_AUTH` | `false` | restart | Security | Enable end-user OAuth on `/mcp` (restart to apply) |
 | `auth.issuer` | `ENPILINK_AUTH_ISSUER` | — | restart | Security | Authorization server issuer URL |
 | `auth.audience` | `ENPILINK_AUTH_AUDIENCE` | — | restart | Security | RFC 8707 audience (`aud`) tokens must carry |
@@ -99,9 +112,17 @@ rejects any write to them (403).
 | `adminAuthToken` | `ENPILINK_ADMIN_TOKEN` | — | readonly | Security | **Secret** — admin bearer token |
 | `auth.signingKey` | `ENPILINK_AUTH_SIGNING_KEY` | — | readonly | Security | **Secret** — federating AS token signing key (enables guest mode) |
 | `auth.clientSecret` | `ENPILINK_AUTH_CLIENT_SECRET` | — | readonly | Security | **Secret** — upstream IdP client secret |
+| `agent.ingestToken` | `ENPILINK_AGENT_INGEST_TOKEN` | — | readonly | Agent | **Secret** — guards the [beacon ingest sink](/api-reference/next-middleware); when unset the endpoint is disabled (404) |
 
 Runtime keys use the `ENPILINK_CFG_*` convention so pinning one via env never
 collides with the bootstrap vars.
+
+<Note>
+The `agent.*` runtime keys are documented in full — what each serves, its topology
+and the honest caveats — in [Agent analytics](/guides/agent-analytics). They live
+in the DB and toggle live from the Configuration tab, except the secret
+`agent.ingestToken`, which is env-only like the other secrets below.
+</Note>
 
 The startup-only keys below are **env-only and hidden from the Configuration
 tab** (the DB can never honour them — see the note above). They're configured at
@@ -176,12 +197,13 @@ reporting which were applied vs skipped.
 
 ## Secrets are env-only and masked
 
-Secret keys (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`) are
-**never persisted to the database and never returned in plaintext** by any API.
-In the UI they render as masked (`••••••••` when set, "(not set)" otherwise)
-with a secret badge and are read-only — the only way to set a secret is its
-environment variable (`ENPILINK_ADMIN_TOKEN`, `ENPILINK_AUTH_SIGNING_KEY`, or
-`ENPILINK_AUTH_CLIENT_SECRET`). The config API returns `403` on any attempt to
+Secret keys (`adminAuthToken`, `auth.signingKey`, `auth.clientSecret`,
+`agent.ingestToken`) are **never persisted to the database and never returned in
+plaintext** by any API. In the UI they render as masked (`••••••••` when set,
+"(not set)" otherwise) with a secret badge and are read-only — the only way to set
+a secret is its environment variable (`ENPILINK_ADMIN_TOKEN`,
+`ENPILINK_AUTH_SIGNING_KEY`, `ENPILINK_AUTH_CLIENT_SECRET`, or
+`ENPILINK_AGENT_INGEST_TOKEN`). The config API returns `403` on any attempt to
 write a secret key. The DB layer never reads or stores them.
 
 ## The config audit log
@@ -196,4 +218,5 @@ what and when.
 
 - [Storage](/guides/storage) — the adapters that back config + audit
 - [Observability](/guides/observability) — what `analytics.*` and `flags.liveLogs` control
+- [Agent analytics](/guides/agent-analytics) — what the `agent.*` keys control
 - [Admin](/guides/admin) — the bootstrap admin token and prod auth

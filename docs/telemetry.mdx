@@ -1,37 +1,138 @@
 ---
 title: Telemetry
-description: "enpilink collects no telemetry — no data is ever collected or sent."
+description: "enpilink the framework phones nothing home. The optional agent surface layer is a collector you turn on, about your own site's agent traffic, stored in storage you own — never sent to enpitech."
 ---
 
 # Telemetry
 
-**enpilink collects no telemetry.**
+**enpilink sends nothing to us.** The framework has no product telemetry: no
+analytics, no usage tracking, no metrics reporting. The CLI never phones home,
+and the server runtime never emits counters to any enpitech endpoint. There is
+no account, no hardcoded analytics key, and no global config file written to
+track you.
 
-enpilink is an account-free, open fork. It has no analytics, no usage tracking,
-and no metrics reporting. The CLI never phones home, and the server runtime
-never emits counters to any remote endpoint.
-
-There is nothing to opt out of:
-
-- The CLI does **not** send any events to any analytics service.
-- The server runtime does **not** emit any per-`tools/call` metrics.
-- No hardcoded analytics key, endpoint, or IP exists anywhere in the codebase.
-- No global config file is written to track preferences.
+That promise is about **enpilink the tool**, and it is absolute. What follows
+draws the line clearly, because enpilink also ships a feature that *collects*
+data — for you, not for us.
 
 <Info>
-**Your Privacy Matters**
-
-enpilink never collects personal information, project code, file contents, tool
-names, tool arguments, tool results, or any other data. Nothing leaves your
-machine unless you explicitly configure it to (for example, by opening a public
-tunnel).
+**The one-line version.** enpilink sends nothing. The [agent surface
+layer](/guides/agent-analytics), when you turn it on, collects data about AI
+agents visiting **your** site, into storage **you** own (your SQLite or
+Postgres). That data is customer-owned and self-hosted — it never reaches
+enpitech.
 </Info>
+
+## enpilink the framework: zero telemetry
+
+There is nothing to opt out of in the framework itself:
+
+- The CLI does **not** send any events to any analytics service.
+- The server runtime does **not** emit any per-`tools/call` metrics to us.
+- No hardcoded analytics key, endpoint, or IP to enpitech exists in the codebase.
+- No global config file is written to track preferences.
+
+Your project code, file contents, tool names, tool arguments, and tool results
+never leave your machine because enpilink took them. Anything that leaves is
+something *you* configured — opening a public tunnel, turning on
+[OTel export](/guides/storage#opentelemetry-export), or enabling the collectors
+below.
+
+## Feature collectors you can turn on (self-hosted, off by default)
+
+Two enpilink features *record* data. Both are **opt-in, off by default**, and
+both write only to the [storage adapter you configure](/guides/storage) — they
+send nothing to enpitech.
+
+### Observability (your MCP server's own tool calls)
+
+[Analytics](/guides/observability) records what your MCP server does — tool-call
+volume, latency, error rate — into your storage. It is off by default; with it
+off, no events are recorded and there is zero network activity. This is a local,
+self-hosted feature. See [Observability](/guides/observability).
+
+### The agent surface layer (AI agents visiting your site)
+
+The [agent surface layer](/guides/agent-analytics) is a **collector about your
+site's agent traffic**: which AI agents (ChatGPT, Claude, Gemini, crawlers)
+fetched your pages, and whether they got what they came for. It exists so you
+can *serve* agents a working response and *measure* whether it worked.
+
+Everything about it is designed to keep the data yours:
+
+- **Off by default.** Capture runs only when you set `ENPILINK_AGENT=1` (or
+  toggle `agent.enabled`). With it off, no request is recorded.
+- **Your storage, your ownership.** Captured requests go into your own SQLite or
+  Postgres, the same store your other analytics use. enpitech never receives
+  any of it. You are the data controller.
+- **Sampling and retention are yours to set.** `agent.sampleRate` records a
+  fraction of requests; `agent.retentionDays` prunes old rows on a schedule you
+  choose (unlike the framework's older decorative caps, this one is actually
+  enforced). Default retention is 30 days.
+
+<Warning>
+**IP address and User-Agent are personal data under the GDPR.** When you enable
+the agent surface layer you become the **controller** of that data. enpilink is
+built to minimize it, but turning on capture is a decision you make for your own
+site, under your own privacy policy.
+</Warning>
+
+#### How the layer protects visitor privacy
+
+- **IPs are hashed with a per-site salt and never stored raw.** The capture path
+  hashes the client IP with a salt unique to your site before it touches storage
+  — the raw IP is never written to a column.
+- **Raw IPs are stripped from the captured header blob, too.** The layer records
+  the request's header *shape* (order and casing — the fingerprint that
+  distinguishes an agent from a browser). Before storing it, any IP-bearing
+  header value (`X-Forwarded-For`, `CF-Connecting-IP`, and similar) is redacted
+  to `[redacted]` — the header *name* is kept as a presence signal, but the raw
+  address is not. No raw IP is ever persisted, even inside the fingerprint.
+- **No credentials, ever.** Visitor identifiers follow the same SHA-256
+  discipline as the rest of enpilink — hashed references, never plaintext.
+
+## The one exception to "nothing leaves your machine"
+
+There is exactly one path in the agent surface layer where data crosses a
+network, and it is worth stating plainly.
+
+If you deploy on **Next.js and use the [edge middleware](/api-reference/next-middleware)**
+(`withAgentCapture` from `enpilink/next`), the edge runtime cannot write to your
+database directly. Instead, **your own edge middleware POSTs the captured records
+to your own Node enpilink server** — the beacon sink at
+`POST /__enpilink/agents/ingest`, guarded by a shared secret
+(`ENPILINK_AGENT_INGEST_TOKEN`).
+
+This is **customer-to-customer**: your edge deployment talking to your Node
+deployment. The data still never reaches enpitech. But it *is* data traveling
+over a network between two of your services, so we call it out rather than bury
+it:
+
+- The endpoint is **disabled (404) until you set the ingest token** — it is never
+  an open write endpoint.
+- The IP is hashed at the edge with `crypto.subtle` **before** it is sent — a raw
+  IP is never transmitted (and is only sent at all if you configure a matching
+  `ipSalt`).
+- You control both ends and the secret between them.
+
+If you run a single Node enpilink server (the common case), this path does not
+exist at all — capture writes straight to your local storage and nothing crosses
+a network.
+
+<Note>
+**Your Privacy Matters.** enpilink never collects personal information, project
+code, file contents, tool names, tool arguments, or tool results for itself.
+Nothing leaves your machine unless you explicitly configure it to — by opening a
+public tunnel, enabling OTel export, or wiring up the edge beacon between your
+own deployments.
+</Note>
 
 ## Telemetry CLI commands
 
 For compatibility, `enpilink telemetry status`, `enpilink telemetry enable`, and
 `enpilink telemetry disable` still exist, but they are no-ops — there is no
-telemetry to enable or disable.
+enpilink product telemetry to enable or disable. (They do **not** control the
+opt-in feature collectors above; those are governed by their own config keys.)
 
 ```bash
 enpilink telemetry status   # always reports: Disabled
@@ -43,3 +144,12 @@ Upstream Skybridge shipped CLI telemetry (PostHog) and a runtime DogStatsD
 counter. enpilink removed both as part of decoupling from the original cloud
 account. See the project [NOTICE](https://github.com/enpitech/enpilink/blob/main/NOTICE)
 for attribution.
+
+## Related
+
+- [Agent analytics](/guides/agent-analytics) — the collector, in full: what it
+  sees, how to turn it on, and the honest limits
+- [Observability](/guides/observability) — your MCP server's own tool-call
+  analytics, also self-hosted and off by default
+- [Storage](/guides/storage) — where captured data is persisted, and OTel export
+- [Configuration](/guides/configuration) — the `agent.*` keys and their defaults

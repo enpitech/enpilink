@@ -1,0 +1,121 @@
+---
+title: The GET transport
+description: "Project a read-only, public tool onto a plain, handshake-free GET /agent/<path> — behind a registration-time safety gate. Off by default and unproven-in-use."
+---
+
+A tool can declare a **GET transport**: a plain `GET /agent/<path>?<params>` that
+returns the tool's result as markdown (default) or JSON, with **no MCP handshake
+and no session**. It's the only agent transport reachable by clients that can't
+speak a protocol — the one thing every agent can do is fetch a URL.
+
+<Warning>
+**Off by default, and unproven-in-use — enable it deliberately.** We measured
+that the majority of agent traffic is chat-mode and **one-shot**: it makes exactly
+one request and never acts on any affordance, so it can *never* reach this
+endpoint. The GET transport serves the smaller, growing **multi-fetch / agent-mode
+minority** (Comet, coding CLIs, work-mode harnesses) — and we have **not** yet
+observed any specific agent actually calling a standard affordance. It ships off
+by default (`agent.getTransport`) and adds zero surface to an app that doesn't
+enable it. The endpoint is the easy part; getting an agent to call it is the
+unproven part. See [Agent analytics](/guides/agent-analytics#the-get-transport-off-by-default-unproven).
+</Warning>
+
+## Declaring it
+
+Set `transports.get` on a tool's [`ToolConfig`](/api-reference/register-tool):
+
+```typescript
+import { z } from "zod";
+
+server.registerTool(
+  {
+    name: "search",
+    description: "Search the product catalogue.",
+    inputSchema: { q: z.string().describe("Search terms") },
+    annotations: { readOnlyHint: true },      // required by the safety gate
+    securitySchemes: [{ type: "noauth" }],    // public — required by the gate
+    transports: {
+      get: { path: "search", safe: true },
+    },
+  },
+  async ({ q }) => ({ content: await search(q) }),
+);
+```
+
+This exposes `GET /agent/search?q=…` when `agent.getTransport` is on. The
+response is markdown by default, or JSON when the client sends
+`Accept: application/json`.
+
+## GetTransport
+
+The `transports.get` object (importable as `GetTransport` from `enpilink/server`):
+
+```typescript
+interface GetTransport {
+  path: string;                                  // "search" → GET /agent/search
+  safe: true;                                    // must be the literal true
+  rateLimit?: { rpm: number; burst?: number };   // per-tool override
+  render?: (structuredContent: unknown) => string;
+  maxAge?: number;                               // Cache-Control max-age (s). Default 300.
+  queryParam?: string | null;                    // free-text search param, or null to opt out
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `path` | Path segment under `/agent`. Leading/trailing slashes trimmed; must be non-empty and contain no `?`, `#`, or `..`. Must be unique across tools. |
+| `safe` | Must be the literal `true` — a written, physical assertion by the author that the tool is safe, idempotent, and public. You cannot opt a tool into GET without typing it. |
+| `rateLimit` | Per-tool token-bucket override. Defaults come from `agent.getRateLimit` / `agent.getRateBurst`. |
+| `render` | Turn the tool's `structuredContent` into markdown. When omitted, the transport joins the result's text `content` (or pretty-prints the structured content). |
+| `maxAge` | `Cache-Control` max-age in seconds. Default `300`. |
+| `queryParam` | The free-text parameter used when declaring the tool as a search affordance (JSON-LD `SearchAction` / OpenSearch). Inferred from the schema when omitted; set `null` to declare a non-search endpoint even if it looks search-shaped. |
+
+## The safety gate
+
+**This is the part that matters.** A GET-exposed tool is unauthenticated and
+world-reachable, so the transport enforces — **at registration, not at request
+time** — that it is safe to expose. `registerTool` **throws** (naming the tool and
+the reason) if any of these fail, so a misconfigured server **does not start**:
+
+- `transports.get.safe` is the literal `true`, **and**
+- `annotations.readOnlyHint === true` — the tool only reads, **and**
+- `annotations.destructiveHint !== true` — it is non-destructive, **and**
+- `securitySchemes` is public (absent, empty, or `noauth`-only) — no auth, **and**
+- the input schema is **flat** — no nested-object parameter.
+
+A duplicate or invalid GET `path` also throws. The result: a mutating, authed, or
+destructive tool **can never** acquire a GET projection. Fail closed, at boot.
+
+<Info>
+Because failures happen at registration, you find out immediately in development —
+not when an agent hits the endpoint in production. Give a GET-exposed tool a flat
+input schema (e.g. `{ q: z.string() }`), mark it `readOnlyHint: true`, and declare
+it `{ type: "noauth" }`.
+</Info>
+
+## Standard-signal declaration
+
+When the GET transport is on, the [representation](/guides/agent-analytics#serve-one-self-sufficient-response)
+declares a search-shaped GET tool through **standard** web signals only — JSON-LD
+`SearchAction`, `<link rel="search">`, and an OpenSearch description at
+`GET /agent/opensearch.xml` — plus a factual list of the GET URLs in the body.
+Non-search GET tools become a generic JSON-LD `Action`. There is **never** prose
+addressed to an agent; only markup a normal website would carry (which a host
+can't strip without breaking Google).
+
+## Behavior
+
+- **Rate limiting** — a token bucket keyed by `(IP, tool)`; over-limit requests
+  get `429` with `Retry-After`. Defaults `agent.getRateLimit` (60 rpm) /
+  `agent.getRateBurst` (10).
+- **Bad input** — a missing or uncoercible parameter returns a `400` with a plain,
+  descriptive message (never imperative). Undeclared query keys are ignored.
+- **Business errors** — a tool returning `isError` responds `200` with its content
+  (a business error, not an HTTP one).
+
+## Related
+
+- [Agent analytics](/guides/agent-analytics) — where the GET transport fits, honestly
+- [registerTool](/api-reference/register-tool) — `ToolConfig`, `annotations`, `securitySchemes`
+- [describeForAgents](/api-reference/describe-for-agents) — the site summary the affordance is declared in
+- [Configuration](/guides/configuration) — `agent.getTransport`, `agent.getRateLimit`, `agent.getRateBurst`

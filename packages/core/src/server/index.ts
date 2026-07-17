@@ -57,6 +57,10 @@ export {
   type SummarizeAgentOptions,
   summarizeAgentTelemetry,
 } from "./agent/telemetry.js";
+export type {
+  GetTransport,
+  ToolTransports,
+} from "./agent/transports/types.js";
 export {
   analyticsEnabled,
   type InstallAnalyticsOptions,

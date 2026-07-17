@@ -75,6 +75,7 @@
               "guides/interaction-types",
               "guides/host-environment-context",
               "guides/observability",
+              "guides/agent-analytics",
               "guides/configuration",
               "guides/admin",
               "guides/auth",
@@ -110,6 +111,15 @@
             "group": "Server",
             "icon": "server",
             "pages": ["api-reference/mcp-server", "api-reference/register-tool"]
+          },
+          {
+            "group": "Agent surface",
+            "icon": "robot",
+            "pages": [
+              "api-reference/describe-for-agents",
+              "api-reference/get-transport",
+              "api-reference/next-middleware"
+            ]
           },
           {
             "group": "Hooks",

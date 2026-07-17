@@ -1,0 +1,336 @@
+---
+title: Agent analytics
+description: "Detect the AI agents fetching your site, serve them a self-sufficient response, and measure whether they actually succeeded — a self-hosted, off-by-default collector, built on what we learned instrumenting real agents."
+---
+
+AI agents already read your site. ChatGPT, Claude, Gemini, and their crawlers
+fetch your pages to answer users' questions — and today you have almost no
+visibility into whether they got what they came for. The **agent surface layer**
+is enpilink's answer: it **detects** the agent, **serves** it a self-sufficient
+response, and **measures** whether that response actually worked.
+
+It is a **collector you turn on** about **your own** site's agent traffic, stored
+in **your own** storage. It is **off by default** and sends nothing to enpitech —
+see [Telemetry](/telemetry) for the privacy line in full.
+
+<Info>
+**This is an SDK with a dashboard, not a dashboard with an SDK.** The value is
+not another traffic counter — it is *serving agents a working response* and
+*measuring a failure mode no other analytics product can see*. Read on for why.
+</Info>
+
+## What we learned (and why the design looks the way it does)
+
+Every claim below was **measured**, not assumed. We stood up a real site on a
+real domain and pointed real agents at it — ChatGPT web, Gemini web, Claude
+chat, Claude work mode, Claude Code — logging every byte of every request. Four
+findings shaped the whole feature.
+
+### 1. Most agents make exactly one request
+
+The three biggest chat assistants — **ChatGPT web, Gemini web, and Claude chat**
+— fetch your page **once and never come back**. They will not follow a link, an
+"affordance", or an ordinary `<a href>`. This is where the overwhelming majority
+of consumer AI traffic lives.
+
+> **For a chat-mode agent, the first HTML response is the entire conversation.**
+> Make it self-sufficient, or lose the query.
+
+It is not the vendor, it's the **mode**: the same Claude that fetches once in
+chat mode made 18 requests in work mode. A smaller, fast-growing **agent/work
+mode** population (Comet, coding CLIs, work-mode harnesses) *does* chain
+requests — but it is the minority today.
+
+### 2. They do not run JavaScript
+
+No major AI crawler or fetcher executes JS. A client-rendered SPA serves them an
+empty `<div id="app">` — they don't "see your site badly," they don't see it at
+all. For an SPA, this layer isn't an optimization; it's the only thing that makes
+the site visible to agents.
+
+### 3. They fail silently — then confidently blame you
+
+The most important finding. We asked Gemini to open a page and read a code off
+it. It reported that *"the website denies access to my browsing tool… the site's
+robots.txt is actively blocking automated tools."* Our server log showed it
+**never requested the page, never fetched robots.txt**, and the page returns
+`200`. It invented a technically-specific, entirely false failure — and told the
+user the site was broken.
+
+> Your dashboard shows one clean `200`. GA4 shows a pageview. Cloudflare shows a
+> verified bot. **All three say everything is fine. All three are wrong.** No
+> analytics product in existence would show you this happened. That gap is the
+> product.
+
+### 4. Don't write prose *at* an agent
+
+We put a helpful, agent-facing block on the page — "here's how to search this
+site" — and Claude **refused it as a prompt-injection attack**, then flagged the
+whole site as a honeypot. Any text addressed to an agent, telling it to go fetch
+things, looks exactly like an attack. So the layer speaks only the web's existing
+language — clean markdown, semantic HTML, and standard structured markup
+(`rel=search`, JSON-LD) — **never** imperative prose.
+
+## The three jobs, honestly scoped
+
+<CardGroup cols={3}>
+  <Card title="Detect" icon="fingerprint">
+    Identify the agent from its request *shape* (headers, order, casing), name it
+    by User-Agent, and optionally verify it against published IP ranges. Works on
+    agents nobody has heard of yet.
+  </Card>
+  <Card title="Serve" icon="paper-plane">
+    Give an eligible chat fetcher one self-sufficient response — your site summary
+    and tool index, as clean markdown — instead of a dead end. Same facts,
+    different encoding.
+  </Card>
+  <Card title="Measure" icon="chart-line">
+    Record whether the agent resolved, hit a dead end, or escalated — the
+    "did it actually succeed?" signal, with honest confidence and coverage labels.
+  </Card>
+</CardGroup>
+
+Two things follow from the findings, and they pull in opposite directions:
+
+- **Chat mode (the majority) → detect, then serve.** They can't act on an
+  affordance, so everything must land in the first response. The layer recognizes
+  them and serves the self-sufficient representation.
+- **Agent/work mode (the minority) → advertise, and they may act.** The
+  [GET transport](/api-reference/get-transport) reaches these clients. It ships
+  **off by default and unproven-in-use** — we have not yet observed a specific
+  agent calling a standard affordance. Enable it deliberately, not by default.
+
+## Turn it on
+
+Nothing here runs until you enable it. The keys resolve through the usual
+[env > file > db](/guides/configuration) precedence and (except the secret) toggle
+live from the Configuration tab.
+
+<Steps>
+  <Step title="Enable capture">
+    Record agent requests into your storage:
+
+    ```bash
+    ENPILINK_AGENT=1
+    ```
+
+    Or toggle `agent.enabled` in the Configuration tab. Off by default; with it
+    off, nothing is recorded.
+  </Step>
+  <Step title="Describe your site (for serving)">
+    Tell the representation what your app is, once, in your server setup:
+
+    ```ts
+    server.describeForAgents({
+      title: "Northwind",
+      description: "An online store for outdoor gear.",
+      facts: ["Ships worldwide", "Prices in USD"],
+    });
+    ```
+
+    See [`describeForAgents`](/api-reference/describe-for-agents).
+  </Step>
+  <Step title="Enable serving">
+    Serve the self-sufficient representation to eligible chat fetchers:
+
+    ```bash
+    ENPILINK_CFG_AGENT_SERVE=1
+    ```
+
+    Or toggle `agent.serve`. It is independent of capture — you can serve without
+    recording, or record without serving.
+  </Step>
+</Steps>
+
+Everything else — SPA mode, HTML re-encoding, the GET transport, IP verification
+— is a further, separate opt-in. See [Configuration](/guides/configuration) for
+the full table of `agent.*` keys, their defaults, and env vars.
+
+## What it captures
+
+For each sampled HTTP request, the capture spine records the request's
+**fingerprint** and the detection derived from it — into new `agent_*` tables,
+kept entirely separate from your MCP `analytics` events:
+
+- **The raw header shape** — header order and casing, read from `req.rawHeaders`
+  (Node's `req.headers` lowercases and re-orders, destroying the signal). This is
+  what distinguishes an agent from a real browser.
+- **A hashed client IP** — salted per-site, never stored raw. IP-bearing header
+  values are redacted before storage too. See [Telemetry](/telemetry#how-the-layer-protects-visitor-privacy).
+- **HTTP version, timing, and the request outcome** — resolved, dead end, blocked,
+  or broken.
+
+<Note>
+Capture is **fire-and-forget** and error-swallowing on the hot path, copied from
+the observability middleware: a storage failure can never break or slow a
+response. Writes buffer and drop-on-overflow rather than blocking.
+</Note>
+
+## Detect: fingerprint first, IP as an optional tier
+
+Detection is primarily about request *shape*, because a User-Agent is a string
+anyone can send but the shape is hard to fake:
+
+- **No `Sec-Fetch-*` headers → not a browser.** High confidence, zero
+  maintenance. Catches Gemini, ChatGPT-User, Claude Code, and every scraper.
+- **Title-cased `Sec-Ch-Ua*` client hints + a Chrome UA → Claude's disguised
+  chat fetcher.** Real Chrome sends these lowercase; an HTTP library that
+  title-cases them is not Chrome, whatever its UA claims.
+- **The User-Agent only *names* the client** once the shape has classified it.
+- **IP ranges are an optional confidence tier**, off by default
+  (`agent.verifyIpRanges`). Where a vendor publishes a list (OpenAI, Google,
+  Anthropic, Perplexity) a match upgrades confidence to `ip-verified`; a mismatch
+  flags a spoof. Many vendors publish nothing, and browser agents run on consumer
+  IPs — so a list can never be the primary mechanism.
+
+Every request carries a **confidence** value (`ip-verified`, `ua+shape`, `shape`,
+`ua-only`, `none`) that is surfaced, never hidden. Clients enpilink doesn't
+recognize show up as an **unknown** class you can triage — that is how the
+supported-agent list grows from your real traffic.
+
+<Warning>
+**One class is undetectable, and that's expected.** An on-device browser agent
+(Comet, Claude for Chrome, work mode driving a real browser) is byte-for-byte
+indistinguishable from a human — real Chrome, residential IP, JS executed. There
+is no passive signal, and that's fine: **these are exactly the agents that *can*
+follow links and use search**, so they don't need detecting — they need a working
+website. The agents we can detect are the ones that can't act; the ones that can
+act are the ones we can't detect. The two halves cover the population.
+</Warning>
+
+## Serve: one self-sufficient response
+
+When `agent.serve` is on, an eligible chat fetcher gets a self-sufficient
+document — your site summary plus your tool index — as clean markdown (or HTML if
+it strictly asks for it). It is built from the **declared source** (your
+registered tools + `describeForAgents`), so it works even for an SPA that has no
+server-rendered HTML to extract.
+
+<Warning>
+**The cloaking guardrail is absolute.** The representation is the **same facts in
+a different encoding** — fewer tokens, identical claims. Never different content,
+never keyword-stuffed. **Googlebot and every search indexer always get your
+normal page**, no exceptions. Serving applies only to AI assistant fetchers
+answering a user's question in real time — never to indexers. Serving a different
+site to crawlers is cloaking, and it risks the ~99% of your traffic that is
+organic search.
+</Warning>
+
+Serving happens in a few complementary modes, all behind that one guardrail:
+
+| Mode | Config | What it does |
+|---|---|---|
+| **404-rescue** | `agent.serve` | When an eligible fetcher hits a URL that would otherwise **404**, serve the representation (`200`) instead of a dead end. Recorded honestly as a rescued dead-end — the metric stays truthful. A real `2xx` route always passes through untouched. |
+| **SPA mode** | `agent.spa` | For a client-rendered app that returns a `200` shell on every path (so the 404-rescue never fires), replace an eligible fetcher's empty HTML shell with the representation. Opt-in, because it replaces a `200`. |
+| **Re-encode** | `agent.reencode` | Re-encode a real route's HTML response to markdown — same facts, ~80% fewer tokens. Only detected fetchers on a `2xx text/html` response; crawlers, humans, non-HTML, and compressed responses get the original bytes. |
+
+<Note>
+A transformed response sets `Vary: Accept, User-Agent` and `Cache-Control:
+private, no-store`, so a shared cache can never hand the agent-only markdown to a
+human or a crawler.
+</Note>
+
+### The GET transport (off by default, unproven)
+
+For the multi-fetch minority, a read-only public tool can project to a plain,
+handshake-free `GET /agent/<path>`. This ships **off by default**
+(`agent.getTransport`) and is **unproven-in-use** — chat-mode agents, the
+majority, never make the second request needed to reach it, and no specific agent
+has yet been observed calling a standard affordance. It is a real capability for
+the growing agent-mode population, framed honestly. A hard **registration-time
+safety gate** means only read-only, non-destructive, public tools can ever be
+exposed this way. See [The GET transport](/api-reference/get-transport).
+
+## Measure: did the agent succeed?
+
+The layer computes what other analytics structurally cannot: whether the agent
+got what it came for.
+
+- **Outcome classes** — every request is `resolved`, `dead_end`, `blocked`, or
+  `broken`, with write attempts broken out separately. Dead-end rate is reported
+  by agent family and class.
+- **Rescued dead-ends** — of the dead-ends, how many the served representation
+  answered. The money metric.
+- **Escalation** — a fetch followed by a full browser render from the same
+  identity is the agent telling you *"your text version wasn't good enough."* It's
+  a best-effort signal computed over the hashed-IP correlator.
+- **Confabulation surface** — the served-vs-not segmentation exposes the F-1 gap:
+  a clean `200` that the agent nonetheless walked away from.
+
+### The honesty model
+
+The signals are labelled so no number is over-read:
+
+- **Confidence tiers** are surfaced per request — a verified-IP hit never looks
+  like an unverified-UA guess.
+- **Coverage fractions** accompany every correlation number. Recovery and
+  escalation need per-request sequences, so they're computed over a bounded sample
+  of correlatable classes and shown next to the fraction of traffic they cover.
+- **`unsessionable` is an honest label, not a hidden zero.** You cannot stitch a
+  session for `ChatGPT-User` or `ClaudeBot` — thousands of users share one vendor
+  IP pool, one byte-identical UA, no cookie, no JS. Any product showing a
+  "session" for them is showing a fiction. The layer names them `unsessionable`
+  and reports zero sessions honestly.
+- **Escalation is flagged best-effort** — it undercounts the cloud→residential
+  case where an agent's pre- and post-escalation IPs differ.
+
+### Reading the numbers
+
+The dashboard reads a single API: **`GET /__enpilink/agents/summary`** (mounted
+alongside observability — open in dev, bearer-guarded in prod like the rest of the
+[admin data API](/guides/admin)). It returns totals, dead-end rate by
+family/class, rescued dead-ends, the recovery/escalation correlation with
+coverage, and a one-sentence **headline** whose every clause names its source and
+coverage. With no storage it degrades to `{ "enabled": false }` — a `200`, never a
+`500`.
+
+The Console surfaces all of this in an **Agents** tab: the headline, the
+rescued-vs-unrescued dead-end split (framed as "rescued a would-be-404", never as
+a success rate), the outcome-class histogram (a `resolved` `200` is *not* painted
+success-green — it might be a confabulation), by-family and by-class dead-end
+tables, and the best-effort recovery/escalation panel with every coverage fraction
+shown.
+
+## Deployment topologies
+
+### Single Node server (the common case)
+
+Run one enpilink Node server. Capture writes straight to your local storage;
+nothing crosses a network. Set `ENPILINK_AGENT=1`, and `agent.serve` /
+`agent.getTransport` as desired.
+
+### Next.js edge + beacon
+
+If you deploy on Next.js, the [edge middleware](/api-reference/next-middleware)
+(`withAgentCapture` from `enpilink/next`) captures at the edge and **POSTs records
+to your own Node enpilink server's beacon sink**
+(`POST /__enpilink/agents/ingest`, guarded by `ENPILINK_AGENT_INGEST_TOKEN`).
+This is customer-to-customer — your edge talking to your Node — and the data still
+never reaches enpitech.
+
+<Warning>
+**The edge sees less than the Node path — don't assume otherwise.** A Web
+`Headers` object lowercases and sorts headers, so the header **casing and order**
+are lost: **Claude's Chrome-disguise chat fetcher is not caught at the edge** (it
+falls back to `human-or-browser` by shape). The **HTTP version** and the
+`ip-verified` IP tier are unavailable at the edge, and because middleware runs
+before the route resolves, a pass-through request's downstream status is recorded
+as unknown (`status=0`). The edge's job is **detection and the fingerprint
+corpus**; the authoritative outcome and dead-end analytics remain the Node path.
+</Warning>
+
+## Privacy and ownership
+
+The data this layer collects is **yours** — customer-owned, self-hosted, never
+sent to enpitech. IP and User-Agent are personal data under the GDPR, and when you
+enable capture you are the controller. See [Telemetry](/telemetry) for the full
+statement, including how IPs are hashed and header blobs redacted.
+
+## Related
+
+- [Telemetry](/telemetry) — the privacy line: what leaves your machine and what doesn't
+- [`describeForAgents`](/api-reference/describe-for-agents) — declare what your app is, for the representation
+- [The GET transport](/api-reference/get-transport) — `transports.get` and the safety gate
+- [Next.js edge middleware](/api-reference/next-middleware) — `withAgentCapture` and the beacon topology
+- [Configuration](/guides/configuration) — every `agent.*` key, default, and env var
+- [Observability](/guides/observability) — your MCP server's own tool-call analytics

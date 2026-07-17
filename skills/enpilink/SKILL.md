@@ -37,6 +37,7 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 - **Download file** → [download-file.md](references/download-file.md): when saving content to the user's filesystem
 - **OAuth** → [oauth.md](references/oauth.md): when tools need user authentication to access user-specific data
 - **CSP** → [csp.md](references/csp.md): when declaring allowed domains for fetch, assets, redirects, or iframes
+- **Agent surface** → [agents.md](references/agents.md): when the app should be readable/measurable by AI agents (ChatGPT/Claude/Gemini) — detect agents, serve a self-sufficient response, measure success. Off by default.
 
 ## Deploy
 
