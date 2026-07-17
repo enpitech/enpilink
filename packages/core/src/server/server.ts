@@ -36,6 +36,7 @@ import {
   type AgentCaptureHandle,
   installAgentCapture,
 } from "./agent/express-middleware.js";
+import { installAgentIngest } from "./agent/ingest.js";
 import {
   type AgentGetAffordance,
   type AgentSiteInfo,
@@ -623,6 +624,15 @@ export class McpServer<
     // map live, so tools registered after construction are still served.
     installAgentGetTransport(this.express, {
       getExposedTools: () => [...this.declaredGetTools.values()],
+    });
+    // Agent beacon SINK (M8). Installed HERE — early, before the admin plane —
+    // so it owns `POST /__enpilink/agents/ingest` and is guarded by the ingest
+    // token, NOT the admin token (an edge deployment beacons without the admin
+    // credential). A cheap self-contained handler; DISABLED (404) until
+    // `agent.ingestToken` is configured. It writes beaconed records from the
+    // Next/edge middleware via the same StorageAdapter the Node path uses.
+    installAgentIngest(this.express, {
+      getStorage: () => this.activeStorage,
     });
     // NOTE: the agent representation router (M3/M3.5) is NOT installed here. It is
     // a TRAILING 404-rescue fallback — see {@link installAgentRoutingFallback},

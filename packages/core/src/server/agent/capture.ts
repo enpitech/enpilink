@@ -92,6 +92,45 @@ export function headerValue(
 }
 
 /**
+ * Header names (lowercased) whose VALUE is a raw client IP. Their values are
+ * redacted from the STORED fingerprint so no raw IP is ever persisted — the only
+ * IP representation we keep is the salted, one-way {@link AgentRequestRecord.ipHash}
+ * (ARCHITECTURE §5.4: "NEVER store a raw IP"). The header NAME is kept, because
+ * its mere presence (e.g. `cf-connecting-ip` ⇒ behind Cloudflare) is itself a
+ * fingerprint signal. This applies to BOTH the Express and edge capture paths,
+ * since both build the record through {@link toCaptureRecord}.
+ */
+const IP_BEARING_HEADERS = new Set([
+  "x-forwarded-for",
+  "x-real-ip",
+  "cf-connecting-ip",
+  "true-client-ip",
+  "x-client-ip",
+  "x-cluster-client-ip",
+  "fastly-client-ip",
+  "forwarded",
+  "x-forwarded",
+  "client-ip",
+]);
+
+/** The marker a redacted IP-header value is replaced with. */
+const REDACTED = "[redacted]";
+
+/**
+ * Return a copy of the header pairs with the VALUES of IP-bearing headers
+ * redacted (name kept). Pure. The classifier runs on the ORIGINAL pairs upstream
+ * (IP values are not a classification signal), so redacting the stored copy
+ * loses no detection fidelity — it only strips PII from what is persisted.
+ */
+export function redactIpHeaders(pairs: readonly HeaderPair[]): HeaderPair[] {
+  return pairs.map(([name, value]) =>
+    IP_BEARING_HEADERS.has(name.toLowerCase())
+      ? [name, REDACTED]
+      : [name, value],
+  );
+}
+
+/**
  * Classify a request outcome from its status alone (S3 — zero config, always
  * available). See {@link AgentOutcome}.
  */
@@ -133,7 +172,9 @@ export function toCaptureRecord(
       ? "dead_end"
       : classifyOutcome(outcome.status),
     httpVersion: req.httpVersion,
-    headers: [...req.rawHeaders],
+    // Redact IP-bearing header VALUES so the stored fingerprint never holds a
+    // raw IP (the only IP we keep is the salted `ipHash`). Names are preserved.
+    headers: redactIpHeaders(req.rawHeaders),
     ms: outcome.ms,
     confidence: "none",
   };

@@ -69,6 +69,14 @@ export interface AgentCaptureGate {
   getRateLimit?: number;
   /** Default GET-transport burst (token-bucket capacity), M7. */
   getRateBurst?: number;
+  /**
+   * The shared bearer token guarding the beacon-sink ingest endpoint (resolved
+   * `agent.ingestToken`, M8). Empty/undefined ⇒ the ingest endpoint is DISABLED
+   * (404). Env-only secret, so it always resolves from the env value. Held in
+   * the in-process gate only (never serialized to any HTTP response). Optional
+   * so existing test callers keep compiling.
+   */
+  ingestToken?: string;
 }
 
 /**
@@ -108,6 +116,10 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
       getTransport: values["agent.getTransport"] === true,
       getRateLimit: values["agent.getRateLimit"],
       getRateBurst: values["agent.getRateBurst"],
+      ingestToken:
+        typeof values["agent.ingestToken"] === "string"
+          ? values["agent.ingestToken"]
+          : undefined,
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or

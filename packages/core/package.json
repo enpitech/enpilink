@@ -28,6 +28,10 @@
       "types": "./dist/web/index.d.ts",
       "default": "./dist/web/index.js"
     },
+    "./next": {
+      "types": "./dist/server/agent/next/index.d.ts",
+      "default": "./dist/server/agent/next/index.js"
+    },
     "./vite": {
       "types": "./dist/web/plugin/plugin.d.ts",
       "default": "./dist/web/plugin/plugin.js"

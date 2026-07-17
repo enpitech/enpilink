@@ -173,7 +173,14 @@ export interface AgentRequestRecord {
   outcome: AgentOutcome;
   /** HTTP version string (`"1.1"`, `"2.0"`) — an HTTP-fingerprint signal. */
   httpVersion: string;
-  /** Raw header pairs, original order AND casing — the primary fingerprint. */
+  /**
+   * Raw header pairs, original order AND casing — the primary fingerprint. The
+   * VALUES of IP-bearing headers (`x-forwarded-for`, `cf-connecting-ip`, …) are
+   * redacted to `[redacted]` (name kept) so no raw client IP is ever persisted
+   * here — the only IP we store is the salted {@link ipHash}. On the edge path
+   * (Web `Headers`) names are lowercased and order is sorted (a documented
+   * fidelity loss vs the Node path's `req.rawHeaders`).
+   */
   headers: HeaderPair[];
   /** `SHA-256(site salt + client IP)`. NEVER the raw IP. Absent if unknown. */
   ipHash?: string;

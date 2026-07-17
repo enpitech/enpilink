@@ -7,6 +7,15 @@ export {
   readAdminToken,
 } from "./admin.js";
 export {
+  type AgentIngestOptions,
+  createAgentIngestHandler,
+  INGEST_PATH,
+  type IngestBatch,
+  installAgentIngest,
+  MAX_INGEST_BATCH,
+  readIngestToken,
+} from "./agent/ingest.js";
+export {
   type ClassHistogram,
   type ClassOutcome,
   computeAgentOutcomes,

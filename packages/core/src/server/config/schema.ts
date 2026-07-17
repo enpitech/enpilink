@@ -83,6 +83,14 @@ export const bootstrapSchema = z.object({
    * persisted to the DB nor returned in plaintext.
    */
   adminAuthToken: z.string().optional(),
+  /**
+   * Shared bearer token guarding the agent beacon-sink ingest endpoint
+   * (`POST /__enpilink/agents/ingest`, M8). SECRET — env-only, never persisted
+   * to the DB nor returned in plaintext. When unset the ingest endpoint is
+   * DISABLED (404); a separate secret from {@link adminAuthToken} so an edge
+   * deployment can beacon without holding the full admin credential.
+   */
+  "agent.ingestToken": z.string().optional(),
 
   // --- End-user auth (A1, resource-server foundation) ---
   /**
@@ -641,6 +649,13 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     unit: "requests",
     editable: "runtime",
   },
+  "agent.ingestToken": {
+    label: "Beacon ingest token",
+    description:
+      "Secret bearer token guarding the agent beacon-sink endpoint (POST /__enpilink/agents/ingest), where the edge/Next middleware POSTs captured records. Set via environment only; never stored or shown in plaintext. When unset, the ingest endpoint is disabled (404). A separate secret from the admin token so an edge deployment can beacon without the full admin credential.",
+    group: "Agent",
+    editable: "readonly",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -650,6 +665,7 @@ export const BOOTSTRAP_KEYS = [
   "port",
   "admin",
   "adminAuthToken",
+  "agent.ingestToken",
   "auth.enabled",
   "auth.issuer",
   "auth.audience",
@@ -693,6 +709,7 @@ export const RUNTIME_KEYS = [
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
 export const SECRET_KEYS = [
   "adminAuthToken",
+  "agent.ingestToken",
   "auth.signingKey",
   "auth.clientSecret",
 ] as const satisfies readonly ConfigKey[];
@@ -762,6 +779,7 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   port: "PORT",
   admin: "ENPILINK_ADMIN",
   adminAuthToken: "ENPILINK_ADMIN_TOKEN",
+  "agent.ingestToken": "ENPILINK_AGENT_INGEST_TOKEN",
   "auth.enabled": "ENPILINK_AUTH",
   "auth.issuer": "ENPILINK_AUTH_ISSUER",
   "auth.audience": "ENPILINK_AUTH_AUDIENCE",
