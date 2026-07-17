@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   BookOpen,
+  Bot,
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
@@ -35,6 +36,12 @@ export const SIDEBAR_ITEMS: ReadonlyArray<SidebarItem> = [
     label: "Dashboard",
     icon: BarChart3,
     testId: "nav-dashboard",
+  },
+  {
+    value: "agents",
+    label: "Agents",
+    icon: Bot,
+    testId: "nav-agents",
   },
   {
     value: "logs",

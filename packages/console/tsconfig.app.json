@@ -30,5 +30,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["dist", "e2e", "node_modules"]
+  "exclude": ["dist", "e2e", "node_modules", "src/**/*.test.ts"]
 }
