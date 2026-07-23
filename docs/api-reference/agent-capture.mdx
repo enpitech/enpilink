@@ -1,0 +1,179 @@
+---
+title: agentCapture (adapters)
+description: "The one-line agent-capture adapters — enpilink/express, enpilink/hono, and enpilink/cloudflare — each exposing agentCapture(). Capture is ON at install; serving is a separate opt-in; storage is per-runtime."
+---
+
+`agentCapture()` is the one-line entry point for the [agent surface
+layer](/guides/agent-analytics) on a standalone framework. Three packages export
+it, one per runtime; Next.js has its own [`withAgentCapture`](/api-reference/next-middleware).
+For the install-oriented walkthrough (which to use, the storage story per runtime),
+see [Install the agent layer](/guides/agent-install).
+
+<Info>
+**Capture is ON the moment you mount an adapter** — installing it *is* the opt-in,
+unlike an MCP server (which waits for `ENPILINK_AGENT=1`). An explicit
+`enabled: false` (or an `ENPILINK_AGENT` env pin) disables it. **Serving is always a
+separate opt-in** (`serve` / `spa` / `reencode`). The [cloaking
+guardrail](/guides/agent-analytics#serve-one-self-sufficient-response) is shared,
+single-source: crawlers (Googlebot and every indexer), humans, and subresources
+always get the untouched response.
+</Info>
+
+## Express
+
+```typescript
+import { agentCapture } from "enpilink/express";
+
+app.use(agentCapture());                                  // capture + classify
+app.use(agentCapture({ serve: true, siteTitle: "Acme" })); // + rescue would-be-404s
+```
+
+Returns one Express `RequestHandler`. Mount it **once, ahead of your routes**.
+Works in plain Express and any Express-based framework (NestJS). On first use it
+activates storage (default SQLite), flips capture on, and starts the ruleset client
+in the background — no `McpServer`, no `ENPILINK_ANALYTICS`.
+
+### ExpressAgentCaptureOptions
+
+```typescript
+interface ExpressAgentCaptureOptions {
+  enabled?: boolean;         // Capture. Default ON (installing is the opt-in).
+  sampleRate?: number;       // Capture sampling [0,1]. Default 1.
+  serve?: boolean;           // Serve the representation on a would-be-404. OFF.
+  spa?: boolean;             // Replace a 2xx SPA shell with the representation. OFF.
+  reencode?: boolean;        // Re-encode a 2xx HTML response to markdown. OFF.
+  verifyIpRanges?: boolean;  // Optional published-IP-range confidence tier. OFF.
+  siteTitle?: string;        // Owner-declared title for the representation.
+  siteDescription?: string;  // Owner-declared one-line description.
+  siteFacts?: string[];      // A few standalone facts (representation bullets).
+  serverName?: string;       // Fallback representation title. Default "enpilink".
+  siteId?: string;           // Attribute captures to this site id. Default "default".
+  getTools?: () => AgentToolInfo[];             // Declared tool index for the representation.
+  getGetAffordances?: () => AgentGetAffordance[]; // GET-exposed tools (when agent.getTransport is on).
+}
+```
+
+Serving is a single early response-wrap: it buffers the response and, at `end`,
+**rescues** a would-be 404/410 with the representation (`serve`), **replaces** a 2xx
+SPA shell (`spa`), or **re-encodes** a 2xx HTML body to markdown (`reencode`) — only
+for a detected, eligible fetcher. Any failure mid-transform emits the original bytes:
+serving never breaks a response.
+
+## Hono
+
+```typescript
+import { agentCapture } from "enpilink/hono";
+
+app.use("*", agentCapture());
+app.use("*", agentCapture({ serve: true, siteTitle: "Acme" }));
+```
+
+Returns one Hono middleware. Same shared core and guardrail as Express. Typed
+**structurally** — the adapter needs no `hono` dependency. `HonoAgentCaptureOptions`
+mirrors `ExpressAgentCaptureOptions` field-for-field.
+
+<Warning>
+**Full header fidelity requires the Node runtime.** On `@hono/node-server` the
+adapter reads the underlying `IncomingMessage.rawHeaders` (original order + casing —
+so Claude's title-cased-client-hints disguise is caught, exactly as on Express). On
+any other runtime it falls back to the Web `Headers` (lowercased + sorted), losing
+that one casing signal; UA-named agents are unaffected. This adapter is the Node
+runtime — for Hono on Cloudflare, use the [Cloudflare adapter](#cloudflare-workers).
+</Warning>
+
+## Cloudflare Workers
+
+```typescript
+import { agentCapture, d1CaptureSink, KVRulesetCacheStore } from "enpilink/cloudflare";
+
+export default agentCapture({
+  serve: true,
+  site: { title: "Acme", description: "Acme's API and docs." },
+  fetchOrigin: (request, env) => env.ASSETS.fetch(request),
+  sink: (env) => d1CaptureSink(env.DB),
+  ruleset: { cacheStore: (env) => new KVRulesetCacheStore({ kv: env.RULESET_KV }) },
+});
+```
+
+Returns a `{ fetch }` object usable directly as `export default`. It does full
+capture + detect + (opt-in) serve inside the Worker's existing `fetch` hop — no Node
+built-ins, no new hop.
+
+<Warning>
+**Fail-open.** The origin response is resolved **first**; the whole
+capture/serve wrapper runs in a `try` whose `catch` returns that origin response
+untouched. A bug in detection, serving, the ruleset, or the sink can never turn a
+good page into an error. Capture writes and ruleset refreshes are handed to
+`ctx.waitUntil()` — the response is never delayed by I/O.
+</Warning>
+
+### CloudflareAgentCaptureOptions
+
+```typescript
+interface CloudflareAgentCaptureOptions<Env> {
+  enabled?: boolean;                 // Capture + serve. Default ON. false → pass-through.
+  fetchOrigin?: OriginHandler<Env>;  // How to get the origin/next response.
+                                     //   Default: env.ASSETS.fetch, else fetch(request).
+  serve?: boolean;                   // Rescue a would-be 404/410. OFF.
+  spa?: boolean;                     // Replace a 2xx HTML SPA shell. OFF.
+  reencode?: boolean;                // Re-encode 2xx HTML to markdown. OFF.
+  site?: AgentSiteInfo;              // Owner-declared site summary (account-free — no MCP server).
+  serverName?: string;               // Fallback representation title.
+  tools?: AgentToolInfo[];           // Declared tools to advertise.
+  affordances?: AgentGetAffordance[];// Declared GET affordances (M7).
+  siteId?: string;                   // Attribute captures to this site id. Default "default".
+  ipSalt?: string;                   // IP-hash salt. Absent → IP not hashed, not stored.
+  sampleRate?: number;               // Capture sampling [0,1]. Serving is never sampled. Default 1.
+  ruleset?: CloudflareRulesetOptions<Env>; // Detection-freshness (cached ruleset client).
+  rulesetValue?: Ruleset | null;     // Explicit ruleset — bypasses the client (advanced/testing).
+  sink?: (env: Env) => EdgeCaptureSink | undefined; // Where captures are written.
+}
+```
+
+`CloudflareRulesetOptions<Env>` carries `enabled` (network fetch on/off — a cache
+store still warms with it off), `url`, `ttlSeconds`, `timeoutMs`, `mode`
+(`live`/`dev`), and `cacheStore: (env) => RulesetCacheStore` (resolve a
+cross-isolate cache from `env`). See [Detection & the live
+ruleset](/guides/agent-detection-ruleset).
+
+### Storage sinks (re-exported from `enpilink/cloudflare`)
+
+- **`d1CaptureSink(db)`** — write captures to a Cloudflare **D1** database (native
+  SQLite). Call `ensureD1Schema(db)` once (or apply the exported `D1_SCHEMA`) to
+  create the table. Also exported: `D1CaptureSink`, `D1DatabaseLike`.
+- **`beaconCaptureSink({ sinkUrl, token })`** — POST captures to your own Node
+  enpilink server's [ingest sink](/api-reference/next-middleware#the-beacon-topology),
+  same topology as Next. Also exported: `BeaconCaptureSink`, `EdgeCaptureSink`.
+
+### Ruleset cache stores (re-exported)
+
+- **`KVRulesetCacheStore`** (recommended) — cache the fetched ruleset in Workers KV,
+  warm across isolates. Accepts any `EdgeKvLike` (so Vercel KV / other edge KV work
+  too).
+- **`CacheApiRulesetCacheStore`** — cache via the Web `Cache` API.
+- **`MemoryRulesetCacheStore`** — in-isolate default (a cold isolate re-fetches).
+
+Without a cache store a cold isolate serves its first request `pending` (capture
+still works) and warms it via `waitUntil` for subsequent requests.
+
+## Shared behaviour
+
+- **The guardrail is single-source.** All three adapters (and the McpServer)
+  decide serving through the same pure `agentServeEligibility` — Googlebot and every
+  indexer, humans, and subresources are never served. Serving a different site to
+  crawlers is [cloaking](/guides/agent-analytics#serve-one-self-sufficient-response).
+- **Capture is fire-and-forget** off the response path; a storage/sink failure
+  never breaks or slows a response.
+- **A served/re-encoded response** sets `Vary: Accept, User-Agent` so a shared cache
+  can't hand the agent-only variant to a human or crawler.
+- **Detection classifies from the fetched ruleset.** With none loaded yet, rows are
+  `pending` and backfill once it loads — [the no-baseline
+  behaviour](/guides/agent-detection-ruleset#no-baseline-capture-always-works-labels-backfill).
+
+## Related
+
+- [Install the agent layer](/guides/agent-install) — the install walkthrough per framework
+- [Next.js edge middleware](/api-reference/next-middleware) — `withAgentCapture`, the fourth adapter
+- [`agentCapture` &amp; the ruleset](/api-reference/agent-ruleset) — the `agent.ruleset.*` keys, endpoints, and build pipeline
+- [Agent analytics](/guides/agent-analytics) — detect → serve → measure, and the honesty model
+- [describeForAgents](/api-reference/describe-for-agents) — the MCP-server equivalent of `site`

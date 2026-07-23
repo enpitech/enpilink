@@ -1,0 +1,130 @@
+---
+title: "agentCapture & the ruleset"
+description: "The detection-ruleset surface: the agent.ruleset.* config keys, the public self-host endpoint and guarded status endpoint, and the build:ruleset maintainer pipeline."
+---
+
+Agent detection reads its data from a **versioned ruleset** fetched at runtime (the
+package ships no detection data). This page is the reference for that surface: the
+config keys that control the fetch, the two HTTP endpoints an enpilink server
+exposes, and the pipeline that builds the artifact. For the conceptual model — why
+it's a soft dependency, how backfill works — see [Detection & the live
+ruleset](/guides/agent-detection-ruleset).
+
+## Config keys
+
+All `agent.ruleset.*` keys are **runtime-editable** (live in the DB, toggle from the
+Configuration tab), and all honor `env > file > DB > default`
+[precedence](/guides/configuration#precedence-env--file--db--default).
+
+| Key | Env var | Default | Meaning |
+|---|---|---|---|
+| `agent.ruleset.enabled` | `ENPILINK_CFG_AGENT_RULESET_ENABLED` | `true` | Fetch the ruleset from the network (stale-while-revalidate). Off → self-host / on-disk cache only; no outbound fetch. |
+| `agent.ruleset.url` | `ENPILINK_CFG_AGENT_RULESET_URL` | `https://cdn.enpitech.dev/agent/ruleset/v1.json` | Where to fetch it. Point at your own mirror or a `file://` path to self-host. Every fetched artifact is schema-validated before it goes live. |
+| `agent.ruleset.ttlSeconds` | `ENPILINK_CFG_AGENT_RULESET_TTL_SECONDS` | `0` | TTL override (seconds). `0` honors the artifact's `Cache-Control: max-age` (central control); a positive value forces this TTL. |
+| `agent.ruleset.timeoutMs` | `ENPILINK_CFG_AGENT_RULESET_TIMEOUT_MS` | `5000` | Hard fetch timeout. A hung fetch is aborted and treated as a failed refresh. |
+| `agent.ruleset.mode` | `ENPILINK_CFG_AGENT_RULESET_MODE` | `live` | `live` = long, centrally-controlled TTL; `dev` = short TTL to pick up a signature you're testing quickly. |
+
+<Note>
+**None of these ever affect request latency.** `getRuleset()` is a synchronous
+in-memory read; the fetch, its TTL, and its timeout only govern the
+**background** refresh. A stale ruleset is served while a refresh runs. See [the
+latency guarantee](/guides/agent-detection-ruleset#stale-while-revalidate-a-request-never-waits-on-the-fetch).
+</Note>
+
+The edge adapters ([Cloudflare](/api-reference/agent-capture#cloudflare-workers),
+[Next](/api-reference/next-middleware)) take the same knobs as adapter options
+(`ruleset.url`, `ruleset.mode`, `rulesetUrl`, …) rather than DB config, since the
+edge has no in-process config store.
+
+## Endpoints
+
+An enpilink server with the admin plane mounted exposes two ruleset endpoints.
+
+### `GET /__enpilink/agents/ruleset` — the self-host artifact (public)
+
+Serves the exact artifact the [build pipeline](#publishing-the-ruleset) emits —
+the same keyless, non-sensitive bytes the public CDN fronts. It is **mounted before
+the admin auth guard**, on purpose: a consuming client fetches it with **no bearer**,
+so an air-gapped operator can point `agent.ruleset.url` at any enpilink instance.
+
+- **One-directional.** It reads no request body, no storage, and nothing about the
+  caller — it only serves rules *out*.
+- **`Cache-Control` is the central freshness dial.** The response carries
+  `public, max-age=<N>`, where `N` is driven by this server's `agent.ruleset.mode`
+  and `agent.ruleset.ttlSeconds` — `dev` → 30 s, `live` → the TTL override or 3600 s
+  default. A downstream client honoring `Cache-Control` refreshes on exactly that
+  cadence.
+- Emits `X-Enpilink-Ruleset-Version` so you can diff CDN vs self-host at a glance.
+- Degrades to **503** (never 500, never a hang) if the artifact can't be produced;
+  a consuming client treats a non-200 as a failed refresh and keeps its last-good
+  ruleset.
+
+### `GET /__enpilink/agents/ruleset/status` — live state (guarded)
+
+Reports **this** server's ruleset state for the Console's Detection-ruleset card.
+Mounted **behind** the admin auth guard (open in dev, bearer-guarded in prod, like
+the rest of the [admin data API](/guides/admin)). Degrades to `{ "enabled": false }`
+— a `200`, never a `500` — when no client is bootstrapped.
+
+```typescript
+interface RulesetStatus {
+  enabled: true;
+  loaded: boolean;              // A validated ruleset is held. false ⇒ detection is pending.
+  version: string | null;      // The held ruleset's version, or null.
+  fetchedAt: number | null;    // Epoch-ms it was fetched, or null.
+  source: "network" | "cache" | null;
+  mode: "live" | "dev";        // Resolved agent.ruleset.mode.
+  ttlSeconds: number;          // Resolved agent.ruleset.ttlSeconds (0 ⇒ honor Cache-Control).
+  url: string;                 // Resolved agent.ruleset.url.
+  fetchEnabled: boolean;       // Resolved agent.ruleset.enabled.
+}
+```
+
+## Publishing the ruleset
+
+The ruleset is the *buildable output of a pipeline*, not a hand-maintained file.
+Maintainers (or anyone running a fork) publish a new artifact like this:
+
+<Steps>
+  <Step title="Edit the corpus in one place">
+    Add the new signature to `packages/core/src/server/agent/ruleset/initial.ts` —
+    a new `uaPatterns` / `shapeRules` entry, or an `ipRanges` family→vendor mapping.
+    This is the single source of truth for "what an agent looks like."
+  </Step>
+  <Step title="Build">
+    ```bash
+    pnpm -F enpilink build   # compile the corpus
+    pnpm build:ruleset       # emit dist/ruleset/v1.json (+ archive + manifest)
+    ```
+  </Step>
+  <Step title="Upload (an ops step, not code)">
+    Upload the emitted `dist/ruleset/v1.json` to the CDN at
+    `https://cdn.enpitech.dev/agent/ruleset/v1.json` with the `Cache-Control` you
+    want (the central freshness dial). The URL is stable; the artifact's `version`
+    field is what changes.
+  </Step>
+</Steps>
+
+<Warning>
+**The version is content-addressed, and that enforces the #1 rule.** The `version`
+is `<releaseTag>-<sha256(content)[:10]>`, so a data change **always** bumps the
+version → downstream [backfill](/guides/agent-detection-ruleset#content-addressed-versions-a-data-change-always-re-classifies)
+re-classifies. `assertVersionMatchesContent` re-checks this at build, and the CLI
+**refuses to publish** a version whose bytes differ from a prior publish of that
+version. It is impossible to ship changed data under an unchanged version.
+</Warning>
+
+<Note>
+**What is code vs. an ops step.** The pipeline (`publish.ts` +
+`scripts/build-ruleset.mjs`) and the self-host endpoint are **code** — tested,
+in-repo. Uploading the emitted file to the CDN is the only **ops/deploy** step; the
+"CDN hosting" is a static-file upload of the pipeline's output.
+</Note>
+
+## Related
+
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — the model: SWR, no-baseline, backfill, soft dependency
+- [`agentCapture` (adapters)](/api-reference/agent-capture) — the adapters that consume the ruleset
+- [Configuration](/guides/configuration#agent-ruleset-keys) — the `agent.ruleset.*` keys in the full config table
+- [Telemetry](/telemetry#1-the-ruleset-download-the-one-call-to-enpitech) — the one-directional fetch, stated plainly
+- [Admin](/guides/admin) — the auth guard the status endpoint sits behind

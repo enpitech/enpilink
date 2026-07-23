@@ -106,6 +106,15 @@ Nothing here runs until you enable it. The keys resolve through the usual
 [env > file > db](/guides/configuration) precedence and (except the secret) toggle
 live from the Configuration tab.
 
+<Note>
+**On a standalone framework, skip straight to the one-liner.** The steps below are
+for an enpilink `McpServer`. If you run a plain Express, Hono, Next.js, or
+Cloudflare app, install the agent layer with a **one-line adapter** instead —
+`app.use(agentCapture())` and friends, where mounting the adapter *is* the opt-in
+(capture on, storage auto-activated, no account). See [Install the agent
+layer](/guides/agent-install).
+</Note>
+
 <Steps>
   <Step title="Enable capture">
     Record agent requests into your storage:
@@ -187,6 +196,17 @@ Every request carries a **confidence** value (`ip-verified`, `ua+shape`, `shape`
 `ua-only`, `none`) that is surfaced, never hidden. Clients enpilink doesn't
 recognize show up as an **unknown** class you can triage — that is how the
 supported-agent list grows from your real traffic.
+
+<Note>
+**Detection *methods* live in the package; detection *data* is fetched live.** The
+algorithms above ("no `Sec-Fetch-*`?", the title-cased tell, UA-regex, IP-CIDR) are
+code; the patterns, ranges, and labels they consume are a **versioned ruleset**
+fetched from a public CDN, stale-while-revalidate. So a new agent is recognized via
+a data update, not a package release — and a request never blocks on the fetch.
+Before the ruleset loads, capture still works and rows are labelled `pending`, then
+**backfill** once it arrives. See [Detection & the live
+ruleset](/guides/agent-detection-ruleset).
+</Note>
 
 <Warning>
 **One class is undetectable, and that's expected.** An on-device browser agent
@@ -293,11 +313,26 @@ shown.
 
 ## Deployment topologies
 
+The layer installs in one line on Express, Hono, Next.js, and Cloudflare Workers —
+see [Install the agent layer](/guides/agent-install) for the per-framework
+walkthrough. The topologies differ only in where captured data lands.
+
 ### Single Node server (the common case)
 
-Run one enpilink Node server. Capture writes straight to your local storage;
-nothing crosses a network. Set `ENPILINK_AGENT=1`, and `agent.serve` /
-`agent.getTransport` as desired.
+Run one enpilink Node server, or a plain Express/Hono app with the one-line adapter
+(`app.use(agentCapture())`). Capture writes straight to your local storage (sqlite
+by default); nothing crosses a network. On an MCP server, set `ENPILINK_AGENT=1` and
+`agent.serve` / `agent.getTransport` as desired; on a standalone adapter, mounting it
+is the opt-in and serving is `{ serve: true }`.
+
+### Cloudflare Workers
+
+`agentCapture()` from [`enpilink/cloudflare`](/api-reference/agent-capture#cloudflare-workers)
+does full capture + detect + serve inside the Worker's `fetch` hop, **fail-open**
+(the origin response is resolved first and returned untouched on any internal
+error). Storage is either **D1** (written directly from the Worker) or a **beacon**
+to a Node server. The fetched ruleset is kept warm across isolates with a KV /
+Cache-API cache store.
 
 ### Next.js edge + beacon
 
@@ -323,12 +358,19 @@ corpus**; the authoritative outcome and dead-end analytics remain the Node path.
 
 The data this layer collects is **yours** — customer-owned, self-hosted, never
 sent to enpitech. IP and User-Agent are personal data under the GDPR, and when you
-enable capture you are the controller. See [Telemetry](/telemetry) for the full
-statement, including how IPs are hashed and header blobs redacted.
+enable capture you are the controller. The layer's one outbound call is the
+[detection-ruleset download](/guides/agent-detection-ruleset) — one-directional
+(rules in, nothing about your traffic out), and disableable or self-hostable. See
+[Telemetry](/telemetry) for the full statement, including the two network paths and
+how IPs are hashed and header blobs redacted.
 
 ## Related
 
+- [Install the agent layer](/guides/agent-install) — the one-line install per framework, and the storage story for each
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how detection stays fresh, and the self-host escape hatch
 - [Telemetry](/telemetry) — the privacy line: what leaves your machine and what doesn't
+- [`agentCapture` (adapters)](/api-reference/agent-capture) — the Express / Hono / Cloudflare adapters
+- [`agentCapture` &amp; the ruleset](/api-reference/agent-ruleset) — the `agent.ruleset.*` keys, endpoints, and build pipeline
 - [`describeForAgents`](/api-reference/describe-for-agents) — declare what your app is, for the representation
 - [The GET transport](/api-reference/get-transport) — `transports.get` and the safety gate
 - [Next.js edge middleware](/api-reference/next-middleware) — `withAgentCapture` and the beacon topology

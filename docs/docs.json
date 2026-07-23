@@ -76,6 +76,8 @@
               "guides/host-environment-context",
               "guides/observability",
               "guides/agent-analytics",
+              "guides/agent-install",
+              "guides/agent-detection-ruleset",
               "guides/configuration",
               "guides/admin",
               "guides/auth",
@@ -116,9 +118,11 @@
             "group": "Agent surface",
             "icon": "robot",
             "pages": [
+              "api-reference/agent-capture",
+              "api-reference/next-middleware",
+              "api-reference/agent-ruleset",
               "api-reference/describe-for-agents",
-              "api-reference/get-transport",
-              "api-reference/next-middleware"
+              "api-reference/get-transport"
             ]
           },
           {

@@ -1,26 +1,33 @@
 ---
 title: Telemetry
-description: "enpilink the framework phones nothing home. The optional agent surface layer is a collector you turn on, about your own site's agent traffic, stored in storage you own — never sent to enpitech."
+description: "enpilink the framework phones nothing home. The optional agent surface layer collects your own site's agent traffic into storage you own; when active it also downloads a detection ruleset from a public CDN — rules in, nothing about your traffic out."
 ---
 
 # Telemetry
 
-**enpilink sends nothing to us.** The framework has no product telemetry: no
-analytics, no usage tracking, no metrics reporting. The CLI never phones home,
-and the server runtime never emits counters to any enpitech endpoint. There is
-no account, no hardcoded analytics key, and no global config file written to
-track you.
+**enpilink sends nothing about you to us.** The framework has no product
+telemetry: no analytics, no usage tracking, no metrics reporting. The CLI never
+phones home, and the server runtime never emits counters or events to any
+enpitech endpoint. There is no account, no hardcoded analytics key, and no
+global config file written to track you.
 
-That promise is about **enpilink the tool**, and it is absolute. What follows
-draws the line clearly, because enpilink also ships a feature that *collects*
-data — for you, not for us.
+That promise is about **enpilink the tool**, and it holds absolutely. What
+follows draws the line clearly, because enpilink also ships a feature — the
+[agent surface layer](/guides/agent-analytics) — that *collects* data (for you,
+not for us) and, when active, makes exactly one *outbound* call of its own: it
+**downloads** a detection ruleset from a public CDN. That call is
+one-directional — rules come **down**, nothing about your traffic goes **up** —
+and it is fully disableable and self-hostable. Both are covered precisely below.
 
 <Info>
-**The one-line version.** enpilink sends nothing. The [agent surface
-layer](/guides/agent-analytics), when you turn it on, collects data about AI
-agents visiting **your** site, into storage **you** own (your SQLite or
-Postgres). That data is customer-owned and self-hosted — it never reaches
-enpitech.
+**The one-line version.** enpilink sends nothing *about you or your traffic*.
+The [agent surface layer](/guides/agent-analytics), when you turn it on, collects
+data about AI agents visiting **your** site into storage **you** own (your SQLite
+or Postgres) — customer-owned, self-hosted, never sent to enpitech. The one thing
+the layer fetches *from* enpitech is a public detection ruleset: a keyless,
+CDN-fronted download of rules, carrying nothing about your site. You can turn that
+fetch off or point it at your own mirror. See [The agent layer's network
+paths](#the-agent-layers-network-paths).
 </Info>
 
 ## enpilink the framework: zero telemetry
@@ -35,8 +42,9 @@ There is nothing to opt out of in the framework itself:
 Your project code, file contents, tool names, tool arguments, and tool results
 never leave your machine because enpilink took them. Anything that leaves is
 something *you* configured — opening a public tunnel, turning on
-[OTel export](/guides/storage#opentelemetry-export), or enabling the collectors
-below.
+[OTel export](/guides/storage#opentelemetry-export), enabling the collectors
+below, or activating the agent layer (whose one-directional ruleset download is
+described in [The agent layer's network paths](#the-agent-layers-network-paths)).
 
 ## Feature collectors you can turn on (self-hosted, off by default)
 
@@ -60,8 +68,13 @@ can *serve* agents a working response and *measure* whether it worked.
 
 Everything about it is designed to keep the data yours:
 
-- **Off by default.** Capture runs only when you set `ENPILINK_AGENT=1` (or
-  toggle `agent.enabled`). With it off, no request is recorded.
+- **You opt in — nothing captures until you do.** On an MCP server, capture runs
+  only when you set `ENPILINK_AGENT=1` (or toggle `agent.enabled`); with it off,
+  no request is recorded. On a standalone framework, adding the one-line capture
+  adapter (`app.use(agentCapture())` — see [Install the agent
+  layer](/guides/agent-install)) is *itself* the explicit opt-in, so capture is on
+  once you mount it. Either way it never starts without a deliberate action you
+  took.
 - **Your storage, your ownership.** Captured requests go into your own SQLite or
   Postgres, the same store your other analytics use. enpitech never receives
   any of it. You are the data controller.
@@ -91,10 +104,50 @@ site, under your own privacy policy.
 - **No credentials, ever.** Visitor identifiers follow the same SHA-256
   discipline as the rest of enpilink — hashed references, never plaintext.
 
-## The one exception to "nothing leaves your machine"
+## The agent layer's network paths
 
-There is exactly one path in the agent surface layer where data crosses a
-network, and it is worth stating plainly.
+The agent surface layer has **two** paths that cross a network. Neither carries
+anything about your traffic *to enpitech*, but we state both plainly rather than
+bury them.
+
+### 1. The ruleset download (the one call to enpitech)
+
+enpilink's detection package is **pure logic** — it ships with **no detection
+data baked in** (no User-Agent patterns, no IP ranges, no header signatures). So
+when the agent layer is active, it **fetches the detection ruleset from a public
+CDN** (`agent.ruleset.url`, default `https://cdn.enpitech.dev/agent/ruleset/v1.json`).
+This is how detection stays current — a new agent signature is a data edit, not a
+package release.
+
+This is the one place the agent layer contacts enpitech, and it is
+**one-directional**:
+
+- **Rules come *down*; nothing about your traffic goes *up*.** It is a plain
+  `GET` of a static file. The request body is empty; enpilink never attaches your
+  visitors, your IPs, your paths, or any counter to it. It is a download, not a
+  report.
+- **Keyless and CDN-fronted.** There is no account and no API key — it is the same
+  public file anyone can fetch. Because it is served from a CDN edge, enpitech's
+  origin does not even see individual fetches.
+- **It never blocks a request, and it fails soft.** The ruleset is served from
+  cache with [stale-while-revalidate](/guides/agent-detection-ruleset); a refresh
+  runs in the background. If the CDN is unreachable, detection degrades to
+  `pending` — your site never breaks and no request waits on the fetch.
+- **The layer only makes this call once it is in use.** An app that never mounts
+  the agent surface makes no such request.
+
+<Note>
+**The self-host escape hatch — zero enpitech contact.** Point `agent.ruleset.url`
+at **your own** enpilink server's public ruleset endpoint
+(`GET /__enpilink/agents/ruleset`), any mirror, or a `file://` path, and the layer
+never contacts enpitech at all — it fetches the identical bytes from a source you
+control. Or set `agent.ruleset.enabled=false` to make no outbound fetch and pin
+detection to whatever is cached on disk. Either way the layer keeps working (it
+falls back to `pending` labels with no ruleset). See [Detection & the live
+ruleset](/guides/agent-detection-ruleset).
+</Note>
+
+### 2. The edge beacon (customer-to-customer, not to enpitech)
 
 If you deploy on **Next.js and use the [edge middleware](/api-reference/next-middleware)**
 (`withAgentCapture` from `enpilink/next`), the edge runtime cannot write to your
@@ -105,8 +158,7 @@ to your own Node enpilink server** — the beacon sink at
 
 This is **customer-to-customer**: your edge deployment talking to your Node
 deployment. The data still never reaches enpitech. But it *is* data traveling
-over a network between two of your services, so we call it out rather than bury
-it:
+over a network between two of your services, so we call it out too:
 
 - The endpoint is **disabled (404) until you set the ingest token** — it is never
   an open write endpoint.
@@ -115,16 +167,20 @@ it:
   `ipSalt`).
 - You control both ends and the secret between them.
 
-If you run a single Node enpilink server (the common case), this path does not
-exist at all — capture writes straight to your local storage and nothing crosses
-a network.
+If you run a single Node enpilink server (the common case), this second path does
+not exist at all — capture writes straight to your local storage and nothing
+crosses a network between your own services. (The ruleset download above still
+applies to any deployment where the layer is active, unless you self-host or
+disable it.)
 
 <Note>
 **Your Privacy Matters.** enpilink never collects personal information, project
 code, file contents, tool names, tool arguments, or tool results for itself.
-Nothing leaves your machine unless you explicitly configure it to — by opening a
-public tunnel, enabling OTel export, or wiring up the edge beacon between your
-own deployments.
+Nothing *about you or your traffic* leaves your machine unless you explicitly
+configure it to — by opening a public tunnel, enabling OTel export, or wiring up
+the edge beacon between your own deployments. The one thing an active agent layer
+fetches *from* enpitech is the public detection ruleset — rules in, nothing about
+you out — and you can self-host or disable even that.
 </Note>
 
 ## Telemetry CLI commands
@@ -149,6 +205,10 @@ for attribution.
 
 - [Agent analytics](/guides/agent-analytics) — the collector, in full: what it
   sees, how to turn it on, and the honest limits
+- [Install the agent layer](/guides/agent-install) — the one-line install per
+  framework, and where captured data lands on each runtime
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how the
+  one-directional ruleset download works, and the self-host escape hatch
 - [Observability](/guides/observability) — your MCP server's own tool-call
   analytics, also self-hosted and off by default
 - [Storage](/guides/storage) — where captured data is persisted, and OTel export

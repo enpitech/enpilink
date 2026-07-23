@@ -1,0 +1,146 @@
+---
+title: Detection & the live ruleset
+description: "How agent detection stays fresh: a pure-logic package plus a content-addressed ruleset fetched stale-while-revalidate, so a request never blocks, capture never depends on it, and a data change always re-classifies. Includes the self-host escape hatch and the soft-dependency posture."
+---
+
+Agent detection in enpilink is split into two halves on purpose: **methods** that
+live in the package (the algorithms — "no `Sec-Fetch-*` headers?", "title-cased
+client hints?", UA-regex match, IP-CIDR lookup) and **data** those methods consume
+(the User-Agent patterns, IP ranges, header signatures, and labels). The package
+ships the methods; the **data is fetched at runtime** from a versioned ruleset.
+
+This page is for a cautious ops team deciding whether that fetch is safe to run in
+production. The short answer: **a request never blocks on it, capture never depends
+on it, and if the source is unreachable your site does not break.** Here is exactly
+why.
+
+## The package is pure logic — no detection data baked in
+
+The npm package contains **zero** detection data. No UA list, no IP ranges, no
+header signatures are compiled in. This is a deliberate structural decision, and it
+has three consequences:
+
+- **Detection updates never require a package release.** A new agent — a new UA, a
+  new vendor IP range, a new title-cased tell — is a **data edit**, published to the
+  ruleset. Every deployment picks it up on the next refresh. You do not bump a
+  dependency to recognize a new crawler.
+- **There is no hardcoded fallback, by construction.** "No baseline" is not a policy
+  you can forget to follow — there is simply no data in the package to fall back to.
+- **The package stays small**, and the single source of truth for "what an agent
+  looks like" is one artifact, centrally reviewed.
+
+## Stale-while-revalidate: a request never waits on the fetch
+
+This is the latency law, and it is non-negotiable:
+
+- Reading the current ruleset is a **synchronous field read** — an in-memory lookup,
+  never a network call, on the request path.
+- When the cached ruleset is past its TTL, a refresh runs **in the background**
+  (`waitUntil` on the edge, a deferred async task on Node). The request in flight is
+  served from the **existing** cache and returns immediately.
+- The fetch has a **hard timeout** (`agent.ruleset.timeoutMs`, default 5 s). A hung
+  or slow CDN can never pin resources or delay anything — a timeout is just a failed
+  refresh, and the last-good ruleset keeps serving.
+
+<Note>
+**The headline guarantee, stated plainly:** no request your server handles ever
+blocks on a ruleset fetch — not the first one, not one during a refresh, not one
+while the CDN is slow or down. Detection reads cache; refreshes happen off to the
+side.
+</Note>
+
+## No baseline: capture always works, labels backfill
+
+Capture and classification are **separate steps**, and only classification depends
+on the ruleset:
+
+- **Capture always writes the raw row** — the request fingerprint (header order and
+  casing), the hashed IP, timing, and outcome — regardless of ruleset state. You
+  never lose a request because detection wasn't ready.
+- **With no ruleset loaded yet**, rows land labelled **`pending`** (family and class
+  are `null`, confidence is `pending`). This is honest and distinct from a real
+  `unknown` verdict — it means "not classified *yet*", not "not an agent."
+- **Backfill** re-classifies pending rows the moment a ruleset first loads. So a
+  cold start that captures before the ruleset arrives loses nothing — those rows get
+  their labels retroactively.
+
+## Content-addressed versions: a data change always re-classifies
+
+The ruleset's `version` field is **content-addressed** — it embeds a hash of the
+data (`<releaseTag>-<sha256(content)[:10]>`). This makes one guarantee structural:
+
+- **A data change changes the hash → changes the version → triggers backfill
+  re-classification** across your existing rows. It is impossible to ship changed
+  detection data under an unchanged version, so a rule fix always propagates to
+  historical data, not just new requests.
+- The **URL is stable** (clients always fetch `v1.json`, the schema major); the
+  `version` *field* moves. Refresh cadence is controlled by the `Cache-Control` on
+  that URL — tuned centrally, no client redeploy.
+
+## Soft dependency: the CDN is not a hard dependency
+
+The ruleset source is a **soft dependency**. If it is slow, unreachable, or serving
+garbage, your site keeps working:
+
+| Situation | What happens |
+|---|---|
+| CDN slow | The in-flight request is served from cache; the refresh times out in the background. No latency impact. |
+| CDN down, cache warm | Stale ruleset keeps classifying. Detection is as fresh as your last successful fetch. |
+| CDN down, cold start / empty cache | Capture works; rows are `pending`. They backfill once any ruleset loads. |
+| CDN serves a corrupt artifact | It fails schema validation and is **rejected** — the last-good ruleset stays live (or detection stays `pending`). A bad publish can't poison a running site. |
+
+Your site **never breaks** on the ruleset. The worst case is *staler detection* or
+*`pending` labels* — never a broken response.
+
+## The self-host escape hatch
+
+For an air-gapped, blocked, or paranoid deployment, point `agent.ruleset.url` at a
+source you control — the layer never contacts enpitech at all:
+
+- **Your own enpilink server** exposes the identical artifact at
+  `GET /__enpilink/agents/ruleset` — a public, keyless, one-directional endpoint
+  (the same bytes the CDN fronts). Point every other instance's `agent.ruleset.url`
+  at it and one enpilink mirrors the ruleset for the rest.
+- **Any mirror or a `file:// path`** works too — the client validates whatever it
+  fetches against the schema before it goes live.
+- **Disable fetching entirely** with `agent.ruleset.enabled=false` to pin detection
+  to whatever is cached on disk and make no outbound call.
+
+<Info>
+**Why this is safe to run.** The fetch is one-directional — rules come *down*,
+nothing about your traffic goes *up* (it's a plain `GET` of a static file, keyless,
+CDN-fronted). See [Telemetry](/telemetry#1-the-ruleset-download-the-one-call-to-enpitech)
+for the full privacy framing.
+</Info>
+
+## Tuning freshness
+
+The relevant `agent.ruleset.*` keys (all runtime-editable except where noted — see
+[Configuration](/guides/configuration#agent-ruleset-keys)):
+
+| Key | Default | What it does |
+|---|---|---|
+| `agent.ruleset.enabled` | `true` | Fetch the ruleset from the network. Off → self-host / cache-only. |
+| `agent.ruleset.url` | enpitech CDN | Where to fetch it. Point at your own mirror or a `file://` path to self-host. |
+| `agent.ruleset.ttlSeconds` | `0` | `0` honors the artifact's `Cache-Control: max-age` (central control); a positive value forces a local TTL. |
+| `agent.ruleset.timeoutMs` | `5000` | Hard fetch timeout. |
+| `agent.ruleset.mode` | `live` | `live` = long, centrally-controlled TTL; `dev` = short TTL to pick up a signature you're testing quickly. |
+
+The **Detection ruleset** card on the Console **Agents** tab shows the live version,
+last-refresh time, source (network / cache), mode, and TTL, and lets you edit mode
+and TTL inline. It reads `GET /__enpilink/agents/ruleset/status`.
+
+## Maintainers: publishing the ruleset
+
+If you maintain the ruleset (or a fork), see [`agentCapture` &amp; the
+ruleset](/api-reference/agent-ruleset#publishing-the-ruleset) for the
+`build:ruleset` pipeline: edit the corpus in one place, run the build, and the
+content-addressed version bumps automatically so downstream backfill fires.
+
+## Related
+
+- [Install the agent layer](/guides/agent-install) — the one-line install per framework
+- [Agent analytics](/guides/agent-analytics) — the full detect → serve → measure story
+- [`agentCapture` &amp; the ruleset](/api-reference/agent-ruleset) — the config keys, the endpoints, and the build pipeline
+- [Configuration](/guides/configuration#agent-ruleset-keys) — the `agent.ruleset.*` keys in full
+- [Telemetry](/telemetry) — the one-directional ruleset download, stated plainly

@@ -94,6 +94,11 @@ rejects any write to them (403).
 | `agent.getTransport` | `ENPILINK_CFG_AGENT_GET_TRANSPORT` | `false` | runtime | Agent | Mount the plain-GET transport (off by default; [unproven-in-use](/api-reference/get-transport)) |
 | `agent.getRateLimit` | `ENPILINK_CFG_AGENT_GET_RATE_LIMIT` | `60` | runtime | Agent | GET transport default rate (requests/min per IP+tool) |
 | `agent.getRateBurst` | `ENPILINK_CFG_AGENT_GET_RATE_BURST` | `10` | runtime | Agent | GET transport default burst (per IP+tool) |
+| `agent.ruleset.enabled` | `ENPILINK_CFG_AGENT_RULESET_ENABLED` | `true` | runtime | Agent | Fetch the [detection ruleset](/guides/agent-detection-ruleset) from the network (SWR — never blocks a request). Off → self-host / cache-only |
+| `agent.ruleset.url` | `ENPILINK_CFG_AGENT_RULESET_URL` | `https://cdn.enpitech.dev/agent/ruleset/v1.json` | runtime | Agent | Ruleset artifact URL. Point at your own mirror or a `file://` path to self-host |
+| `agent.ruleset.ttlSeconds` | `ENPILINK_CFG_AGENT_RULESET_TTL_SECONDS` | `0` | runtime | Agent | TTL override (s). `0` honors the artifact's `Cache-Control: max-age` |
+| `agent.ruleset.timeoutMs` | `ENPILINK_CFG_AGENT_RULESET_TIMEOUT_MS` | `5000` | runtime | Agent | Hard background-fetch timeout (ms). Never blocks a response |
+| `agent.ruleset.mode` | `ENPILINK_CFG_AGENT_RULESET_MODE` | `live` | runtime | Agent | `live` (long central TTL) or `dev` (short TTL to test a new signature) |
 | `auth.enabled` | `ENPILINK_AUTH` | `false` | restart | Security | Enable end-user OAuth on `/mcp` (restart to apply) |
 | `auth.issuer` | `ENPILINK_AUTH_ISSUER` | — | restart | Security | Authorization server issuer URL |
 | `auth.audience` | `ENPILINK_AUTH_AUDIENCE` | — | restart | Security | RFC 8707 audience (`aud`) tokens must carry |
@@ -119,10 +124,24 @@ collides with the bootstrap vars.
 
 <Note>
 The `agent.*` runtime keys are documented in full — what each serves, its topology
-and the honest caveats — in [Agent analytics](/guides/agent-analytics). They live
-in the DB and toggle live from the Configuration tab, except the secret
+and the honest caveats — in [Agent analytics](/guides/agent-analytics) (capture /
+serve / measure) and [Detection & the live
+ruleset](/guides/agent-detection-ruleset) (the `agent.ruleset.*` keys). They live in
+the DB and toggle live from the Configuration tab, except the secret
 `agent.ingestToken`, which is env-only like the other secrets below.
 </Note>
+
+### Agent ruleset keys
+
+The `agent.ruleset.*` keys control the [detection-ruleset
+fetch](/guides/agent-detection-ruleset) — the one-directional download that keeps
+agent detection current without a package release. All five are runtime-editable and
+**none affects request latency**: they govern only the background refresh (a request
+always reads the in-memory ruleset synchronously). Turn `agent.ruleset.enabled` off,
+or point `agent.ruleset.url` at your own mirror / a `file://` path, for a
+self-hosted or air-gapped deployment with zero enpitech contact. See
+[`agentCapture` &amp; the ruleset](/api-reference/agent-ruleset#config-keys) for the
+per-key reference and the endpoints they drive.
 
 The startup-only keys below are **env-only and hidden from the Configuration
 tab** (the DB can never honour them — see the note above). They're configured at
@@ -219,4 +238,5 @@ what and when.
 - [Storage](/guides/storage) — the adapters that back config + audit
 - [Observability](/guides/observability) — what `analytics.*` and `flags.liveLogs` control
 - [Agent analytics](/guides/agent-analytics) — what the `agent.*` keys control
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — the `agent.ruleset.*` keys in depth
 - [Admin](/guides/admin) — the bootstrap admin token and prod auth

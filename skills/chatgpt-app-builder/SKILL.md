@@ -36,7 +36,7 @@ Design or evolve UX flows and API shape → [architecture.md](references/archite
 - **External links** → [open-external-links.md](references/open-external-links.md): when redirecting to external URLs or setting "open in app" target
 - **OAuth** → [oauth.md](references/oauth.md): when tools need user authentication to access user-specific data
 - **CSP** → [csp.md](references/csp.md): when declaring allowed domains for fetch, assets, redirects, or iframes
-- **Agent surface** → [agents.md](references/agents.md): when the app should be readable/measurable by AI agents (ChatGPT/Claude/Gemini) — detect agents, serve a self-sufficient response, measure success. Off by default.
+- **Agent surface** → [agents.md](references/agents.md): when the app should be readable/measurable by AI agents (ChatGPT/Claude/Gemini) — detect agents, serve a self-sufficient response, measure success. One-line install per framework (Express/Hono/Next/Cloudflare); account-free, self-hosted.
 
 ## Deploy
 
