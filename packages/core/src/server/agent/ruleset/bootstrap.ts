@@ -138,6 +138,53 @@ export function getRulesetClient(): RulesetClient | null {
   return client;
 }
 
+/** The live ruleset status the dashboard reads (D3). `enabled:false` = no client
+ * bootstrapped (agent surface off) — mirrors the M4 read-API degrade shape. */
+export interface RulesetStatus {
+  enabled: true;
+  /** A validated ruleset is currently held. `false` ⇒ detection is `pending`. */
+  loaded: boolean;
+  /** The held ruleset's version, or `null` when nothing has loaded yet. */
+  version: string | null;
+  /** Epoch-ms the held ruleset was fetched, or `null`. */
+  fetchedAt: number | null;
+  /** Where the held ruleset came from, or `null`. */
+  source: "network" | "cache" | null;
+  /** Resolved `agent.ruleset.mode` (echoed so the card renders without a config read). */
+  mode: "live" | "dev";
+  /** Resolved `agent.ruleset.ttlSeconds` (0 ⇒ honor Cache-Control). */
+  ttlSeconds: number;
+  /** Resolved `agent.ruleset.url`. */
+  url: string;
+  /** Resolved `agent.ruleset.enabled` — whether network fetching is on. */
+  fetchEnabled: boolean;
+}
+
+/**
+ * Read the current ruleset status for the dashboard — synchronous, cheap, never
+ * throws. Returns `{ enabled: false }` when no client is bootstrapped (the agent
+ * surface is off / not wired), so the console can degrade exactly like it does
+ * for the telemetry summary.
+ */
+export function getRulesetStatus(): RulesetStatus | { enabled: false } {
+  if (!client) {
+    return { enabled: false };
+  }
+  const st = client.getStatus();
+  const cfg = configFromGate();
+  return {
+    enabled: true,
+    loaded: st.version !== null,
+    version: st.version,
+    fetchedAt: st.fetchedAt,
+    source: st.source,
+    mode: cfg.mode,
+    ttlSeconds: cfg.ttlSeconds,
+    url: cfg.url,
+    fetchEnabled: cfg.enabled,
+  };
+}
+
 /** Stop + clear the process-wide client (shutdown / test teardown). */
 export function stopRulesetClient(): void {
   if (client) {

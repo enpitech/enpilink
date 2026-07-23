@@ -255,12 +255,17 @@ export async function mountAdmin(
 ): Promise<void> {
   const { createObservabilityRouter } = await import("./observability.js");
   const { createAgentTelemetryRouter } = await import("./agent/telemetry.js");
+  const { createRulesetServeRouter, createRulesetStatusRouter } = await import(
+    "./agent/ruleset/serve-router.js"
+  );
   const { createConfigRouter } = await import("./config/index.js");
   const { createAuthDataRouter } = await import("./auth-data-router.js");
 
   const staticUi = await loadDevtoolsStaticServer();
   const observability = createObservabilityRouter();
   const agentTelemetry = createAgentTelemetryRouter();
+  const rulesetServe = createRulesetServeRouter();
+  const rulesetStatus = createRulesetStatusRouter();
   const config = createConfigRouter();
   const authData = createAuthDataRouter();
 
@@ -268,16 +273,25 @@ export async function mountAdmin(
   //    app and show the login screen. It serves only non-sensitive app assets.
   app.use(staticUi);
 
-  // 2) Data-API guard (prod only). Mounted at root, but `adminAuthMiddleware`
-  //    enforces auth ONLY on the `/__enpilink/observability|config` paths — the
-  //    shell above and `/mcp` pass through. It also accepts the SSE `?token=`
-  //    query param for the stream route. In dev (`opts.auth` omitted) there is
-  //    no guard at all.
+  // 2) The self-host ruleset artifact — mounted BEFORE the guard because it is
+  //    PUBLIC by design: it serves the same keyless, non-sensitive bytes the
+  //    public CDN fronts, and a consuming D2 client fetches it with no bearer.
+  //    It only serves rules OUT (one-directional). See `serve-router.ts`.
+  app.use(rulesetServe);
+
+  // 3) Data-API guard (prod only). Mounted at root, but `adminAuthMiddleware`
+  //    enforces auth ONLY on the `/__enpilink/observability|agents|config` paths
+  //    — the shell + the public ruleset above and `/mcp` pass through. It also
+  //    accepts the SSE `?token=` query param for the stream route. In dev
+  //    (`opts.auth` omitted) there is no guard at all.
   if (opts.auth) {
     app.use(opts.auth);
   }
   app.use(observability);
   app.use(agentTelemetry);
+  // The live ruleset STATUS (this server's own detection state) is dashboard
+  // data → guarded, unlike the public artifact above.
+  app.use(rulesetStatus);
   app.use(config);
   app.use(authData);
 }

@@ -21,6 +21,7 @@ import { RANGES, resolveRange } from "@/lib/observability-store.js";
 import { useChartTheme } from "@/lib/use-chart-theme.js";
 import { RangePicker } from "../dashboard/range-picker.js";
 import { OutcomeClassBar } from "./charts.js";
+import { RulesetCard } from "./ruleset-card.js";
 
 const numberFmt = new Intl.NumberFormat("en-US");
 /** Rates from the API are already in `[0, 1]`. */
@@ -545,6 +546,10 @@ export const Agents = () => {
             />
           </div>
         </div>
+
+        {/* Detection-ruleset freshness (D3) — renders itself only when the agent
+            surface is on; independent of the traffic-summary state below. */}
+        <RulesetCard />
 
         {isLoading && !summary ? (
           <div className="flex min-h-[60vh] items-center justify-center">

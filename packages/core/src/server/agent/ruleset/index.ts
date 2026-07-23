@@ -11,6 +11,14 @@
  * Import from this barrel only from Node code.
  */
 
+export {
+  bootstrapRulesetClient,
+  getRulesetClient,
+  getRulesetStatus,
+  maybeRefreshRuleset,
+  type RulesetStatus,
+  stopRulesetClient,
+} from "./bootstrap.js";
 export type {
   CachedRuleset,
   RulesetCacheStore,
@@ -30,6 +38,17 @@ export { DiskRulesetCacheStore } from "./disk-cache.js";
 export { getCurrentRuleset, setCurrentRuleset } from "./holder.js";
 export { INITIAL_RULESET } from "./initial.js";
 export {
+  ARTIFACT_SCHEMA_VERSION,
+  assertVersionMatchesContent,
+  type BuildRulesetOptions,
+  buildRulesetArtifact,
+  RELEASE_TAG,
+  type RulesetArtifact,
+  RulesetVersionMismatchError,
+  rulesetContentHash,
+  versionFor,
+} from "./publish.js";
+export {
   parseRuleset,
   type Ruleset,
   type RulesetIpRanges,
@@ -40,3 +59,10 @@ export {
   safeParseRuleset,
   type UaPattern,
 } from "./schema.js";
+export {
+  createRulesetServeRouter,
+  createRulesetStatusRouter,
+  RULESET_SERVE_PATH,
+  RULESET_STATUS_PATH,
+  servedMaxAgeSeconds,
+} from "./serve-router.js";

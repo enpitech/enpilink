@@ -143,6 +143,8 @@ export class RulesetClient {
 
   /** The currently-held, validated ruleset — the SWR "serve this" value. */
   private current: Ruleset | null = null;
+  /** Where the held ruleset came from (for the dashboard status read). */
+  private currentSource: "network" | "cache" | null = null;
   /** Epoch-ms the held ruleset was fetched (its freshness clock). */
   private fetchedAt = 0;
   /** The held artifact's `Cache-Control: max-age` (seconds), or `null`. */
@@ -171,6 +173,24 @@ export class RulesetClient {
    */
   getRuleset(): Ruleset | null {
     return this.current;
+  }
+
+  /**
+   * A cheap, synchronous read of the LIVE ruleset state for the dashboard (D3):
+   * the currently-held `version` (or `null` ⇒ detection is `pending`), when it
+   * was fetched, and where it came from. Never does I/O. This reflects what THIS
+   * server is classifying with — distinct from any artifact it may self-host.
+   */
+  getStatus(): {
+    version: string | null;
+    fetchedAt: number | null;
+    source: "network" | "cache" | null;
+  } {
+    return {
+      version: this.current?.version ?? null,
+      fetchedAt: this.current ? this.fetchedAt : null,
+      source: this.current ? this.currentSource : null,
+    };
   }
 
   /**
@@ -309,6 +329,7 @@ export class RulesetClient {
     const versionChanged =
       previousVersion !== null && previousVersion !== rs.version;
     this.current = rs;
+    this.currentSource = source;
     this.fetchedAt = fetchedAt;
     this.maxAgeSeconds = maxAge;
     if (firstLoad || versionChanged) {

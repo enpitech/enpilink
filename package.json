@@ -10,7 +10,8 @@
     "test:unit": "pnpm -r --if-present test:unit",
     "test:format": "pnpm -r --if-present test:format",
     "docs:dev": "pnpm --filter @enpilink/docs dev",
-    "bump": "node scripts/bump.js && pnpm i"
+    "bump": "node scripts/bump.js && pnpm i",
+    "build:ruleset": "node scripts/build-ruleset.mjs"
   },
   "keywords": [
     "chatgpt",
