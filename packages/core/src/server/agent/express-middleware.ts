@@ -19,6 +19,7 @@ import {
 import { getAgentCaptureGate } from "./capture-gate.js";
 import { classify } from "./detect.js";
 import { IpRangeVerifier } from "./ip-ranges.js";
+import { maybeRefreshRuleset } from "./ruleset/bootstrap.js";
 import { getCurrentRuleset } from "./ruleset/holder.js";
 import type { Ruleset } from "./ruleset/types.js";
 
@@ -283,6 +284,12 @@ export function installAgentCapture(
       // too, so `spa` marks WHY the representation was served on a 2xx route.
       const reencoded = res.locals.enpilinkAgentReencoded === true;
       const spa = res.locals.enpilinkAgentSpa === true;
+      // Stale-while-revalidate nudge (D2): the moment we classify is the moment
+      // it matters that the ruleset is fresh, so opportunistically kick a
+      // BACKGROUND refresh when it's past TTL. This runs after `finish`, is a
+      // cheap synchronous check, and NEVER awaits the fetch — the response is
+      // long gone. A no-op when no ruleset client is bootstrapped.
+      maybeRefreshRuleset();
       // Build + enqueue AFTER the response is done, so nothing here touches the
       // request latency. Salt/hash resolution is async but off the hot path.
       void (async () => {

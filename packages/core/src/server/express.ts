@@ -12,6 +12,7 @@ import {
   readAdminToken,
 } from "./admin.js";
 import { refreshAgentCaptureGate } from "./agent/capture-gate.js";
+import { bootstrapRulesetClient } from "./agent/ruleset/bootstrap.js";
 import {
   InsufficientScopeError,
   InvalidTokenError,
@@ -83,9 +84,15 @@ export async function createApp({
 
   // The agent capture middleware is installed in the McpServer constructor (so
   // it precedes any user route). Here — after `applyMcpMiddleware` has activated
-  // storage — resolve its live gate from env/file/db. Fire-and-forget; the gate
-  // stays OFF until this resolves, preserving off-by-default.
-  void refreshAgentCaptureGate();
+  // storage — resolve its live gate from env/file/db, then bootstrap the cached
+  // ruleset client (D2) off that resolved config. Fire-and-forget + ordered: the
+  // gate stays OFF (and the client dormant) until this resolves, preserving
+  // off-by-default. The client warms from disk + kicks a BACKGROUND fetch only
+  // when the agent surface is on; a request is never delayed by it.
+  void (async () => {
+    await refreshAgentCaptureGate();
+    bootstrapRulesetClient();
+  })();
 
   // Read `process.env.NODE_ENV` inline: wrangler/esbuild only substitute the literal expression,
   // so a local const would defeat dead-code elimination of the dev-only imports below.

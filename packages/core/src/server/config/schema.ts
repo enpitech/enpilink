@@ -289,6 +289,50 @@ export const runtimeSchema = z.object({
   "agent.getRateLimit": z.number().int().positive().default(60),
   /** GET-transport default burst — token-bucket capacity per IP+tool (M7). */
   "agent.getRateBurst": z.number().int().positive().default(10),
+
+  // --- Agent detection ruleset — the cached ruleset client (D2) ---
+  /**
+   * Whether to keep detection fresh by fetching the ruleset from the network
+   * (D2). ON by default — the npm package ships PURE LOGIC with NO baseline
+   * detection data, so the ruleset is fetched (stale-while-revalidate, never on
+   * the request path). This flag only has an effect once the agent surface is
+   * actually used (`agent.enabled` / `agent.serve`), so a default install that
+   * never touches the agent surface makes no outbound call. Turn OFF for an
+   * air-gapped deployment that self-hosts the ruleset via a file:// URL, or to
+   * pin detection to whatever is already cached on disk.
+   */
+  "agent.ruleset.enabled": z.boolean().default(true),
+  /**
+   * The ruleset artifact URL (D2). Defaults to the enpitech-hosted public CDN
+   * (D3 finalizes the exact path). Point it at your own URL to self-host the
+   * ruleset (the air-gapped escape hatch) — the client still validates every
+   * fetched artifact against the schema before it goes live.
+   */
+  "agent.ruleset.url": z
+    .string()
+    .default("https://cdn.enpitech.dev/agent/ruleset/v1.json"),
+  /**
+   * TTL OVERRIDE in seconds for the cached ruleset (D2). `0` (the default)
+   * HONORS the artifact's `Cache-Control: max-age`, so freshness is tuned
+   * centrally from the CDN with no client redeploy. A positive value forces this
+   * TTL regardless of the response header. Ignored in `dev` mode (which uses a
+   * short fixed TTL). Never affects the request path — a stale ruleset is served
+   * while a background refresh runs.
+   */
+  "agent.ruleset.ttlSeconds": z.number().int().nonnegative().default(0),
+  /**
+   * Hard fetch timeout in milliseconds for a ruleset refresh (D2). A hung fetch
+   * is aborted after this so it can never pin resources; a timeout is treated as
+   * a failed refresh (keep serving the last-good ruleset, or stay `pending`).
+   */
+  "agent.ruleset.timeoutMs": z.number().int().positive().default(5000),
+  /**
+   * Ruleset freshness mode (D2). `live` (default) honors the artifact's
+   * `Cache-Control: max-age` (or the {@link ttlSeconds} override) for a long,
+   * centrally-controlled TTL. `dev` forces a short TTL so a new signature you are
+   * testing is picked up quickly. Neither mode ever blocks a response.
+   */
+  "agent.ruleset.mode": z.enum(["live", "dev"]).default("live"),
 });
 
 export const configSchema = bootstrapSchema.merge(runtimeSchema);
@@ -656,6 +700,43 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     group: "Agent",
     editable: "readonly",
   },
+  "agent.ruleset.enabled": {
+    label: "Fetch detection ruleset",
+    description:
+      "Keep agent detection fresh by fetching the ruleset from the network (stale-while-revalidate — a request is never delayed by it). On by default; the package ships no baked-in detection data, so this is how classification stays current without a package release. Only makes an outbound call once the agent surface is in use. Turn off to self-host the ruleset (air-gapped) or pin to the on-disk cache.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.ruleset.url": {
+    label: "Ruleset URL",
+    description:
+      "Where the detection ruleset is fetched from. Defaults to the enpitech public CDN. Point it at your own URL (including a file:// path) to self-host the ruleset; every fetched artifact is validated against the schema before it goes live.",
+    group: "Agent",
+    editable: "runtime",
+  },
+  "agent.ruleset.ttlSeconds": {
+    label: "Ruleset TTL override",
+    description:
+      "How long a fetched ruleset is considered fresh before a background refresh. 0 (the default) honors the artifact's Cache-Control: max-age, so freshness is controlled centrally from the CDN. A positive value forces this TTL instead. Never affects request latency — the cached ruleset is always served while a refresh runs.",
+    group: "Agent",
+    unit: "seconds",
+    editable: "runtime",
+  },
+  "agent.ruleset.timeoutMs": {
+    label: "Ruleset fetch timeout",
+    description:
+      "Hard timeout for a ruleset refresh. A hung fetch is aborted after this and treated as a failed refresh (the last-good ruleset keeps serving, or detection stays pending). Never blocks a response.",
+    group: "Agent",
+    unit: "ms",
+    editable: "runtime",
+  },
+  "agent.ruleset.mode": {
+    label: "Ruleset freshness mode",
+    description:
+      "live (default) uses a long, centrally-controlled TTL (the artifact's Cache-Control or the TTL override). dev uses a short TTL so a new detection signature you are testing is picked up quickly. Neither mode ever blocks a response.",
+    group: "Agent",
+    editable: "runtime",
+  },
 };
 
 /** Bootstrap keys (env/file only). */
@@ -704,6 +785,11 @@ export const RUNTIME_KEYS = [
   "agent.getTransport",
   "agent.getRateLimit",
   "agent.getRateBurst",
+  "agent.ruleset.enabled",
+  "agent.ruleset.url",
+  "agent.ruleset.ttlSeconds",
+  "agent.ruleset.timeoutMs",
+  "agent.ruleset.mode",
 ] as const satisfies readonly RuntimeKey[];
 
 /** Secret keys: env-only, masked + never persisted/returned in plaintext. */
@@ -814,6 +900,11 @@ export const ENV_VARS: Record<ConfigKey, string> = {
   "agent.getTransport": "ENPILINK_CFG_AGENT_GET_TRANSPORT",
   "agent.getRateLimit": "ENPILINK_CFG_AGENT_GET_RATE_LIMIT",
   "agent.getRateBurst": "ENPILINK_CFG_AGENT_GET_RATE_BURST",
+  "agent.ruleset.enabled": "ENPILINK_CFG_AGENT_RULESET_ENABLED",
+  "agent.ruleset.url": "ENPILINK_CFG_AGENT_RULESET_URL",
+  "agent.ruleset.ttlSeconds": "ENPILINK_CFG_AGENT_RULESET_TTL_SECONDS",
+  "agent.ruleset.timeoutMs": "ENPILINK_CFG_AGENT_RULESET_TIMEOUT_MS",
+  "agent.ruleset.mode": "ENPILINK_CFG_AGENT_RULESET_MODE",
 };
 
 const SECRET_SET = new Set<string>(SECRET_KEYS);

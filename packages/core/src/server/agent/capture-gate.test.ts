@@ -55,6 +55,11 @@ describe("agent capture gate", () => {
       getTransport: false,
       getRateLimit: 60,
       getRateBurst: 10,
+      rulesetEnabled: true,
+      rulesetUrl: "https://cdn.enpitech.dev/agent/ruleset/v1.json",
+      rulesetTtlSeconds: 0,
+      rulesetTimeoutMs: 5000,
+      rulesetMode: "live",
     });
 
     await storage.close();

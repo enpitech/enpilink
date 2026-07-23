@@ -77,6 +77,21 @@ export interface AgentCaptureGate {
    * so existing test callers keep compiling.
    */
   ingestToken?: string;
+
+  // --- Detection ruleset — cached-client config (D2) ---
+  // The ruleset client reads these off the hot path (at boot + when scheduling a
+  // background refresh), NEVER on the request path. They ride on the gate so a
+  // dashboard edit re-resolves them (env > file > db) on the next config write.
+  /** Resolved `agent.ruleset.enabled` — fetch the ruleset from the network. */
+  rulesetEnabled?: boolean;
+  /** Resolved `agent.ruleset.url` — the artifact URL. */
+  rulesetUrl?: string;
+  /** Resolved `agent.ruleset.ttlSeconds` — TTL override; 0 ⇒ honor Cache-Control. */
+  rulesetTtlSeconds?: number;
+  /** Resolved `agent.ruleset.timeoutMs` — hard fetch timeout. */
+  rulesetTimeoutMs?: number;
+  /** Resolved `agent.ruleset.mode` — `live` (long TTL) or `dev` (short TTL). */
+  rulesetMode?: "live" | "dev";
 }
 
 /**
@@ -120,6 +135,11 @@ export async function refreshAgentCaptureGate(): Promise<AgentCaptureGate> {
         typeof values["agent.ingestToken"] === "string"
           ? values["agent.ingestToken"]
           : undefined,
+      rulesetEnabled: values["agent.ruleset.enabled"] === true,
+      rulesetUrl: values["agent.ruleset.url"],
+      rulesetTtlSeconds: values["agent.ruleset.ttlSeconds"],
+      rulesetTimeoutMs: values["agent.ruleset.timeoutMs"],
+      rulesetMode: values["agent.ruleset.mode"] === "dev" ? "dev" : "live",
     };
   } catch {
     // Keep the previous gate; a config-resolve failure must never break or
