@@ -9,6 +9,7 @@ import {
   installAgentCapture,
 } from "./express-middleware.js";
 import { installAgentResponseTransform } from "./response-transform.js";
+import { INITIAL_RULESET } from "./ruleset/initial.js";
 
 /** Raw HTTP GET preserving header casing (like route.test.ts). */
 function rawGet(
@@ -60,6 +61,9 @@ const TRANSFORM_OPTS = {
   ],
   getSiteInfo: () => ({ facts: ["Ships worldwide"] }),
   getServerName: () => "srv",
+  // The serve path classifies via the ruleset holder; inject the initial ruleset
+  // so eligible fetchers are identified (empty holder → pending → nothing served).
+  getRuleset: () => INITIAL_RULESET,
 };
 
 const SHELL =

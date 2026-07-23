@@ -1,11 +1,13 @@
 // @vitest-environment node
 import http from "node:http";
 import express from "express";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setAgentCaptureGate } from "../capture-gate.js";
 import type { AgentGetAffordance } from "../represent.js";
 import { installAgentResponseTransform } from "../response-transform.js";
 import { installAgentRouting } from "../route.js";
+import { setCurrentRuleset } from "../ruleset/holder.js";
+import { INITIAL_RULESET } from "../ruleset/initial.js";
 
 /**
  * The M7 standard-signal declaration must ship through BOTH represent() callers —
@@ -72,9 +74,16 @@ async function listen(app: express.Express): Promise<{
 describe("GET affordance declaration threads through both serve paths", () => {
   let server: http.Server;
 
+  beforeEach(() => {
+    // Both serve paths classify via the ruleset holder; load the initial ruleset
+    // so ChatGPT is identified (empty holder → pending → nothing served).
+    setCurrentRuleset(INITIAL_RULESET);
+  });
+
   afterEach(async () => {
     await new Promise<void>((r) => server.close(() => r()));
     setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    setCurrentRuleset(null);
   });
 
   it("appears in the 404-RESCUE representation", async () => {

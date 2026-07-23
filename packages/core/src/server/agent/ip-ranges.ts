@@ -29,8 +29,15 @@
  * Only the VERDICT is stored, never the raw IP.
  */
 
+/**
+ * The vendors that publish an IP-range list we can verify against. A single
+ * source for both the {@link Vendor} type and the ruleset's zod enum
+ * (`ruleset/schema.ts` imports this), so the two never drift.
+ */
+export const VENDORS = ["openai", "google", "anthropic", "perplexity"] as const;
+
 /** A vendor that publishes an IP-range list we can verify against. */
-export type Vendor = "openai" | "google" | "anthropic" | "perplexity";
+export type Vendor = (typeof VENDORS)[number];
 
 /** The result of an IP membership check for a vendor. */
 export type IpVerdict = "match" | "miss" | "unknown";

@@ -102,7 +102,14 @@ export type AgentOutcome = "resolved" | "dead_end" | "blocked" | "broken";
  *   spoofed, or disguised (e.g. Claude's Chrome disguise, caught by title-cased
  *   client hints; or "no `Sec-Fetch-*` → not a browser").
  * - `ua-only`     — named purely by an unverified, spoofable UA string.
- * - `none`        — unclassified (the pre-detection default, or an empty request).
+ * - `none`        — CLASSIFIED as unknown with nothing to go on (an empty
+ *   request): a ruleset WAS applied, and the verdict is "unknown".
+ * - `pending`     — NOT YET classified: the row was captured while NO ruleset was
+ *   loaded (the no-baseline state, D1). `agentFamily`/`agentClass` are unset and
+ *   `rulesetVersion` is absent; `backfillClassification` re-labels it once a
+ *   ruleset loads. This is DISTINCT from `none` (which is a real "unknown"
+ *   verdict) — the two must never be conflated, or a capture-only row would read
+ *   as a confident "we looked and found nothing".
  */
 export type AgentConfidence =
   | "crypto"
@@ -110,7 +117,8 @@ export type AgentConfidence =
   | "ua+shape"
   | "shape"
   | "ua-only"
-  | "none";
+  | "none"
+  | "pending";
 
 /**
  * Behavioural taxonomy of a detected client — the axis that predicts what the
@@ -159,6 +167,12 @@ export type AgentClass =
  * with a per-site salt — the same one-way discipline as {@link AuthSession.tokenRef}.
  */
 export interface AgentRequestRecord {
+  /**
+   * Storage-assigned row id, populated on READ (the SQL `id` PK; a monotonic
+   * counter in memory). Absent on write (the adapter assigns it). Used to target
+   * a specific row for backfill re-classification ({@link AgentClassificationUpdate}).
+   */
+  id?: number;
   /** Unix epoch milliseconds when the request started. */
   ts: number;
   /** The site this request belongs to (per-site salt + scoping). */
@@ -195,8 +209,15 @@ export interface AgentRequestRecord {
   agentFamily?: string;
   /** Behavioural taxonomy class ({@link AgentClass}) — filled by M2. */
   agentClass?: AgentClass;
-  /** Recognition confidence — defaults to `none` until M2 classifies. */
+  /** Recognition confidence — `pending` until a ruleset classifies the row (D1). */
   confidence?: AgentConfidence;
+  /**
+   * The `version` of the ruleset used to classify this row (D1). Absent when the
+   * row is `pending` (captured with NO ruleset loaded) OR predates ruleset
+   * versioning. `backfillClassification` re-classifies any row whose stored
+   * version differs from the current ruleset's (NULL included), then stamps this.
+   */
+  rulesetVersion?: string;
   /** Correlated session id — NULL for the unsessionable majority (M5). */
   sessionId?: string;
   /** Task-correlation token (C2), when present (M9). */
@@ -234,6 +255,46 @@ export interface AgentRequestQuery {
   classes?: string[];
   /** Maximum rows returned (most recent first). */
   limit?: number;
+}
+
+/**
+ * Filter for {@link StorageAdapter.queryUnclassifiedAgentRequests} — the rows the
+ * backfill needs (re)classified for the current ruleset (D1). "Unclassified" here
+ * means EITHER never classified (`pending`, ruleset_version NULL) OR classified
+ * under a DIFFERENT ruleset than {@link rulesetVersion}. Returned OLDEST-first
+ * (ascending id) so the backfill can page forward; each processed page is stamped
+ * with the current version and thus drops out of the next query.
+ */
+export interface UnclassifiedAgentRequestQuery {
+  /**
+   * The CURRENT ruleset version. A row matches when its stored `rulesetVersion`
+   * is NULL or differs from this. Required — there is no "all rows" mode.
+   */
+  rulesetVersion: string;
+  /** Only rows for this site. */
+  siteId?: string;
+  /** Max rows returned in this page. */
+  limit?: number;
+}
+
+/**
+ * A single backfill re-classification, targeting one row by {@link id}. Overwrites
+ * the row's family/class/confidence and stamps the ruleset version used — so the
+ * row leaves the {@link UnclassifiedAgentRequestQuery} predicate. `agentFamily`
+ * is `null` to CLEAR a previously-named family (a re-classification may downgrade
+ * a named row to unknown under a new ruleset).
+ */
+export interface AgentClassificationUpdate {
+  /** The row's storage id (from {@link AgentRequestRecord.id}). */
+  id: number;
+  /** New family, or `null` for unnamed. */
+  agentFamily: string | null;
+  /** New behavioural class. */
+  agentClass: AgentClass;
+  /** New confidence (never `pending` — a ruleset was applied). */
+  confidence: AgentConfidence;
+  /** The ruleset version used to produce this classification. */
+  rulesetVersion: string;
 }
 
 /**
@@ -364,6 +425,24 @@ export interface StorageAdapter {
   recordAgentRequests?(records: AgentRequestRecord[]): Promise<void>;
   /** Query captured agent requests, most recent first. */
   queryAgentRequests?(q?: AgentRequestQuery): Promise<AgentRequestRecord[]>;
+  /**
+   * Query the rows that need (re)classification for the current ruleset (D1) —
+   * `pending` rows and rows classified under a different version — OLDEST-first,
+   * with their {@link AgentRequestRecord.id} populated. Used by
+   * `backfillClassification`. Optional so custom adapters predating D1 keep
+   * compiling; the backfill feature-detects and no-ops when it (or
+   * {@link updateAgentClassifications}) is absent.
+   */
+  queryUnclassifiedAgentRequests?(
+    q: UnclassifiedAgentRequestQuery,
+  ): Promise<AgentRequestRecord[]>;
+  /**
+   * Apply a batch of backfill re-classifications by row id (D1). Best-effort like
+   * every other agent write. Optional (see {@link queryUnclassifiedAgentRequests}).
+   */
+  updateAgentClassifications?(
+    updates: AgentClassificationUpdate[],
+  ): Promise<void>;
   /**
    * Aggregate captured agent requests into {@link AgentOutcomeGroup} counts with
    * a DB-side `GROUP BY` — the scalable path the M4 telemetry summary uses for

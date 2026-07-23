@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentRequestRecord } from "../../storage/types.js";
 import type { FetchLike } from "../edge/beacon.js";
+import { INITIAL_RULESET } from "../ruleset/initial.js";
 import {
   type EdgeFetchEvent,
   type EdgeMiddlewareHandler,
@@ -82,6 +83,7 @@ describe("withAgentCapture", () => {
       sinkUrl: "https://acme.com/__enpilink/agents/ingest",
       token: "tok",
       ipSalt: "salt",
+      ruleset: INITIAL_RULESET,
       fetchImpl,
     });
     const event = fakeEvent();

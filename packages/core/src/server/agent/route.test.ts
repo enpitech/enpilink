@@ -15,6 +15,8 @@ import {
   decideAgentServe,
   installAgentRouting,
 } from "./route.js";
+import { setCurrentRuleset } from "./ruleset/holder.js";
+import { INITIAL_RULESET } from "./ruleset/initial.js";
 
 /** Real classifier output for representative header sets (grounds the tests in
  * M2's actual behaviour rather than hand-built stubs). */
@@ -44,26 +46,32 @@ describe("decideAgentServe (the guardrail, pure)", () => {
     const d = decideAgentServe({
       ...base,
       serve: false,
-      detection: classify(CHATGPT),
+      detection: classify(INITIAL_RULESET, CHATGPT),
     });
     expect(d.action).toBe("pass");
   });
 
   it("serves a chat-fetcher its representation", () => {
-    const d = decideAgentServe({ ...base, detection: classify(CHATGPT) });
+    const d = decideAgentServe({
+      ...base,
+      detection: classify(INITIAL_RULESET, CHATGPT),
+    });
     expect(d).toEqual({ action: "serve", encoding: "markdown" });
   });
 
   it("ALWAYS passes a crawler through — the cloaking guardrail", () => {
     expect(
-      decideAgentServe({ ...base, detection: classify(GOOGLEBOT) }).action,
+      decideAgentServe({
+        ...base,
+        detection: classify(INITIAL_RULESET, GOOGLEBOT),
+      }).action,
     ).toBe("pass");
     // Even an explicit markdown Accept does NOT differentiate a crawler.
     expect(
       decideAgentServe({
         ...base,
         accept: "text/markdown",
-        detection: classify(GOOGLEBOT),
+        detection: classify(INITIAL_RULESET, GOOGLEBOT),
       }).action,
     ).toBe("pass");
   });
@@ -72,7 +80,7 @@ describe("decideAgentServe (the guardrail, pure)", () => {
     const d = decideAgentServe({
       ...base,
       accept: "text/html,application/xhtml+xml,*/*",
-      detection: classify(HUMAN),
+      detection: classify(INITIAL_RULESET, HUMAN),
     });
     expect(d.action).toBe("pass");
   });
@@ -81,13 +89,16 @@ describe("decideAgentServe (the guardrail, pure)", () => {
     const d = decideAgentServe({
       ...base,
       accept: "text/markdown",
-      detection: classify(CURL),
+      detection: classify(INITIAL_RULESET, CURL),
     });
     expect(d).toEqual({ action: "serve", encoding: "markdown" });
   });
 
   it("does not serve a plain tool that did not ask for markdown", () => {
-    const d = decideAgentServe({ ...base, detection: classify(CURL) });
+    const d = decideAgentServe({
+      ...base,
+      detection: classify(INITIAL_RULESET, CURL),
+    });
     expect(d.action).toBe("pass");
   });
 
@@ -96,7 +107,7 @@ describe("decideAgentServe (the guardrail, pure)", () => {
       const d = decideAgentServe({
         ...base,
         path,
-        detection: classify(CHATGPT),
+        detection: classify(INITIAL_RULESET, CHATGPT),
       });
       expect(d.action).toBe("pass");
     }
@@ -107,7 +118,7 @@ describe("decideAgentServe (the guardrail, pure)", () => {
       const d = decideAgentServe({
         ...base,
         path,
-        detection: classify(CHATGPT),
+        detection: classify(INITIAL_RULESET, CHATGPT),
       });
       expect(d.action).toBe("pass");
     }
@@ -117,7 +128,7 @@ describe("decideAgentServe (the guardrail, pure)", () => {
     const d = decideAgentServe({
       ...base,
       method: "POST",
-      detection: classify(CHATGPT),
+      detection: classify(INITIAL_RULESET, CHATGPT),
     });
     expect(d.action).toBe("pass");
   });
@@ -126,7 +137,7 @@ describe("decideAgentServe (the guardrail, pure)", () => {
     const d = decideAgentServe({
       ...base,
       accept: "text/html",
-      detection: classify(CHATGPT),
+      detection: classify(INITIAL_RULESET, CHATGPT),
     });
     expect(d).toEqual({ action: "serve", encoding: "html" });
   });
@@ -137,7 +148,10 @@ describe("agentServeEligibility (the shared guardrail, pure)", () => {
 
   it("is eligible for a chat fetcher, encoding markdown by default", () => {
     expect(
-      agentServeEligibility({ ...base, detection: classify(CHATGPT) }),
+      agentServeEligibility({
+        ...base,
+        detection: classify(INITIAL_RULESET, CHATGPT),
+      }),
     ).toEqual({ eligible: true, encoding: "markdown", reason: "eligible" });
   });
 
@@ -145,14 +159,17 @@ describe("agentServeEligibility (the shared guardrail, pure)", () => {
     const e = agentServeEligibility({
       ...base,
       accept: "text/html",
-      detection: classify(CHATGPT),
+      detection: classify(INITIAL_RULESET, CHATGPT),
     });
     expect(e).toEqual({ eligible: true, encoding: "html", reason: "eligible" });
   });
 
   it("is NEVER eligible for a crawler (Googlebot) — the guardrail", () => {
     expect(
-      agentServeEligibility({ ...base, detection: classify(GOOGLEBOT) }),
+      agentServeEligibility({
+        ...base,
+        detection: classify(INITIAL_RULESET, GOOGLEBOT),
+      }),
     ).toMatchObject({ eligible: false, reason: "crawler" });
   });
 
@@ -161,7 +178,7 @@ describe("agentServeEligibility (the shared guardrail, pure)", () => {
       agentServeEligibility({
         ...base,
         accept: "text/html,application/xhtml+xml,*/*",
-        detection: classify(HUMAN),
+        detection: classify(INITIAL_RULESET, HUMAN),
       }),
     ).toMatchObject({ eligible: false });
   });
@@ -171,21 +188,21 @@ describe("agentServeEligibility (the shared guardrail, pure)", () => {
       agentServeEligibility({
         ...base,
         path: "/app.js",
-        detection: classify(CHATGPT),
+        detection: classify(INITIAL_RULESET, CHATGPT),
       }),
     ).toMatchObject({ eligible: false, reason: "subresource" });
     expect(
       agentServeEligibility({
         ...base,
         path: "/mcp",
-        detection: classify(CHATGPT),
+        detection: classify(INITIAL_RULESET, CHATGPT),
       }),
     ).toMatchObject({ eligible: false, reason: "excluded-path" });
     expect(
       agentServeEligibility({
         ...base,
         method: "POST",
-        detection: classify(CHATGPT),
+        detection: classify(INITIAL_RULESET, CHATGPT),
       }),
     ).toMatchObject({ eligible: false, reason: "non-get" });
   });
@@ -225,6 +242,9 @@ describe("installAgentRouting (trailing 404-rescue fallback, end-to-end)", () =>
   let port: number;
 
   beforeEach(async () => {
+    // The serve path classifies via the ruleset holder; load the initial ruleset
+    // so ChatGPT-User etc. are identified (empty holder → pending → never served).
+    setCurrentRuleset(INITIAL_RULESET);
     const app = express();
     // User routes FIRST: a real 2xx route must respond BEFORE the fallback runs,
     // so its content passes through untouched. The fallback is installed LAST.
@@ -256,6 +276,7 @@ describe("installAgentRouting (trailing 404-rescue fallback, end-to-end)", () =>
   afterEach(async () => {
     await new Promise<void>((r) => server.close(() => r()));
     setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    setCurrentRuleset(null);
   });
 
   it("does nothing while agent.serve is off — a would-be-404 stays a 404", async () => {
@@ -372,6 +393,9 @@ describe("honest 404-rescue recording (capture + routing together)", () => {
     storage = new MemoryStorageAdapter();
     await storage.init();
     setActiveStorage(storage);
+    // Load the initial ruleset so both capture (classification) and the serve
+    // decision recognise ChatGPT-User (empty holder → pending → never served).
+    setCurrentRuleset(INITIAL_RULESET);
 
     const app = express();
     // Capture FIRST (constructor order): it registers `res.on("finish", record)`
@@ -406,6 +430,7 @@ describe("honest 404-rescue recording (capture + routing together)", () => {
     await new Promise<void>((r) => server.close(() => r()));
     setActiveStorage(null);
     setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    setCurrentRuleset(null);
     await storage.close();
   });
 

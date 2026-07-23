@@ -18,7 +18,9 @@ import {
 } from "./capture.js";
 import { getAgentCaptureGate } from "./capture-gate.js";
 import { classify } from "./detect.js";
-import { IpRangeVerifier, vendorForFamily } from "./ip-ranges.js";
+import { IpRangeVerifier } from "./ip-ranges.js";
+import { getCurrentRuleset } from "./ruleset/holder.js";
+import type { Ruleset } from "./ruleset/types.js";
 
 /**
  * Express adapter for the agent capture spine (M1).
@@ -65,6 +67,16 @@ export interface InstallAgentCaptureOptions {
    * only when the flag is on).
    */
   ipVerifier?: IpRangeVerifier;
+  /**
+   * Read the current detection ruleset. Defaults to {@link getCurrentRuleset} —
+   * the in-memory holder D2 populates from the network. Capture is
+   * ruleset-INDEPENDENT: a raw row is always written. Classification is applied
+   * ONLY when this returns a ruleset; when it returns `null` the row is stored
+   * `pending` (family/class NULL, no version) — the no-baseline default — and
+   * `backfillClassification` labels it once a ruleset loads. Injectable so tests
+   * load a fixture without touching the global holder.
+   */
+  getRuleset?: () => Ruleset | null;
 }
 
 /** Handle returned by {@link installAgentCapture} for clean shutdown. */
@@ -139,6 +151,8 @@ export function installAgentCapture(
   // NOTHING until `ensureFresh` is called, which only happens when the
   // `agent.verifyIpRanges` gate is on).
   const ipVerifier = opts.ipVerifier ?? new IpRangeVerifier();
+  // Ruleset source (holder by default). Read at classify time, off the hot path.
+  const getRuleset = opts.getRuleset ?? getCurrentRuleset;
 
   // Real client IP requires trusting the proxy/tunnel in front of us.
   app.set("trust proxy", true);
@@ -272,31 +286,8 @@ export function installAgentCapture(
       // Build + enqueue AFTER the response is done, so nothing here touches the
       // request latency. Salt/hash resolution is async but off the hot path.
       void (async () => {
-        // (1) Classify from SHAPE + UA (pure, no IO). Always runs.
-        const detection = classify(rawHeaders);
-        let confidence = detection.confidence;
-        let spoof = false;
-
-        // (2) OPTIONAL IP tier — on the RAW ip, BEFORE it is hashed and
-        // discarded. We keep only the verdict (confidence / spoof), never the
-        // ip. Only for a family whose vendor publishes a list AND is expected to
-        // originate from that vendor's ranges (crawlers/fetchers, not CLIs).
-        if (ip && gate.verifyIpRanges === true) {
-          const vendor = vendorForFamily(detection.family);
-          if (vendor) {
-            ipVerifier.ensureFresh(vendor);
-            const verdict = ipVerifier.verify(vendor, ip);
-            if (verdict === "match") {
-              confidence = "ip-verified";
-            } else if (verdict === "miss") {
-              // UA claims a vendor its IP does not back — a spoof. Keep the
-              // (spoofable) ua-only confidence and flag it.
-              spoof = true;
-            }
-          }
-        }
-
-        // (3) Hash the ip (never stored raw) and assemble the record.
+        // (1) CAPTURE — ruleset-INDEPENDENT. Hash the ip (never stored raw) and
+        // assemble the raw record. This row is written regardless of ruleset state.
         let ipHash: string | undefined;
         if (ip) {
           const salt = await ensureSalt();
@@ -318,19 +309,11 @@ export function installAgentCapture(
           outcome,
           siteId,
         );
-        if (detection.family !== null) {
-          rec.agentFamily = detection.family;
-        }
-        rec.agentClass = detection.class;
-        rec.confidence = confidence;
         if (served) {
           rec.served = true;
           if (servedEncoding !== undefined) {
             rec.servedEncoding = servedEncoding;
           }
-        }
-        if (spoof) {
-          rec.meta = { ...(rec.meta ?? {}), spoof: true };
         }
         if (reencoded) {
           rec.meta = { ...(rec.meta ?? {}), reencoded: true };
@@ -338,6 +321,48 @@ export function installAgentCapture(
         if (spa) {
           rec.meta = { ...(rec.meta ?? {}), spa: true };
         }
+
+        // (2) CLASSIFY — a SEPARATE step, keyed on the CURRENTLY-LOADED ruleset.
+        // No ruleset → leave the row `pending` (family/class NULL, no version):
+        // the no-baseline default, backfilled when a ruleset loads. NEVER falls
+        // back to a hardcoded guess.
+        const ruleset = getRuleset();
+        if (!ruleset) {
+          rec.confidence = "pending";
+          buffer.enqueue(rec);
+          return;
+        }
+
+        const detection = classify(ruleset, rawHeaders);
+        let confidence = detection.confidence;
+
+        // (3) OPTIONAL IP tier — on the RAW ip, BEFORE it is hashed and
+        // discarded. We keep only the verdict (confidence / spoof), never the
+        // ip. Only for a family whose vendor publishes a list AND is expected to
+        // originate from that vendor's ranges (crawlers/fetchers, not CLIs) — the
+        // family→vendor map now comes from the ruleset.
+        if (ip && gate.verifyIpRanges === true && detection.family !== null) {
+          const vendor =
+            ruleset.ipRanges.familyToVendor[detection.family] ?? null;
+          if (vendor) {
+            ipVerifier.ensureFresh(vendor);
+            const verdict = ipVerifier.verify(vendor, ip);
+            if (verdict === "match") {
+              confidence = "ip-verified";
+            } else if (verdict === "miss") {
+              // UA claims a vendor its IP does not back — a spoof. Keep the
+              // (spoofable) ua-only confidence and flag it.
+              rec.meta = { ...(rec.meta ?? {}), spoof: true };
+            }
+          }
+        }
+
+        if (detection.family !== null) {
+          rec.agentFamily = detection.family;
+        }
+        rec.agentClass = detection.class;
+        rec.confidence = confidence;
+        rec.rulesetVersion = ruleset.version;
         buffer.enqueue(rec);
       })();
     };

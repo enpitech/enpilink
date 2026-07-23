@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HeaderPair } from "../storage/types.js";
 import { classify, deriveSignals } from "./detect.js";
+import { INITIAL_RULESET } from "./ruleset/initial.js";
 
 /**
  * The REAL captured header sets from HOW-AGENTS-READ-PAGES §2 (probe.parklug.de).
@@ -168,7 +169,7 @@ describe("classify — the real captured agents (HOW-AGENTS-READ-PAGES §2)", ()
 
   for (const c of cases) {
     it(`classifies ${c.name} → ${c.family}/${c.class}/${c.confidence}`, () => {
-      const d = classify(c.headers);
+      const d = classify(INITIAL_RULESET, c.headers);
       expect(d.family).toBe(c.family);
       expect(d.class).toBe(c.class);
       expect(d.confidence).toBe(c.confidence);
@@ -178,7 +179,7 @@ describe("classify — the real captured agents (HOW-AGENTS-READ-PAGES §2)", ()
 
 describe("classify — the title-cased client-hints tell (the marquee signal)", () => {
   it("catches Claude's Chrome disguise by title-cased Sec-Ch-Ua*, not the UA", () => {
-    const d = classify(CLAUDE_WEB);
+    const d = classify(INITIAL_RULESET, CLAUDE_WEB);
     expect(d.family).toBe("claude-web");
     expect(d.confidence).toBe("shape");
     expect(d.signals.titleCasedClientHints).toBe(true);
@@ -194,7 +195,7 @@ describe("classify — the title-cased client-hints tell (the marquee signal)", 
     const lowercased: HeaderPair[] = CLAUDE_WEB.map(([k, v]) =>
       k.startsWith("Sec-Ch-Ua") ? [k.toLowerCase(), v] : [k, v],
     );
-    const d = classify(lowercased);
+    const d = classify(INITIAL_RULESET, lowercased);
     expect(d.signals.titleCasedClientHints).toBe(false);
     expect(d.class).toBe("human-or-browser");
     expect(d.family).toBeNull();
@@ -203,7 +204,7 @@ describe("classify — the title-cased client-hints tell (the marquee signal)", 
 
 describe("classify — plain HTTP clients + edge cases", () => {
   it("names a curl client as a tool", () => {
-    const d = classify([
+    const d = classify(INITIAL_RULESET, [
       ["User-Agent", "curl/8.7.1"],
       ["Accept", "*/*"],
       ["Host", "x"],
@@ -214,7 +215,7 @@ describe("classify — plain HTTP clients + edge cases", () => {
   });
 
   it("names python-requests as a tool", () => {
-    const d = classify([
+    const d = classify(INITIAL_RULESET, [
       ["User-Agent", "python-requests/2.32.3"],
       ["Host", "x"],
     ]);
@@ -223,7 +224,7 @@ describe("classify — plain HTTP clients + edge cases", () => {
   });
 
   it("a real Firefox (Sec-Fetch, no client hints) is human-or-browser", () => {
-    const d = classify([
+    const d = classify(INITIAL_RULESET, [
       [
         "User-Agent",
         "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
@@ -247,7 +248,7 @@ describe("classify — plain HTTP clients + edge cases", () => {
   });
 
   it("an unnamed non-browser (no Sec-Fetch) is unknown/shape — surfaced for the corpus", () => {
-    const d = classify([
+    const d = classify(INITIAL_RULESET, [
       ["Accept", "*/*"],
       ["Host", "x"],
     ]);
@@ -258,13 +259,13 @@ describe("classify — plain HTTP clients + edge cases", () => {
   });
 
   it("no headers at all → unknown/none", () => {
-    const d = classify([]);
+    const d = classify(INITIAL_RULESET, []);
     expect(d.class).toBe("unknown");
     expect(d.confidence).toBe("none");
   });
 
   it("distinguishes Googlebot (crawler) from Gemini (chat-fetcher)", () => {
-    const googlebot = classify([
+    const googlebot = classify(INITIAL_RULESET, [
       [
         "User-Agent",
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -274,11 +275,11 @@ describe("classify — plain HTTP clients + edge cases", () => {
     ]);
     expect(googlebot.family).toBe("googlebot");
     expect(googlebot.class).toBe("crawler");
-    expect(classify(GEMINI).class).toBe("chat-fetcher");
+    expect(classify(INITIAL_RULESET, GEMINI).class).toBe("chat-fetcher");
   });
 
   it("Claude Code's UA carries claude-code AND Claude-User → names the CLI", () => {
-    const d = classify(CLAUDE_CODE);
+    const d = classify(INITIAL_RULESET, CLAUDE_CODE);
     expect(d.family).toBe("claude-code");
     expect(d.class).toBe("cli");
     expect(d.signals.wantsMarkdown).toBe(true);

@@ -1,5 +1,7 @@
 import { BeaconSink, type FetchLike } from "../edge/beacon.js";
 import { buildEdgeRecord } from "../edge/capture-edge.js";
+// TYPE-ONLY (erased): edge-safe — the ruleset VALUE is supplied by the caller.
+import type { Ruleset } from "../ruleset/types.js";
 
 /**
  * `enpilink/next` — the Next.js **edge middleware** agent-capture adapter (M8).
@@ -100,6 +102,14 @@ export interface WithAgentCaptureOptions {
   now?: () => number;
   /** Injectable RNG for sampling `[0,1)` (tests). Defaults to `Math.random`. */
   rng?: () => number;
+  /**
+   * The loaded detection ruleset (D1). When provided, captured records are
+   * CLASSIFIED against it at the edge; when absent, records are beaconed
+   * `pending` (family/class NULL) — the no-baseline default — and the Node sink's
+   * `backfillClassification` labels them once its ruleset loads. D2's edge cache
+   * will populate this; until then, pass `INITIAL_RULESET` to classify at the edge.
+   */
+  ruleset?: Ruleset | null;
 }
 
 const DEFAULT_SITE_ID = "default";
@@ -187,9 +197,13 @@ export function withAgentCapture(
           const record = await buildEdgeRecord(
             request,
             { status, ts: start, ms },
-            options.ipSalt !== undefined
-              ? { siteId, ipSalt: options.ipSalt }
-              : { siteId },
+            {
+              siteId,
+              ...(options.ipSalt !== undefined
+                ? { ipSalt: options.ipSalt }
+                : {}),
+              ruleset: options.ruleset ?? null,
+            },
           );
           sink.add(record);
           await sink.drainAndSend();

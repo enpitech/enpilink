@@ -2,6 +2,7 @@ import type DatabaseConstructor from "better-sqlite3";
 import type { Database, Statement } from "better-sqlite3";
 import { runSqliteMigrations } from "./migrations.js";
 import {
+  type AgentClassificationUpdate,
   type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
@@ -19,6 +20,7 @@ import {
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterOptions,
+  type UnclassifiedAgentRequestQuery,
 } from "./types.js";
 
 /** Default on-disk database path. Overridable via `ENPILINK_DB_PATH`. */
@@ -53,6 +55,7 @@ export class SqliteStorageAdapter implements StorageAdapter {
     deleteUser: Statement;
     deleteUserSessions: Statement;
     insertAgentRequest: Statement;
+    updateAgentClassification: Statement;
     insertAgentSite: Statement;
     getAgentSite: Statement;
     pruneAgentRequests: Statement;
@@ -116,11 +119,17 @@ export class SqliteStorageAdapter implements StorageAdapter {
         `INSERT INTO agent_requests
            (ts, site_id, method, path, status, outcome, http_version, headers,
             ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
-            session_id, task_token, served, served_encoding, meta)
+            session_id, task_token, served, served_encoding, meta, ruleset_version)
          VALUES
            (@ts, @site_id, @method, @path, @status, @outcome, @http_version, @headers,
             @ip_hash, @ua, @referer, @ms, @agent_family, @agent_class, @confidence,
-            @session_id, @task_token, @served, @served_encoding, @meta)`,
+            @session_id, @task_token, @served, @served_encoding, @meta, @ruleset_version)`,
+      ),
+      updateAgentClassification: db.prepare(
+        `UPDATE agent_requests
+            SET agent_family = @agent_family, agent_class = @agent_class,
+                confidence = @confidence, ruleset_version = @ruleset_version
+          WHERE id = @id`,
       ),
       insertAgentSite: db.prepare(
         `INSERT INTO agent_sites (id, origin, ip_salt, created_at)
@@ -405,6 +414,51 @@ export class SqliteStorageAdapter implements StorageAdapter {
     return rows.map(rowToAgentRequest);
   }
 
+  async queryUnclassifiedAgentRequests(
+    q: UnclassifiedAgentRequestQuery,
+  ): Promise<AgentRequestRecord[]> {
+    const { db } = this.require();
+    const params: Record<string, unknown> = { version: q.rulesetVersion };
+    // pending (NULL) OR classified under a different version.
+    const where: string[] = [
+      "(ruleset_version IS NULL OR ruleset_version <> @version)",
+    ];
+    if (q.siteId !== undefined) {
+      where.push("site_id = @siteId");
+      params.siteId = q.siteId;
+    }
+    const limit = limitClause(q.limit, params);
+    // OLDEST-first so the backfill pages forward; processed rows are stamped with
+    // the current version and drop out of the next query.
+    const rows = db
+      .prepare(
+        `SELECT * FROM agent_requests WHERE ${where.join(" AND ")} ORDER BY id ASC ${limit}`,
+      )
+      .all(params) as AgentRequestRow[];
+    return rows.map(rowToAgentRequest);
+  }
+
+  async updateAgentClassifications(
+    updates: AgentClassificationUpdate[],
+  ): Promise<void> {
+    if (updates.length === 0) {
+      return;
+    }
+    const { db, stmts } = this.require();
+    const applyAll = db.transaction((rows: AgentClassificationUpdate[]) => {
+      for (const u of rows) {
+        stmts.updateAgentClassification.run({
+          id: u.id,
+          agent_family: u.agentFamily,
+          agent_class: u.agentClass,
+          confidence: u.confidence,
+          ruleset_version: u.rulesetVersion,
+        });
+      }
+    });
+    applyAll(updates);
+  }
+
   async aggregateAgentOutcomes(
     q: AgentRequestQuery = {},
   ): Promise<AgentOutcomeGroup[]> {
@@ -619,6 +673,7 @@ function rowToLog(r: LogRow): LogEntry {
 }
 
 interface AgentRequestRow {
+  id: number;
   ts: number;
   site_id: string;
   method: string;
@@ -639,6 +694,7 @@ interface AgentRequestRow {
   served: number | null;
   served_encoding: string | null;
   meta: string | null;
+  ruleset_version: string | null;
 }
 
 interface AgentSiteRow {
@@ -691,11 +747,13 @@ function agentRequestParams(r: AgentRequestRecord): Record<string, unknown> {
     served: r.served ? 1 : 0,
     served_encoding: r.servedEncoding ?? null,
     meta: r.meta === undefined ? null : JSON.stringify(r.meta),
+    ruleset_version: r.rulesetVersion ?? null,
   };
 }
 
 function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   const rec: AgentRequestRecord = {
+    id: Number(r.id),
     ts: Number(r.ts),
     siteId: r.site_id,
     method: r.method,
@@ -739,6 +797,9 @@ function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   }
   if (r.meta !== null) {
     rec.meta = JSON.parse(r.meta);
+  }
+  if (r.ruleset_version !== null) {
+    rec.rulesetVersion = r.ruleset_version;
   }
   return rec;
 }

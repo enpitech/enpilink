@@ -3,6 +3,7 @@ import express from "express";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setActiveStorage } from "../log-sink.js";
 import { MemoryStorageAdapter } from "../storage/memory.js";
+import { backfillClassification } from "./backfill.js";
 import { setAgentCaptureGate } from "./capture-gate.js";
 import {
   type AgentCaptureHandle,
@@ -10,6 +11,7 @@ import {
   pruneAgentData,
 } from "./express-middleware.js";
 import { IpRangeVerifier, type Vendor } from "./ip-ranges.js";
+import { INITIAL_RULESET } from "./ruleset/initial.js";
 
 /**
  * Raw HTTP GET that PRESERVES outgoing header-name casing (unlike `fetch`, whose
@@ -46,7 +48,12 @@ describe("installAgentCapture (Express, end-to-end)", () => {
     setActiveStorage(storage);
 
     const app = express();
-    handle = installAgentCapture(app, { getStorage: () => storage });
+    // Inject the initial ruleset so classification runs (the holder is empty by
+    // default → rows would be `pending`). The pending path is covered separately.
+    handle = installAgentCapture(app, {
+      getStorage: () => storage,
+      getRuleset: () => INITIAL_RULESET,
+    });
     app.get("/", (_req, res) => {
       res.status(200).send("ok");
     });
@@ -139,6 +146,8 @@ describe("installAgentCapture (Express, end-to-end)", () => {
     // No IP tier ran (flag off) → the UA claim stays unverified/spoofable.
     expect(row?.confidence).toBe("ua-only");
     expect(row?.meta?.spoof).toBeUndefined();
+    // Classified rows are stamped with the ruleset version that produced them.
+    expect(row?.rulesetVersion).toBe(INITIAL_RULESET.version);
   });
 
   it("classifies a browser-shaped request as human-or-browser (unnamed)", async () => {
@@ -232,6 +241,7 @@ describe("installAgentCapture — the optional IP tier (agent.verifyIpRanges)", 
     handle = installAgentCapture(app, {
       getStorage: () => storage,
       ipVerifier,
+      getRuleset: () => INITIAL_RULESET,
     });
     app.get("/", (_req, res) => {
       res.status(200).send("ok");
@@ -286,5 +296,85 @@ describe("installAgentCapture — the optional IP tier (agent.verifyIpRanges)", 
     // Stays at the spoofable UA-only tier — the IP did not back the claim.
     expect(row?.confidence).toBe("ua-only");
     expect(row?.meta?.spoof).toBe(true);
+  });
+});
+
+describe("installAgentCapture — the capture/classify split (no ruleset → pending)", () => {
+  let storage: MemoryStorageAdapter;
+  let handle: AgentCaptureHandle;
+  let server: http.Server;
+  let port: number;
+
+  beforeEach(async () => {
+    storage = new MemoryStorageAdapter();
+    await storage.init();
+    setActiveStorage(storage);
+
+    const app = express();
+    // NO ruleset loaded (getRuleset returns null) — the no-baseline default.
+    handle = installAgentCapture(app, {
+      getStorage: () => storage,
+      getRuleset: () => null,
+    });
+    app.get("/", (_req, res) => {
+      res.status(200).send("ok");
+    });
+    server = http.createServer(app);
+    await new Promise<void>((r) => server.listen(0, r));
+    port = (server.address() as { port: number }).port;
+    setAgentCaptureGate({ enabled: true, sampleRate: 1 });
+  });
+
+  afterEach(async () => {
+    await handle.stop();
+    await new Promise<void>((r) => server.close(() => r()));
+    setActiveStorage(null);
+    setAgentCaptureGate({ enabled: false, sampleRate: 1 });
+    await storage.close();
+  });
+
+  async function firstRow() {
+    for (let i = 0; i < 50; i++) {
+      await new Promise<void>((r) => setTimeout(r, 20));
+      await handle.stop();
+      const rows = await storage.queryAgentRequests();
+      if (rows.length >= 1) {
+        return rows.find((r) => r.path === "/");
+      }
+    }
+    return undefined;
+  }
+
+  it("captures the raw row but leaves classification PENDING (distinguishable from unknown)", async () => {
+    await rawGet(port, "/", { "User-Agent": "GPTBot/1.0" });
+    const row = await firstRow();
+    // Capture is ruleset-INDEPENDENT — the raw row is fully written.
+    expect(row?.status).toBe(200);
+    expect(row?.outcome).toBe("resolved");
+    expect(row?.ua).toBe("GPTBot/1.0");
+    expect(row?.ipHash).toMatch(/^[0-9a-f]{64}$/);
+    // But classification is deferred: pending, NOT a wrong "unknown" verdict.
+    expect(row?.confidence).toBe("pending");
+    expect(row?.agentFamily).toBeUndefined();
+    expect(row?.agentClass).toBeUndefined();
+    expect(row?.rulesetVersion).toBeUndefined();
+  });
+
+  it("backfill labels the pending row once a ruleset is available", async () => {
+    await rawGet(port, "/", { "User-Agent": "GPTBot/1.0" });
+    const pending = await firstRow();
+    expect(pending?.confidence).toBe("pending");
+
+    // A ruleset arrives (as D2 would deliver it) → backfill re-classifies.
+    const result = await backfillClassification(storage, INITIAL_RULESET);
+    expect(result.reclassified).toBe(1);
+
+    const row = (await storage.queryAgentRequests()).find(
+      (r) => r.path === "/",
+    );
+    expect(row?.agentFamily).toBe("gptbot");
+    expect(row?.agentClass).toBe("crawler");
+    expect(row?.confidence).toBe("ua-only");
+    expect(row?.rulesetVersion).toBe(INITIAL_RULESET.version);
   });
 });

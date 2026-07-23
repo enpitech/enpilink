@@ -5,6 +5,9 @@ import {
   toCaptureRecord,
 } from "../capture.js";
 import { classify } from "../detect.js";
+// TYPE-ONLY (erased): keeps the edge runtime graph free of the ruleset's zod
+// schema — the ruleset VALUE is passed in by the caller, never imported here.
+import type { Ruleset } from "../ruleset/types.js";
 
 /**
  * Edge/Web-standard agent capture core (M8).
@@ -130,14 +133,23 @@ export interface BuildEdgeRecordOptions {
    * target site's stored salt if you want edge and Node hashes to be joinable.
    */
   ipSalt?: string;
+  /**
+   * The loaded detection ruleset. Capture is ruleset-INDEPENDENT (the record is
+   * always built); classification is applied ONLY when this is provided. When
+   * absent/`null` the record is `pending` (family/class NULL, no version) — the
+   * no-baseline default. Passed in by the caller (D2's edge cache supplies it);
+   * this module never imports a holder, so the edge runtime graph stays pure.
+   */
+  ruleset?: Ruleset | null;
 }
 
 /**
  * Build an {@link AgentRequestRecord} from a Web `Request` + the observed
  * outcome. Async because IP hashing uses `crypto.subtle`. Pure apart from the
  * subtle-crypto call: same inputs → same record. Reuses `toCaptureRecord`
- * (record assembly + UA/Referer lifting) and `classify` (detection) UNCHANGED,
- * then adds `meta.edge = true` so a consumer can tell edge-captured rows from
+ * (record assembly + UA/Referer lifting); classification runs `classify` against
+ * `opts.ruleset` (or leaves the row `pending` when none is passed — no baseline).
+ * Adds `meta.edge = true` so a consumer can tell edge-captured rows from
  * Node-captured ones (their outcome fidelity differs — see the module header).
  */
 export async function buildEdgeRecord(
@@ -146,7 +158,6 @@ export async function buildEdgeRecord(
   opts: BuildEdgeRecordOptions,
 ): Promise<AgentRequestRecord> {
   const rawHeaders = edgeHeaderPairs(request.headers);
-  const detection = classify(rawHeaders);
 
   const ip = resolveEdgeClientIp(request.headers);
   let ipHash: string | undefined;
@@ -172,14 +183,23 @@ export async function buildEdgeRecord(
   };
   const record = toCaptureRecord(minimal, captureOutcome, opts.siteId);
 
-  // Mirror the Express adapter's post-processing: attach the detection verdict.
+  // CLASSIFY — a separate step keyed on the ruleset the caller passed (D2's edge
+  // cache supplies it). No ruleset → `pending` (family/class NULL, no version):
+  // the no-baseline default, backfilled by the Node sink once a ruleset loads.
   // The edge does NOT run the published-IP-range tier (it is Node-oriented), so
   // confidence stays at classify()'s shape/UA level — never `ip-verified` here.
-  if (detection.family !== null) {
-    record.agentFamily = detection.family;
+  const ruleset = opts.ruleset ?? null;
+  if (ruleset) {
+    const detection = classify(ruleset, rawHeaders);
+    if (detection.family !== null) {
+      record.agentFamily = detection.family;
+    }
+    record.agentClass = detection.class;
+    record.confidence = detection.confidence;
+    record.rulesetVersion = ruleset.version;
+  } else {
+    record.confidence = "pending";
   }
-  record.agentClass = detection.class;
-  record.confidence = detection.confidence;
 
   // Mark the capture point + flag the unknown-status pass-through case so the
   // dashboard never reads an edge placeholder as a real resolve.

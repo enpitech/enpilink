@@ -21,6 +21,8 @@ import {
   resolveSiteInfo,
   type ServeEncoding,
 } from "./route.js";
+import { getCurrentRuleset } from "./ruleset/holder.js";
+import type { Ruleset } from "./ruleset/types.js";
 
 /**
  * The agent RESPONSE-TRANSFORM middleware (M6).
@@ -71,7 +73,15 @@ export interface InstallAgentResponseTransformOptions {
   getGetAffordances?: () => AgentGetAffordance[];
   /** Live gate reader. Defaults to {@link getAgentCaptureGate}. */
   getGate?: () => AgentCaptureGate;
-  /** Classifier. Injectable for tests. Defaults to {@link classify}. */
+  /**
+   * Read the current detection ruleset for the transform decision. Defaults to
+   * {@link getCurrentRuleset}. `null` → classification is `pending`/unknown, so
+   * no eligible fetcher is identified and the response passes through untouched
+   * (the no-baseline default). Ignored when {@link classifyRequest} is supplied.
+   */
+  getRuleset?: () => Ruleset | null;
+  /** Classifier. Injectable for tests. Defaults to {@link classify} over the
+   * loaded ruleset (via {@link getRuleset}). */
   classifyRequest?: (pairs: readonly HeaderPair[]) => Detection;
 }
 
@@ -117,7 +127,9 @@ export function installAgentResponseTransform(
   opts: InstallAgentResponseTransformOptions,
 ): void {
   const readGate = opts.getGate ?? getAgentCaptureGate;
-  const classifyRequest = opts.classifyRequest ?? classify;
+  const getRuleset = opts.getRuleset ?? getCurrentRuleset;
+  const classifyRequest =
+    opts.classifyRequest ?? ((pairs) => classify(getRuleset(), pairs));
 
   const middleware: RequestHandler = (
     req: Request,

@@ -83,6 +83,7 @@ export {
 export { DEFAULT_DB_PATH, SqliteStorageAdapter } from "./sqlite.js";
 export {
   type AgentClass,
+  type AgentClassificationUpdate,
   type AgentConfidence,
   type AgentOutcome,
   type AgentRequestQuery,
@@ -103,4 +104,5 @@ export {
   type StorageAdapter,
   type StorageAdapterFactory,
   type StorageAdapterOptions,
+  type UnclassifiedAgentRequestQuery,
 } from "./types.js";

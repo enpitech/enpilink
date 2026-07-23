@@ -51,7 +51,8 @@ const CLASS_VALUES = [
   "human-or-browser",
   "unknown",
 ] as const;
-/** The confidence tiers an edge record may carry. */
+/** The confidence tiers an edge record may carry (incl. `pending` — an edge row
+ * captured with no ruleset loaded, awaiting backfill). */
 const CONFIDENCE_VALUES = [
   "crypto",
   "ip-verified",
@@ -59,6 +60,7 @@ const CONFIDENCE_VALUES = [
   "shape",
   "ua-only",
   "none",
+  "pending",
 ] as const;
 
 /** A single `[name, value]` header pair — a 2-string tuple off the wire. */
@@ -87,6 +89,7 @@ const recordSchema = z.object({
   agentFamily: z.string().optional(),
   agentClass: z.enum(CLASS_VALUES).optional(),
   confidence: z.enum(CONFIDENCE_VALUES).optional(),
+  rulesetVersion: z.string().optional(),
   served: z.boolean().optional(),
   servedEncoding: z.enum(["markdown", "html"]).optional(),
   meta: z.record(z.string(), z.unknown()).optional(),

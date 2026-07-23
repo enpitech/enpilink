@@ -1,5 +1,6 @@
 import { runPostgresMigrations } from "./migrations.js";
 import {
+  type AgentClassificationUpdate,
   type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
@@ -17,6 +18,7 @@ import {
   type SessionQuery,
   type StorageAdapter,
   type StorageAdapterOptions,
+  type UnclassifiedAgentRequestQuery,
 } from "./types.js";
 
 /**
@@ -382,7 +384,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     // One multi-row INSERT (a real batch), pg-mem-compatible. No BEGIN/COMMIT
     // wrapper — pg-mem's transaction semantics differ across versions, and a
     // single statement is atomic anyway.
-    const cols = 20;
+    const cols = 21;
     const values: string[] = [];
     const params: unknown[] = [];
     for (let i = 0; i < records.length; i++) {
@@ -411,13 +413,14 @@ export class PostgresStorageAdapter implements StorageAdapter {
         r.served ? 1 : 0,
         r.servedEncoding ?? null,
         r.meta === undefined ? null : JSON.stringify(r.meta),
+        r.rulesetVersion ?? null,
       );
     }
     await pool.query(
       `INSERT INTO agent_requests
          (ts, site_id, method, path, status, outcome, http_version, headers,
           ip_hash, ua, referer, ms, agent_family, agent_class, confidence,
-          session_id, task_token, served, served_encoding, meta)
+          session_id, task_token, served, served_encoding, meta, ruleset_version)
        VALUES ${values.join(", ")}`,
       params,
     );
@@ -455,6 +458,48 @@ export class PostgresStorageAdapter implements StorageAdapter {
       params,
     );
     return rows.map(rowToAgentRequest);
+  }
+
+  async queryUnclassifiedAgentRequests(
+    q: UnclassifiedAgentRequestQuery,
+  ): Promise<AgentRequestRecord[]> {
+    const pool = this.require();
+    const params: unknown[] = [q.rulesetVersion];
+    // pending (NULL) OR classified under a different version.
+    const where: string[] = [
+      "(ruleset_version IS NULL OR ruleset_version <> $1)",
+    ];
+    if (q.siteId !== undefined) {
+      params.push(q.siteId);
+      where.push(`site_id = $${params.length}`);
+    }
+    const limit = limitClause(q.limit, params);
+    // OLDEST-first so the backfill pages forward; stamped rows drop out next time.
+    const { rows } = await pool.query<AgentRequestRow>(
+      `SELECT * FROM agent_requests WHERE ${where.join(" AND ")} ORDER BY id ASC ${limit}`,
+      params,
+    );
+    return rows.map(rowToAgentRequest);
+  }
+
+  async updateAgentClassifications(
+    updates: AgentClassificationUpdate[],
+  ): Promise<void> {
+    if (updates.length === 0) {
+      return;
+    }
+    const pool = this.require();
+    // One parameterized UPDATE per row. Best-effort, no explicit transaction
+    // wrapper (pg-mem's transaction semantics vary; each statement is atomic).
+    for (const u of updates) {
+      await pool.query(
+        `UPDATE agent_requests
+            SET agent_family = $1, agent_class = $2, confidence = $3,
+                ruleset_version = $4
+          WHERE id = $5`,
+        [u.agentFamily, u.agentClass, u.confidence, u.rulesetVersion, u.id],
+      );
+    }
   }
 
   async aggregateAgentOutcomes(
@@ -627,6 +672,7 @@ function rowToUser(r: UserRow): AuthUser {
 }
 
 interface AgentRequestRow {
+  id: number | string;
   ts: number | string;
   site_id: string;
   method: string;
@@ -647,6 +693,7 @@ interface AgentRequestRow {
   served: number | string | null;
   served_encoding: string | null;
   meta: string | null;
+  ruleset_version: string | null;
 }
 
 interface AgentSiteRow {
@@ -678,6 +725,7 @@ function rowToOutcomeGroup(r: AgentOutcomeGroupRow): AgentOutcomeGroup {
 
 function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   const rec: AgentRequestRecord = {
+    id: Number(r.id),
     ts: Number(r.ts),
     siteId: r.site_id,
     method: r.method,
@@ -721,6 +769,9 @@ function rowToAgentRequest(r: AgentRequestRow): AgentRequestRecord {
   }
   if (r.meta !== null) {
     rec.meta = JSON.parse(r.meta);
+  }
+  if (r.ruleset_version !== null) {
+    rec.rulesetVersion = r.ruleset_version;
   }
   return rec;
 }

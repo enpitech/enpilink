@@ -89,8 +89,8 @@ describe("sqlite migrations", () => {
       ).map((c) => c.name);
       expect(before).not.toContain("served");
 
-      // Running the runner applies ONLY migration 3 and adds the columns.
-      expect(runSqliteMigrations(db)).toEqual([3]);
+      // Running the runner applies migrations 3 AND 4 (everything past v2).
+      expect(runSqliteMigrations(db)).toEqual([3, 4]);
       const after = (
         db.prepare("PRAGMA table_info(agent_requests)").all() as {
           name: string;
@@ -98,6 +98,38 @@ describe("sqlite migrations", () => {
       ).map((c) => c.name);
       expect(after).toContain("served");
       expect(after).toContain("served_encoding");
+
+      // Idempotent: a second run adds nothing (no duplicate-column error).
+      expect(runSqliteMigrations(db)).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("migration 4 adds ruleset_version to an existing v3 db, idempotently", () => {
+    const db = new Database(":memory:");
+    try {
+      // Simulate a real DB migrated only up to v3 (no ruleset_version column;
+      // user_version pinned at 3).
+      db.exec(MIGRATIONS[0]?.sqlite ?? "");
+      db.exec(MIGRATIONS[1]?.sqlite ?? "");
+      db.exec(MIGRATIONS[2]?.sqlite ?? "");
+      db.pragma("user_version = 3");
+      const before = (
+        db.prepare("PRAGMA table_info(agent_requests)").all() as {
+          name: string;
+        }[]
+      ).map((c) => c.name);
+      expect(before).not.toContain("ruleset_version");
+
+      // Running the runner applies ONLY migration 4 and adds the column.
+      expect(runSqliteMigrations(db)).toEqual([4]);
+      const after = (
+        db.prepare("PRAGMA table_info(agent_requests)").all() as {
+          name: string;
+        }[]
+      ).map((c) => c.name);
+      expect(after).toContain("ruleset_version");
 
       // Idempotent: a second run adds nothing (no duplicate-column error).
       expect(runSqliteMigrations(db)).toEqual([]);
@@ -140,6 +172,20 @@ describe("postgres migrations (pg-mem)", () => {
       // If migration 3 did not run, referencing `served` here would throw.
       const { rows } = await pool.query(
         "SELECT served, served_encoding FROM agent_requests",
+      );
+      expect(rows).toEqual([]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("migration 4 adds ruleset_version (selectable after migrating)", async () => {
+    const pool = makePool();
+    try {
+      await runPostgresMigrations(pool);
+      // If migration 4 did not run, referencing `ruleset_version` would throw.
+      const { rows } = await pool.query(
+        "SELECT ruleset_version FROM agent_requests",
       );
       expect(rows).toEqual([]);
     } finally {

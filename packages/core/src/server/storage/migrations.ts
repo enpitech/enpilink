@@ -165,6 +165,31 @@ ALTER TABLE agent_requests ADD COLUMN IF NOT EXISTS served INTEGER NOT NULL DEFA
 ALTER TABLE agent_requests ADD COLUMN IF NOT EXISTS served_encoding TEXT;
 `;
 
+/**
+ * Migration 4 — the ruleset version stamp (D1, distribution epic).
+ *
+ * Records WHICH ruleset version classified each row (`ruleset_version`). It is
+ * NULL for rows captured while no ruleset was loaded (`confidence = 'pending'`)
+ * and for rows that predate this column — both of which
+ * `backfillClassification` re-classifies (its predicate is
+ * `ruleset_version IS NULL OR ruleset_version <> @current`), then stamps here so
+ * they drop out of the scan. The index keeps that backfill scan cheap.
+ *
+ * A new COLUMN is exactly what `CREATE ... IF NOT EXISTS` silently NO-OPs, so this
+ * is a versioned migration (NOT an edit to migration 1). On sqlite `ADD COLUMN`
+ * has no `IF NOT EXISTS`, so the runner's `user_version` guard makes it run once;
+ * on postgres the `ADD COLUMN IF NOT EXISTS` is itself idempotent.
+ */
+const AGENT_RULESET_VERSION_SQLITE = `
+ALTER TABLE agent_requests ADD COLUMN ruleset_version TEXT;
+CREATE INDEX IF NOT EXISTS idx_areq_ruleset ON agent_requests (ruleset_version);
+`;
+
+const AGENT_RULESET_VERSION_POSTGRES = `
+ALTER TABLE agent_requests ADD COLUMN IF NOT EXISTS ruleset_version TEXT;
+CREATE INDEX IF NOT EXISTS idx_areq_ruleset ON agent_requests (ruleset_version);
+`;
+
 /** The ordered migration list. Append-only. */
 export const MIGRATIONS: readonly Migration[] = [
   {
@@ -184,6 +209,12 @@ export const MIGRATIONS: readonly Migration[] = [
     name: "agent_served_flag",
     sqlite: AGENT_SERVED_SQLITE,
     postgres: AGENT_SERVED_POSTGRES,
+  },
+  {
+    version: 4,
+    name: "agent_ruleset_version",
+    sqlite: AGENT_RULESET_VERSION_SQLITE,
+    postgres: AGENT_RULESET_VERSION_POSTGRES,
   },
 ];
 

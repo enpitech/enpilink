@@ -15,6 +15,8 @@ import {
   type AgentToolInfo,
   represent,
 } from "./represent.js";
+import { getCurrentRuleset } from "./ruleset/holder.js";
+import type { Ruleset } from "./ruleset/types.js";
 
 /**
  * The agent REPRESENTATION router (M3, refined by M3.5).
@@ -293,7 +295,16 @@ export interface InstallAgentRoutingOptions {
   getGetAffordances?: () => AgentGetAffordance[];
   /** Live gate reader. Defaults to {@link getAgentCaptureGate}. */
   getGate?: () => AgentCaptureGate;
-  /** Classifier. Injectable for tests. Defaults to {@link classify}. */
+  /**
+   * Read the current detection ruleset for the serve decision. Defaults to
+   * {@link getCurrentRuleset}. When it returns `null` (no ruleset loaded), the
+   * request classifies as `pending`/unknown, so no chat-fetcher is identified and
+   * NOTHING is served — the correct no-baseline behaviour (a would-be-404 stays a
+   * 404 until a ruleset loads). Ignored when {@link classifyRequest} is supplied.
+   */
+  getRuleset?: () => Ruleset | null;
+  /** Classifier. Injectable for tests. Defaults to {@link classify} over the
+   * loaded ruleset (via {@link getRuleset}). */
   classifyRequest?: (pairs: readonly HeaderPair[]) => Detection;
 }
 
@@ -337,7 +348,9 @@ export function installAgentRouting(
   opts: InstallAgentRoutingOptions,
 ): void {
   const readGate = opts.getGate ?? getAgentCaptureGate;
-  const classifyRequest = opts.classifyRequest ?? classify;
+  const getRuleset = opts.getRuleset ?? getCurrentRuleset;
+  const classifyRequest =
+    opts.classifyRequest ?? ((pairs) => classify(getRuleset(), pairs));
 
   const middleware: RequestHandler = (
     req: Request,

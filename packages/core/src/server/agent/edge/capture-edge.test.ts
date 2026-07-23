@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { INITIAL_RULESET } from "../ruleset/initial.js";
 import {
   buildEdgeRecord,
   edgeHeaderPairs,
@@ -80,7 +81,7 @@ describe("buildEdgeRecord", () => {
     const rec = await buildEdgeRecord(
       request,
       { status: 200, ts: 1000, ms: 3 },
-      { siteId: "default", ipSalt: "salt" },
+      { siteId: "default", ipSalt: "salt", ruleset: INITIAL_RULESET },
     );
     expect(rec.method).toBe("GET");
     expect(rec.path).toBe("/pricing");
@@ -134,7 +135,7 @@ describe("buildEdgeRecord", () => {
     const rec = await buildEdgeRecord(
       request,
       { status: 404, ts: 1, ms: 0 },
-      { siteId: "default" },
+      { siteId: "default", ruleset: INITIAL_RULESET },
     );
     expect(rec.outcome).toBe("dead_end");
     expect(rec.agentClass).toBe("chat-fetcher");
@@ -169,7 +170,7 @@ describe("buildEdgeRecord", () => {
     const rec = await buildEdgeRecord(
       request,
       { status: 200, ts: 1, ms: 0 },
-      { siteId: "default" },
+      { siteId: "default", ruleset: INITIAL_RULESET },
     );
     expect(rec.agentClass).toBe("human-or-browser");
     expect(rec.agentFamily).toBeUndefined();
