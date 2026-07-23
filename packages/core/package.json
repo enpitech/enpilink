@@ -32,6 +32,14 @@
       "types": "./dist/server/agent/next/index.d.ts",
       "default": "./dist/server/agent/next/index.js"
     },
+    "./express": {
+      "types": "./dist/server/agent/adapter/express.d.ts",
+      "default": "./dist/server/agent/adapter/express.js"
+    },
+    "./hono": {
+      "types": "./dist/server/agent/adapter/hono.d.ts",
+      "default": "./dist/server/agent/adapter/hono.js"
+    },
     "./vite": {
       "types": "./dist/web/plugin/plugin.d.ts",
       "default": "./dist/web/plugin/plugin.js"

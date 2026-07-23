@@ -106,7 +106,12 @@ export function getAgentCaptureGate(): AgentCaptureGate {
   return gate;
 }
 
-/** TEST-ONLY: force the gate to a known value without resolving config. */
+/**
+ * Force the gate to a known value without resolving config. Used by tests, and by
+ * the standalone adapters (`enpilink/express` / `enpilink/hono`), which resolve the
+ * config gate then overlay their defaults (capture ON) and publish it here — see
+ * `adapter/core.ts` `ensureAgentAdapterInstalled`.
+ */
 export function setAgentCaptureGate(next: AgentCaptureGate): void {
   gate = next;
 }
