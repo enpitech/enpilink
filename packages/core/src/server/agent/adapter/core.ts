@@ -335,67 +335,16 @@ export class AgentCaptureRecorder {
   }
 }
 
-// ── SERVE / TRANSFORM decision (guardrail stays single-source in route.ts) ──────
-
-/** What the serve/transform layer should do with an ELIGIBLE client's response. */
-export type ServeAction =
-  | { kind: "rescue"; encoding: ServeEncoding }
-  | { kind: "spa"; encoding: ServeEncoding }
-  | { kind: "reencode" }
-  | { kind: "passthrough" };
-
-/** Whether a `Content-Type` names an HTML document. */
-export function isHtmlContentType(ct: string): boolean {
-  return /text\/html|application\/xhtml\+xml/i.test(ct);
-}
-
-/** Whether the response is (un-)encoded — we only transform identity bodies. */
-export function isIdentityEncoding(enc: string): boolean {
-  return enc === "" || /^identity$/i.test(enc.trim());
-}
-
-/**
- * Decide what to do with an ELIGIBLE client's response — the neutral branch shared
- * by every standalone adapter. Callers MUST have already checked
- * {@link agentServeEligibility} (so the cloaking guardrail — crawlers, humans,
- * subresources, excluded surfaces — is enforced ONCE, in `route.ts`); this only
- * maps the final status + content type + the enabled features onto an action:
- *
- * - `serve` on + a would-be dead-end (404/410) → RESCUE with the representation
- *   (the standalone equivalent of the trailing 404-fallback `route.ts` installs on
- *   `McpServer`; here one early-wrapped response covers it).
- * - `spa` on + a 2xx identity HTML body → replace the shell with the representation.
- * - `reencode` on + a 2xx identity HTML body → re-encode to markdown.
- * - otherwise pass the original bytes through untouched.
- *
- * SPA-replace takes precedence over re-encode, matching `response-transform.ts`.
- */
-export function decideServeAction(input: {
-  gate: AgentCaptureGate;
-  status: number;
-  contentType: string;
-  contentEncoding: string;
-  encoding: ServeEncoding;
-}): ServeAction {
-  if (
-    input.gate.serve === true &&
-    (input.status === 404 || input.status === 410)
-  ) {
-    return { kind: "rescue", encoding: input.encoding };
-  }
-  const is2xxHtml =
-    input.status >= 200 &&
-    input.status < 300 &&
-    isHtmlContentType(input.contentType) &&
-    isIdentityEncoding(input.contentEncoding);
-  if (is2xxHtml && input.gate.spa === true) {
-    return { kind: "spa", encoding: input.encoding };
-  }
-  if (is2xxHtml && input.gate.reencode === true) {
-    return { kind: "reencode" };
-  }
-  return { kind: "passthrough" };
-}
+// ── SERVE / TRANSFORM decision (guardrail single-source in serve-eligibility.ts) ─
+// The serve DECISION + guardrail live in the pure, edge-safe `serve-eligibility.ts`
+// so the standalone Node adapters and the edge adapters share ONE source. Re-
+// exported here so `express.ts` / `hono.ts` keep importing them from the core.
+export {
+  decideServeAction,
+  isHtmlContentType,
+  isIdentityEncoding,
+  type ServeAction,
+} from "../serve-eligibility.js";
 
 /** The declared source the representation is built from. */
 export interface RepresentationSources {

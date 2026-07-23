@@ -1,7 +1,16 @@
 import { BeaconSink, type FetchLike } from "../edge/beacon.js";
 import { buildEdgeRecord } from "../edge/capture-edge.js";
+// TYPE-ONLY (erased): the persisted-cache seam — the KV/Cache-API/memory impls
+// are supplied by the caller, so no store implementation enters this graph.
+import type { RulesetCacheStore } from "../ruleset/cache-store.js";
+// The zod-free edge ruleset client (D4b) — auto-fetches + validates the ruleset so
+// the Next edge path no longer needs a hand-passed `ruleset` value.
+import { EdgeRulesetClient } from "../ruleset/edge-client.js";
 // TYPE-ONLY (erased): edge-safe — the ruleset VALUE is supplied by the caller.
 import type { Ruleset } from "../ruleset/types.js";
+
+/** The public CDN ruleset artifact (same default as the Node + CF clients). */
+const DEFAULT_RULESET_URL = "https://cdn.enpitech.dev/agent/ruleset/v1.json";
 
 /**
  * `enpilink/next` — the Next.js **edge middleware** agent-capture adapter (M8).
@@ -103,13 +112,37 @@ export interface WithAgentCaptureOptions {
   /** Injectable RNG for sampling `[0,1)` (tests). Defaults to `Math.random`. */
   rng?: () => number;
   /**
-   * The loaded detection ruleset (D1). When provided, captured records are
-   * CLASSIFIED against it at the edge; when absent, records are beaconed
-   * `pending` (family/class NULL) — the no-baseline default — and the Node sink's
-   * `backfillClassification` labels them once its ruleset loads. D2's edge cache
-   * will populate this; until then, pass `INITIAL_RULESET` to classify at the edge.
+   * An EXPLICIT loaded detection ruleset (D1). When provided, it classifies every
+   * captured record and BYPASSES the auto-fetch client below — an advanced/testing
+   * override. When absent, the {@link rulesetEnabled} client supplies the ruleset
+   * (or records are beaconed `pending` until it loads — the no-baseline default,
+   * backfilled by the Node sink).
    */
   ruleset?: Ruleset | null;
+
+  // ── Detection freshness — the auto-fetch edge ruleset client (D4b) ────────────
+  /**
+   * Auto-fetch the detection ruleset from the CDN (stale-while-revalidate, off the
+   * hot path via `waitUntil`). Defaults to `true` whenever capture is active
+   * (`enabled` + a `sinkUrl`), so the edge path classifies without a hand-passed
+   * `ruleset`. Set `false` to keep the no-baseline `pending` behaviour.
+   */
+  rulesetEnabled?: boolean;
+  /** The ruleset artifact URL. Default the public enpitech CDN. */
+  rulesetUrl?: string;
+  /**
+   * A cross-isolate persisted cache for the fetched ruleset — a
+   * `KVRulesetCacheStore` / `CacheApiRulesetCacheStore` (from `enpilink/cloudflare`)
+   * so a cold isolate warms without re-fetching. Without one, the ruleset is held
+   * in-isolate only (a cold isolate re-fetches; a warm one does not).
+   */
+  rulesetCacheStore?: RulesetCacheStore;
+  /** TTL override in seconds; `0`/absent ⇒ honor the artifact's `Cache-Control`. */
+  rulesetTtlSeconds?: number;
+  /** Hard ruleset-fetch timeout in ms. Default 5000. */
+  rulesetTimeoutMs?: number;
+  /** `live` (long TTL) or `dev` (short TTL for testing signatures). Default live. */
+  rulesetMode?: "live" | "dev";
 }
 
 const DEFAULT_SITE_ID = "default";
@@ -173,12 +206,42 @@ export function withAgentCapture(
       })
     : null;
 
+  // The auto-fetch ruleset client (D4b) — created when capture is active and no
+  // explicit `ruleset` value was passed (which bypasses it; pass `ruleset: null`
+  // for pending-only). Its `enabled` flag controls only NETWORK FETCH — with fetch
+  // off it still warms from a provided cache store. Reads the ruleset synchronously
+  // on the hot path; refreshes in the background via `waitUntil`.
+  const rulesetClientOn = active && options.ruleset === undefined;
+  const rulesetClient = rulesetClientOn
+    ? new EdgeRulesetClient({
+        enabled: options.rulesetEnabled !== false,
+        url: options.rulesetUrl ?? DEFAULT_RULESET_URL,
+        ...(options.rulesetTtlSeconds !== undefined
+          ? { ttlSeconds: options.rulesetTtlSeconds }
+          : {}),
+        ...(options.rulesetTimeoutMs !== undefined
+          ? { timeoutMs: options.rulesetTimeoutMs }
+          : {}),
+        ...(options.rulesetMode !== undefined
+          ? { mode: options.rulesetMode }
+          : {}),
+        ...(options.rulesetCacheStore !== undefined
+          ? { cacheStore: options.rulesetCacheStore }
+          : {}),
+      })
+    : null;
+
   return (request, event) => {
     // Always run the handler first; its response is returned to Next unchanged.
     const result = handler ? handler(request, event) : undefined;
 
     if (!sink) {
       return result;
+    }
+    // Stale-while-revalidate the ruleset in the background — independent of
+    // capture sampling, always off the hot path, never awaited.
+    if (rulesetClient) {
+      event.waitUntil(rulesetClient.refreshInBackground());
     }
     const sampled = sampleRate >= 1 || (sampleRate > 0 && rng() < sampleRate);
     if (!sampled) {
@@ -202,7 +265,9 @@ export function withAgentCapture(
               ...(options.ipSalt !== undefined
                 ? { ipSalt: options.ipSalt }
                 : {}),
-              ruleset: options.ruleset ?? null,
+              // Explicit value wins; else the auto-fetch client's held ruleset
+              // (or null ⇒ `pending`, the no-baseline default).
+              ruleset: options.ruleset ?? rulesetClient?.getRuleset() ?? null,
             },
           );
           sink.add(record);
@@ -235,6 +300,47 @@ function statusFromResponse(res: Response | undefined): number {
   }
   return res.status;
 }
+
+/**
+ * Read {@link withAgentCapture} options from `process.env` (Next inlines
+ * `process.env.*` at build). Capture is enabled ONLY when a sink URL is set, so a
+ * bare `export { default } from "enpilink/next"` is a safe no-op until configured.
+ * `process` is guarded so a non-Next bundler doesn't throw at import.
+ */
+function optionsFromEnv(): WithAgentCaptureOptions {
+  const env: Record<string, string | undefined> =
+    typeof process !== "undefined" && process.env ? process.env : {};
+  const sinkUrl = env.ENPILINK_AGENT_SINK_URL;
+  const opts: WithAgentCaptureOptions = {
+    enabled: typeof sinkUrl === "string" && sinkUrl.length > 0,
+  };
+  if (sinkUrl !== undefined) {
+    opts.sinkUrl = sinkUrl;
+  }
+  if (env.ENPILINK_AGENT_INGEST_TOKEN !== undefined) {
+    opts.token = env.ENPILINK_AGENT_INGEST_TOKEN;
+  }
+  if (env.ENPILINK_AGENT_IP_SALT !== undefined) {
+    opts.ipSalt = env.ENPILINK_AGENT_IP_SALT;
+  }
+  if (env.ENPILINK_AGENT_RULESET === "false") {
+    opts.rulesetEnabled = false;
+  }
+  if (env.ENPILINK_AGENT_RULESET_URL !== undefined) {
+    opts.rulesetUrl = env.ENPILINK_AGENT_RULESET_URL;
+  }
+  return opts;
+}
+
+/**
+ * THE ONE-LINE INSTALL: in `middleware.ts`, `export { default } from "enpilink/next"`.
+ * A capture middleware configured from `ENPILINK_AGENT_*` env vars (see
+ * {@link optionsFromEnv}) — a no-op passthrough until `ENPILINK_AGENT_SINK_URL` is
+ * set, and once set it captures + auto-fetches the ruleset. For explicit config
+ * (or an in-line handler), call the named {@link withAgentCapture} instead.
+ */
+const middleware = withAgentCapture(optionsFromEnv());
+export default middleware;
 
 export {
   BeaconSink,

@@ -40,6 +40,10 @@
       "types": "./dist/server/agent/adapter/hono.d.ts",
       "default": "./dist/server/agent/adapter/hono.js"
     },
+    "./cloudflare": {
+      "types": "./dist/server/agent/cloudflare/index.d.ts",
+      "default": "./dist/server/agent/cloudflare/index.js"
+    },
     "./vite": {
       "types": "./dist/web/plugin/plugin.d.ts",
       "default": "./dist/web/plugin/plugin.js"

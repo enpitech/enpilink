@@ -121,6 +121,14 @@ export interface EdgeCaptureOutcome {
   ts: number;
   /** Middleware execution duration in ms (NOT end-to-end page time). */
   ms: number;
+  /**
+   * When true, the request would otherwise have dead-ended (404/410) but the edge
+   * SERVE layer rescued it with the representation. Records the PRE-rescue truth
+   * (`outcome = "dead_end"`) even though a 200 was returned — see
+   * {@link toCaptureRecord}. Set by the Cloudflare Worker adapter's serve path;
+   * the Next capture-only path never sets it.
+   */
+  rescuedDeadEnd?: boolean;
 }
 
 /** Options for {@link buildEdgeRecord}. */
@@ -180,6 +188,7 @@ export async function buildEdgeRecord(
     status: outcome.status,
     ts: outcome.ts,
     ms: outcome.ms,
+    ...(outcome.rescuedDeadEnd === true ? { rescuedDeadEnd: true } : {}),
   };
   const record = toCaptureRecord(minimal, captureOutcome, opts.siteId);
 
