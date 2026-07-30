@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { AgentRequestRecord } from "../storage/types.js";
 import {
   computeAgentOutcomes,
+  computeAgentRoutes,
   foldOutcomeGroups,
+  foldRouteGroups,
   groupRecords,
+  groupRouteRecords,
   isWriteMethod,
 } from "./outcomes.js";
 
@@ -151,5 +154,107 @@ describe("computeAgentOutcomes", () => {
     // The route path (DB GROUP BY) and the record path must agree exactly.
     const viaGroups = foldOutcomeGroups(groupRecords(records));
     expect(viaGroups).toEqual(agg);
+  });
+});
+
+describe("computeAgentRoutes (by-route aggregation)", () => {
+  // Two endpoints with distinct error profiles + a rescued dead-end, so the
+  // per-route counts, servedCount, errorCount and topFamilies are all exercised.
+  const records: AgentRequestRecord[] = [
+    // /search — 3 resolved (2 gemini, 1 gptbot) + 1 dead-end (gemini) that was
+    // RESCUED (served), + 1 blocked (perplexity).
+    rec({ path: "/search", outcome: "resolved", agentFamily: "gemini" }),
+    rec({ path: "/search", outcome: "resolved", agentFamily: "gemini" }),
+    rec({ path: "/search", outcome: "resolved", agentFamily: "gptbot" }),
+    rec({
+      path: "/search",
+      status: 404,
+      outcome: "dead_end",
+      agentFamily: "gemini",
+      served: true,
+    }),
+    rec({
+      path: "/search",
+      status: 403,
+      outcome: "blocked",
+      agentFamily: "perplexity",
+    }),
+    // /old-page — all dead-ends, none rescued (a clearly-broken route).
+    rec({ path: "/old-page", status: 410, outcome: "dead_end" }),
+    rec({ path: "/old-page", status: 410, outcome: "dead_end" }),
+    // /about — clean: one resolved, no errors.
+    rec({ path: "/about", outcome: "resolved", agentFamily: "gemini" }),
+  ];
+
+  const routes = computeAgentRoutes(records);
+
+  it("groups by path and sorts by request volume desc", () => {
+    expect(routes.map((r) => r.path)).toEqual([
+      "/search",
+      "/old-page",
+      "/about",
+    ]);
+    expect(routes.map((r) => r.requests)).toEqual([5, 2, 1]);
+  });
+
+  it("computes the per-route outcome histogram + dead-end rate", () => {
+    const search = routes.find((r) => r.path === "/search");
+    expect(search?.outcomeHistogram).toEqual({
+      resolved: 3,
+      dead_end: 1,
+      blocked: 1,
+      broken: 0,
+    });
+    expect(search?.deadEndRate).toBeCloseTo(1 / 5, 5);
+  });
+
+  it("counts rescues (served && dead_end) as servedCount", () => {
+    const search = routes.find((r) => r.path === "/search");
+    // 1 of the /search dead-ends was rescued by a served representation.
+    expect(search?.servedCount).toBe(1);
+    // /old-page dead-ends were never rescued.
+    const old = routes.find((r) => r.path === "/old-page");
+    expect(old?.servedCount).toBe(0);
+  });
+
+  it("counts errors as dead_end + blocked + broken", () => {
+    const search = routes.find((r) => r.path === "/search");
+    // 1 dead-end + 1 blocked = 2 errors (the rescued dead-end still counts).
+    expect(search?.errorCount).toBe(2);
+    const about = routes.find((r) => r.path === "/about");
+    expect(about?.errorCount).toBe(0);
+  });
+
+  it("surfaces the busiest families per route, most first", () => {
+    const search = routes.find((r) => r.path === "/search");
+    expect(search?.topFamilies).toEqual([
+      { family: "gemini", count: 3 },
+      { family: "gptbot", count: 1 },
+      { family: "perplexity", count: 1 },
+    ]);
+    // An unnamed family surfaces as null.
+    const old = routes.find((r) => r.path === "/old-page");
+    expect(old?.topFamilies).toEqual([{ family: null, count: 2 }]);
+  });
+
+  it("errorsOnly drops routes with no errors", () => {
+    const errorRoutes = computeAgentRoutes(records, { errorsOnly: true });
+    // /about (clean) is gone; /search + /old-page remain.
+    expect(errorRoutes.map((r) => r.path)).toEqual(["/search", "/old-page"]);
+  });
+
+  it("caps topFamilies via topFamiliesLimit", () => {
+    const capped = computeAgentRoutes(records, { topFamiliesLimit: 1 });
+    const search = capped.find((r) => r.path === "/search");
+    expect(search?.topFamilies).toEqual([{ family: "gemini", count: 3 }]);
+  });
+
+  it("folding DB route-groups yields the SAME numbers as folding records", () => {
+    const viaGroups = foldRouteGroups(groupRouteRecords(records));
+    expect(viaGroups).toEqual(routes);
+  });
+
+  it("is empty-safe", () => {
+    expect(computeAgentRoutes([])).toEqual([]);
   });
 });

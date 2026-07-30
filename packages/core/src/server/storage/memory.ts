@@ -3,6 +3,7 @@ import {
   type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
+  type AgentRouteGroup,
   type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
@@ -235,7 +236,27 @@ export class MemoryStorageAdapter implements StorageAdapter {
         (r) => r.agentClass !== undefined && set.has(r.agentClass),
       );
     }
+    if (q.outcome !== undefined) {
+      out = out.filter((r) => r.outcome === q.outcome);
+    }
+    if (q.agentFamily !== undefined) {
+      out = out.filter((r) => r.agentFamily === q.agentFamily);
+    }
+    if (q.agentClass !== undefined) {
+      out = out.filter((r) => r.agentClass === q.agentClass);
+    }
+    if (q.status !== undefined) {
+      out = out.filter((r) => r.status === q.status);
+    }
+    if (q.path !== undefined) {
+      out = out.filter((r) => r.path === q.path);
+    }
     out = out.slice().reverse();
+    // Offset then limit — the paginated drill-down's page cursor.
+    const offset = q.offset !== undefined && q.offset > 0 ? q.offset : 0;
+    if (offset > 0) {
+      out = out.slice(offset);
+    }
     if (q.limit !== undefined && q.limit >= 0) {
       out = out.slice(0, q.limit);
     }
@@ -315,6 +336,41 @@ export class MemoryStorageAdapter implements StorageAdapter {
           agentFamily: family,
           agentClass: cls,
           method: r.method,
+          served,
+          count: 1,
+        });
+      }
+    }
+    return [...groups.values()];
+  }
+
+  async aggregateAgentRoutes(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRouteGroup[]> {
+    let rows = this.agentRequests;
+    if (q.since !== undefined) {
+      rows = rows.filter((r) => r.ts >= (q.since as number));
+    }
+    if (q.until !== undefined) {
+      rows = rows.filter((r) => r.ts < (q.until as number));
+    }
+    if (q.siteId !== undefined) {
+      rows = rows.filter((r) => r.siteId === q.siteId);
+    }
+    // Same GROUP BY path/outcome/family/served the SQL adapters run, in JS.
+    const groups = new Map<string, AgentRouteGroup>();
+    for (const r of rows) {
+      const family = r.agentFamily ?? null;
+      const served = r.served === true;
+      const key = `${r.path} ${r.outcome} ${family} ${served}`;
+      const g = groups.get(key);
+      if (g) {
+        g.count += 1;
+      } else {
+        groups.set(key, {
+          path: r.path,
+          outcome: r.outcome,
+          agentFamily: family,
           served,
           count: 1,
         });

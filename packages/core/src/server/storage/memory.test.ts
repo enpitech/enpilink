@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MemoryStorageAdapter } from "./memory.js";
+import type { AgentRequestRecord } from "./types.js";
 
 describe("MemoryStorageAdapter", () => {
   let store: MemoryStorageAdapter;
@@ -282,7 +283,102 @@ describe("MemoryStorageAdapter", () => {
       expect(left.map((r) => r.ts)).toEqual([5000]);
     });
   });
+
+  describe("agent routes + drill-down (A1)", () => {
+    beforeEach(async () => {
+      await store.recordAgentRequests?.(routeSeed());
+    });
+
+    it("aggregates by route (GROUP BY path/outcome/family/served)", async () => {
+      const groups = (await store.aggregateAgentRoutes?.()) ?? [];
+      expect(groups.reduce((a, g) => a + g.count, 0)).toBe(5);
+      const search = groups.filter((g) => g.path === "/search");
+      expect(search).toHaveLength(3);
+      const rescued = search.find((g) => g.served);
+      expect(rescued?.outcome).toBe("dead_end");
+      expect(rescued?.count).toBe(1);
+      const old = groups.filter((g) => g.path === "/old");
+      expect(old.reduce((a, g) => a + g.count, 0)).toBe(2);
+      expect(old.every((g) => !g.served)).toBe(true);
+    });
+
+    it("filters the drill-down by each dimension", async () => {
+      const byOutcome =
+        (await store.queryAgentRequests?.({ outcome: "dead_end" })) ?? [];
+      expect(byOutcome).toHaveLength(3);
+      const byPath =
+        (await store.queryAgentRequests?.({ path: "/search" })) ?? [];
+      expect(byPath).toHaveLength(3);
+      const byStatus =
+        (await store.queryAgentRequests?.({ status: 403 })) ?? [];
+      expect(byStatus).toHaveLength(1);
+      const byFamily =
+        (await store.queryAgentRequests?.({ agentFamily: "gptbot" })) ?? [];
+      expect(byFamily).toHaveLength(2);
+      const byClass =
+        (await store.queryAgentRequests?.({ agentClass: "cli" })) ?? [];
+      expect(byClass).toHaveLength(1);
+      // Combined filters AND together.
+      const combined =
+        (await store.queryAgentRequests?.({
+          path: "/search",
+          outcome: "dead_end",
+        })) ?? [];
+      expect(combined).toHaveLength(1);
+      expect(combined[0]?.served).toBe(true);
+    });
+
+    it("paginates most-recent-first with limit + offset", async () => {
+      const page1 = (await store.queryAgentRequests?.({ limit: 2 })) ?? [];
+      expect(page1.map((r) => r.ts)).toEqual([5000, 4000]);
+      const page2 =
+        (await store.queryAgentRequests?.({ limit: 2, offset: 2 })) ?? [];
+      expect(page2.map((r) => r.ts)).toEqual([3000, 2000]);
+      const page3 =
+        (await store.queryAgentRequests?.({ limit: 2, offset: 4 })) ?? [];
+      expect(page3.map((r) => r.ts)).toEqual([1000]);
+    });
+  });
 });
+
+/** A cross-route seed exercising the A1 aggregation + drill-down filters. */
+function routeSeed(): AgentRequestRecord[] {
+  return [
+    routeReq(1000, "/search", "resolved", 200, "chat-fetcher", "gemini"),
+    {
+      ...routeReq(2000, "/search", "dead_end", 404, "chat-fetcher", "gemini"),
+      served: true,
+      servedEncoding: "markdown",
+    },
+    routeReq(3000, "/search", "blocked", 403, "cli", "claude-code"),
+    routeReq(4000, "/old", "dead_end", 410, "crawler", "gptbot"),
+    routeReq(5000, "/old", "dead_end", 410, "crawler", "gptbot"),
+  ];
+}
+
+/** One seed row for {@link routeSeed}. */
+function routeReq(
+  ts: number,
+  path: string,
+  outcome: AgentRequestRecord["outcome"],
+  status: number,
+  agentClass: AgentRequestRecord["agentClass"],
+  agentFamily: string,
+): AgentRequestRecord {
+  return {
+    ts,
+    siteId: "default",
+    method: "GET",
+    path,
+    status,
+    outcome,
+    httpVersion: "1.1",
+    headers: [["Host", "x"]],
+    confidence: "none",
+    agentClass,
+    agentFamily,
+  };
+}
 
 /** A minimal agent request at a given timestamp. */
 function memReq(ts: number) {

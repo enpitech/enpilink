@@ -6,6 +6,7 @@ import {
   type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
+  type AgentRouteGroup,
   type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
@@ -404,11 +405,31 @@ export class SqliteStorageAdapter implements StorageAdapter {
       });
       where.push(`agent_class IN (${names.join(", ")})`);
     }
+    if (q.outcome !== undefined) {
+      where.push("outcome = @outcome");
+      params.outcome = q.outcome;
+    }
+    if (q.agentFamily !== undefined) {
+      where.push("agent_family = @agentFamily");
+      params.agentFamily = q.agentFamily;
+    }
+    if (q.agentClass !== undefined) {
+      where.push("agent_class = @agentClass");
+      params.agentClass = q.agentClass;
+    }
+    if (q.status !== undefined) {
+      where.push("status = @status");
+      params.status = q.status;
+    }
+    if (q.path !== undefined) {
+      where.push("path = @path");
+      params.path = q.path;
+    }
     const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    const limit = limitClause(q.limit, params);
+    const page = pageClause(q.limit, q.offset, params);
     const rows = db
       .prepare(
-        `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${limit}`,
+        `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${page}`,
       )
       .all(params) as AgentRequestRow[];
     return rows.map(rowToAgentRequest);
@@ -490,6 +511,37 @@ export class SqliteStorageAdapter implements StorageAdapter {
     return rows.map(rowToOutcomeGroup);
   }
 
+  async aggregateAgentRoutes(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRouteGroup[]> {
+    const { db } = this.require();
+    const where: string[] = [];
+    const params: Record<string, unknown> = {};
+    if (q.since !== undefined) {
+      where.push("ts >= @since");
+      params.since = q.since;
+    }
+    if (q.until !== undefined) {
+      where.push("ts < @until");
+      params.until = q.until;
+    }
+    if (q.siteId !== undefined) {
+      where.push("site_id = @siteId");
+      params.siteId = q.siteId;
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    // GROUP BY path + the low-cardinality outcome/family/served dimensions so a
+    // busy route collapses to a handful of counts DB-side — never every raw row.
+    const rows = db
+      .prepare(
+        `SELECT path, outcome, agent_family, served, COUNT(*) AS count
+           FROM agent_requests ${clause}
+          GROUP BY path, outcome, agent_family, served`,
+      )
+      .all(params) as AgentRouteGroupRow[];
+    return rows.map(rowToRouteGroup);
+  }
+
   async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
     const { stmts } = this.require();
     stmts.insertAgentSite.run({
@@ -543,6 +595,25 @@ function limitClause(
   }
   params.limit = limit;
   return "LIMIT @limit";
+}
+
+/**
+ * Build a `LIMIT … OFFSET …` tail for the paginated agent-request drill-down.
+ * sqlite requires a LIMIT before OFFSET, so an offset with no limit uses the
+ * `LIMIT -1` sentinel ("no limit"). A zero/undefined offset degrades to a plain
+ * {@link limitClause}.
+ */
+function pageClause(
+  limit: number | undefined,
+  offset: number | undefined,
+  params: Record<string, unknown>,
+): string {
+  const limitPart = limitClause(limit, params);
+  if (offset === undefined || offset <= 0) {
+    return limitPart;
+  }
+  params.offset = offset;
+  return `${limitPart || "LIMIT -1"} OFFSET @offset`;
 }
 
 interface EventRow {
@@ -719,6 +790,24 @@ function rowToOutcomeGroup(r: AgentOutcomeGroupRow): AgentOutcomeGroup {
     agentFamily: r.agent_family,
     agentClass: r.agent_class as AgentOutcomeGroup["agentClass"],
     method: r.method,
+    served: r.served === 1,
+    count: Number(r.count),
+  };
+}
+
+interface AgentRouteGroupRow {
+  path: string;
+  outcome: string;
+  agent_family: string | null;
+  served: number | null;
+  count: number;
+}
+
+function rowToRouteGroup(r: AgentRouteGroupRow): AgentRouteGroup {
+  return {
+    path: r.path,
+    outcome: r.outcome as AgentRouteGroup["outcome"],
+    agentFamily: r.agent_family,
     served: r.served === 1,
     count: Number(r.count),
   };

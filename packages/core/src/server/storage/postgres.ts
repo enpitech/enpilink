@@ -4,6 +4,7 @@ import {
   type AgentOutcomeGroup,
   type AgentRequestQuery,
   type AgentRequestRecord,
+  type AgentRouteGroup,
   type AgentSiteRecord,
   type AnalyticsEvent,
   type AuthSession,
@@ -451,10 +452,31 @@ export class PostgresStorageAdapter implements StorageAdapter {
       });
       where.push(`agent_class IN (${ph.join(", ")})`);
     }
+    if (q.outcome !== undefined) {
+      params.push(q.outcome);
+      where.push(`outcome = $${params.length}`);
+    }
+    if (q.agentFamily !== undefined) {
+      params.push(q.agentFamily);
+      where.push(`agent_family = $${params.length}`);
+    }
+    if (q.agentClass !== undefined) {
+      params.push(q.agentClass);
+      where.push(`agent_class = $${params.length}`);
+    }
+    if (q.status !== undefined) {
+      params.push(q.status);
+      where.push(`status = $${params.length}`);
+    }
+    if (q.path !== undefined) {
+      params.push(q.path);
+      where.push(`path = $${params.length}`);
+    }
     const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const limit = limitClause(q.limit, params);
+    const offset = offsetClause(q.offset, params);
     const { rows } = await pool.query<AgentRequestRow>(
-      `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${limit}`,
+      `SELECT * FROM agent_requests ${clause} ORDER BY id DESC ${limit} ${offset}`,
       params,
     );
     return rows.map(rowToAgentRequest);
@@ -530,6 +552,34 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return rows.map(rowToOutcomeGroup);
   }
 
+  async aggregateAgentRoutes(
+    q: AgentRequestQuery = {},
+  ): Promise<AgentRouteGroup[]> {
+    const pool = this.require();
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (q.since !== undefined) {
+      params.push(q.since);
+      where.push(`ts >= $${params.length}`);
+    }
+    if (q.until !== undefined) {
+      params.push(q.until);
+      where.push(`ts < $${params.length}`);
+    }
+    if (q.siteId !== undefined) {
+      params.push(q.siteId);
+      where.push(`site_id = $${params.length}`);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const { rows } = await pool.query<AgentRouteGroupRow>(
+      `SELECT path, outcome, agent_family, served, COUNT(*) AS count
+         FROM agent_requests ${clause}
+        GROUP BY path, outcome, agent_family, served`,
+      params,
+    );
+    return rows.map(rowToRouteGroup);
+  }
+
   async ensureAgentSite(site: AgentSiteRecord): Promise<AgentSiteRecord> {
     const pool = this.require();
     await pool.query(
@@ -568,6 +618,19 @@ function limitClause(limit: number | undefined, params: unknown[]): string {
   }
   params.push(limit);
   return `LIMIT $${params.length}`;
+}
+
+/**
+ * Build an `OFFSET $n` clause for the paginated agent-request drill-down.
+ * Postgres allows OFFSET without a LIMIT, so this is independent of
+ * {@link limitClause}. A zero/undefined offset returns nothing.
+ */
+function offsetClause(offset: number | undefined, params: unknown[]): string {
+  if (offset === undefined || offset <= 0) {
+    return "";
+  }
+  params.push(offset);
+  return `OFFSET $${params.length}`;
 }
 
 interface EventRow {
@@ -718,6 +781,24 @@ function rowToOutcomeGroup(r: AgentOutcomeGroupRow): AgentOutcomeGroup {
     agentFamily: r.agent_family,
     agentClass: r.agent_class as AgentOutcomeGroup["agentClass"],
     method: r.method,
+    served: Number(r.served) === 1,
+    count: Number(r.count),
+  };
+}
+
+interface AgentRouteGroupRow {
+  path: string;
+  outcome: string;
+  agent_family: string | null;
+  served: number | string | null;
+  count: number | string;
+}
+
+function rowToRouteGroup(r: AgentRouteGroupRow): AgentRouteGroup {
+  return {
+    path: r.path,
+    outcome: r.outcome as AgentRouteGroup["outcome"],
+    agentFamily: r.agent_family,
     served: Number(r.served) === 1,
     count: Number(r.count),
   };

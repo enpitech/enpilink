@@ -253,8 +253,32 @@ export interface AgentRequestQuery {
    * pulls the full (potentially huge) human/agent row set into JS.
    */
   classes?: string[];
+  /**
+   * The drill-down filters (A1). Each narrows {@link StorageAdapter.queryAgentRequests}
+   * by an exact-match dimension of the captured row — used by the console Routes
+   * page's request list. All are ANDed with each other (and with the window /
+   * {@link classes} above). {@link StorageAdapter.aggregateAgentOutcomes} and
+   * {@link StorageAdapter.aggregateAgentRoutes} ignore these (they only read the
+   * window + {@link siteId}), exactly as {@link classes} is honoured only by the
+   * row query.
+   */
+  /** Only requests whose {@link AgentRequestRecord.outcome} equals this. */
+  outcome?: string;
+  /** Only requests whose {@link AgentRequestRecord.agentFamily} equals this. */
+  agentFamily?: string;
+  /** Only requests whose {@link AgentRequestRecord.agentClass} equals this. */
+  agentClass?: string;
+  /** Only requests whose HTTP {@link AgentRequestRecord.status} equals this. */
+  status?: number;
+  /** Only requests whose {@link AgentRequestRecord.path} equals this. */
+  path?: string;
   /** Maximum rows returned (most recent first). */
   limit?: number;
+  /**
+   * Skip the first `offset` rows (most-recent-first order) before returning
+   * {@link limit}. The drill-down's page cursor. 0 / undefined starts at the top.
+   */
+  offset?: number;
 }
 
 /**
@@ -315,6 +339,30 @@ export interface AgentOutcomeGroup {
   agentClass: AgentClass | null;
   /** HTTP method (original casing) — write-attempt is derived from this. */
   method: string;
+  /** Whether M3 served the representation for the requests in this group. */
+  served: boolean;
+  /** Number of requests in the group. */
+  count: number;
+}
+
+/**
+ * A pre-grouped BY-ROUTE count — the aggregation unit the A1 Routes read API
+ * folds into per-endpoint stats. Produced DB-side by
+ * {@link StorageAdapter.aggregateAgentRoutes} (a `GROUP BY path, outcome,
+ * agent_family, served`, so the console Routes page never pulls raw rows into
+ * JS the way a naive per-endpoint scan would) and, identically, by grouping
+ * records in JS for the pure table tests. The keys are all low-cardinality
+ * EXCEPT `path`, so the group count is bounded by distinct paths × outcomes ×
+ * families × served — which is exactly the per-route breakdown the page renders
+ * (a route hit a million times still collapses to a handful of groups).
+ */
+export interface AgentRouteGroup {
+  /** Request path (pathname only) the group is bucketed under. */
+  path: string;
+  /** The status-derived outcome class for the group. */
+  outcome: AgentOutcome;
+  /** Named vendor/client, or `null` when unnamed. */
+  agentFamily: string | null;
   /** Whether M3 served the representation for the requests in this group. */
   served: boolean;
   /** Number of requests in the group. */
@@ -452,6 +500,18 @@ export interface StorageAdapter {
    * bounded {@link queryAgentRequests} + in-JS grouping when it is absent.
    */
   aggregateAgentOutcomes?(q?: AgentRequestQuery): Promise<AgentOutcomeGroup[]>;
+  /**
+   * Aggregate captured agent requests into per-route {@link AgentRouteGroup}
+   * counts with a DB-side `GROUP BY path, outcome, agent_family, served` — the
+   * scalable path the A1 Routes read API uses so the console's per-endpoint
+   * breakdown is never assembled by pulling every row into JS. Reads the window
+   * ({@link AgentRequestQuery.since}/`until`) + {@link AgentRequestQuery.siteId}
+   * ONLY (the drill-down filters do not apply to a route rollup). Optional so
+   * custom adapters predating A1 keep compiling; the read API feature-detects and
+   * falls back to a bounded {@link queryAgentRequests} + in-JS grouping when it is
+   * absent.
+   */
+  aggregateAgentRoutes?(q?: AgentRequestQuery): Promise<AgentRouteGroup[]>;
   /**
    * Get-or-create a site row, returning the EFFECTIVE record. If a row for
    * `site.id` already exists its stored salt is kept (so IP hashes stay stable

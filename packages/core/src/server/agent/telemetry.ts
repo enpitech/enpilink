@@ -1,10 +1,18 @@
 import express, { type Router } from "express";
+import { z } from "zod";
 import { getActiveStorage } from "../log-sink.js";
-import type { AgentRequestRecord, StorageAdapter } from "../storage/types.js";
+import type {
+  AgentRequestQuery,
+  AgentRequestRecord,
+  StorageAdapter,
+} from "../storage/types.js";
 import {
   computeAgentOutcomes,
+  computeAgentRoutes,
   foldOutcomeGroups,
+  foldRouteGroups,
   type OutcomeAggregate,
+  type RouteAggregate,
 } from "./outcomes.js";
 import {
   computeAgentSessions,
@@ -47,6 +55,10 @@ const SESSION_ROW_CLASSES = ["cli", "browser-agent", "human-or-browser"];
 const SESSION_ROW_CAP = 5000;
 /** Default window when the caller passes no `since` (24h). */
 const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Default page size for the request drill-down when none is given. */
+const DEFAULT_PAGE_SIZE = 50;
+/** Hard cap on the request drill-down page size (a request can never self-DoS). */
+const MAX_PAGE_SIZE = 200;
 
 /** The telemetry summary when capture has data. */
 export interface AgentTelemetrySummary {
@@ -202,6 +214,21 @@ function strParam(raw: unknown): string | undefined {
   return typeof raw === "string" && raw.length > 0 ? raw : undefined;
 }
 
+/** A boolean query param — true for `"1"`/`"true"` (case-insensitive), else false. */
+function boolParam(raw: unknown): boolean {
+  return (
+    raw === "1" || (typeof raw === "string" && raw.toLowerCase() === "true")
+  );
+}
+
+/** Clamp a requested page size into `[1, MAX_PAGE_SIZE]`, defaulting when unset. */
+function clampPageSize(raw: number | undefined): number {
+  if (raw === undefined || raw <= 0) {
+    return DEFAULT_PAGE_SIZE;
+  }
+  return Math.min(raw, MAX_PAGE_SIZE);
+}
+
 /**
  * Build the telemetry summary from storage for the given window. Uses the DB-side
  * outcome aggregate for the accurate numbers and a bounded pull for correlation.
@@ -257,6 +284,235 @@ export async function readAgentTelemetry(
   return assemble(outcomes, merged, since, rows.length >= SESSION_ROW_CAP);
 }
 
+// ── A1: by-route aggregation + a filterable requests drill-down ──────────────
+//
+// Two read endpoints the console Routes page consumes. Both degrade to
+// `{ enabled: false }` (a 200, never a 500) exactly like `/summary`. Their
+// responses carry zod schemas so the consumer parses a validated shape; the
+// server builds objects typed by `z.infer`, so a shape drift is a compile error.
+
+/** The four S3 read-outcome classes a captured row can carry (fixed, not growing). */
+const outcomeEnumSchema = z.enum(["resolved", "dead_end", "blocked", "broken"]);
+
+/** `OutcomeHistogram` — zero-filled read-outcome counts. */
+const outcomeHistogramSchema = z.object({
+  resolved: z.number(),
+  dead_end: z.number(),
+  blocked: z.number(),
+  broken: z.number(),
+});
+
+/** `RouteFamilyCount` — one agent family's volume on a route (`null` = unnamed). */
+const routeFamilyCountSchema = z.object({
+  family: z.string().nullable(),
+  count: z.number(),
+});
+
+/**
+ * `RouteAggregate` — one endpoint's stats. Mirrors {@link RouteAggregate} in
+ * `outcomes.ts`; the fold there produces exactly this shape.
+ */
+const routeAggregateSchema = z.object({
+  path: z.string(),
+  requests: z.number(),
+  outcomeHistogram: outcomeHistogramSchema,
+  deadEndRate: z.number(),
+  servedCount: z.number(),
+  errorCount: z.number(),
+  topFamilies: z.array(routeFamilyCountSchema),
+});
+
+/** `GET /routes` — the per-endpoint breakdown, or the degraded shape. */
+export const agentRoutesResponseSchema = z.discriminatedUnion("enabled", [
+  z.object({
+    enabled: z.literal(true),
+    /** Lower bound of the window (epoch ms). */
+    since: z.number(),
+    /** Per-route stats, most requests first (see `foldRouteGroups`). */
+    routes: z.array(routeAggregateSchema),
+  }),
+  z.object({ enabled: z.literal(false) }),
+]);
+
+/** The populated `/routes` payload. */
+export type AgentRoutesSummary = Extract<
+  z.infer<typeof agentRoutesResponseSchema>,
+  { enabled: true }
+>;
+/** The full `/routes` response (populated OR degraded). */
+export type AgentRoutesResponse = z.infer<typeof agentRoutesResponseSchema>;
+
+/**
+ * `AgentRequestRow` — one row of the drill-down: the request (`ts`/`method`/
+ * `path`/`ua`) + what we responded (`status`/`outcome`/`served`/`servedEncoding`)
+ * + the attribution (`agentFamily`/`agentClass`/`confidence`). Deliberately does
+ * NOT expose the raw `headers` or the salted `ipHash` — the drill-down is a
+ * behavioural view, not a fingerprint dump. `agentClass`/`family`/`confidence`
+ * stay `string` (not enums): the taxonomy GROWS as the corpus does. `confidence`
+ * is the tier the console MUST render distinctly (a verified hit must not look
+ * like a `ua-only` guess).
+ */
+const agentRequestRowSchema = z.object({
+  id: z.number().optional(),
+  ts: z.number(),
+  method: z.string(),
+  path: z.string(),
+  status: z.number(),
+  outcome: outcomeEnumSchema,
+  served: z.boolean(),
+  servedEncoding: z.enum(["markdown", "html"]).nullable(),
+  agentFamily: z.string().nullable(),
+  agentClass: z.string().nullable(),
+  confidence: z.string(),
+  ua: z.string().nullable(),
+});
+
+/** `GET /requests` — a page of the filtered drill-down, or the degraded shape. */
+export const agentRequestsResponseSchema = z.discriminatedUnion("enabled", [
+  z.object({
+    enabled: z.literal(true),
+    /** Lower bound of the window (epoch ms). */
+    since: z.number(),
+    /** The page of rows (most recent first). */
+    requests: z.array(agentRequestRowSchema),
+    /** The page size applied (bounded to {@link MAX_PAGE_SIZE}). */
+    limit: z.number(),
+    /** The page offset applied. */
+    offset: z.number(),
+    /** Whether another page exists past this one (a `limit + 1` probe). */
+    hasMore: z.boolean(),
+  }),
+  z.object({ enabled: z.literal(false) }),
+]);
+
+/** One drill-down row. */
+export type AgentRequestRow = z.infer<typeof agentRequestRowSchema>;
+/** The populated `/requests` payload. */
+export type AgentRequestsSummary = Extract<
+  z.infer<typeof agentRequestsResponseSchema>,
+  { enabled: true }
+>;
+/** The full `/requests` response (populated OR degraded). */
+export type AgentRequestsResponse = z.infer<typeof agentRequestsResponseSchema>;
+
+/** Options for {@link readAgentRoutes}. */
+export interface ReadRoutesOptions {
+  /** Lower bound of the window (epoch ms). */
+  since: number;
+  /** Upper bound of the window (epoch ms), exclusive. */
+  until?: number;
+  /** Scope to a single site. */
+  siteId?: string;
+  /** Keep only routes with at least one error (dead_end/blocked/broken). */
+  errorsOnly?: boolean;
+}
+
+/** Options for {@link readAgentRequests}. */
+export interface ReadRequestsOptions {
+  /** Lower bound of the window (epoch ms). */
+  since: number;
+  /** Upper bound of the window (epoch ms), exclusive. */
+  until?: number;
+  /** Scope to a single site. */
+  siteId?: string;
+  /** Exact-match filters (each ANDed). */
+  outcome?: string;
+  agentFamily?: string;
+  agentClass?: string;
+  status?: number;
+  path?: string;
+  /** Page size (already clamped by the caller). */
+  limit: number;
+  /** Page offset. */
+  offset: number;
+}
+
+/** Project a captured record into the drill-down row (drops headers + ipHash). */
+function toRequestRow(r: AgentRequestRecord): AgentRequestRow {
+  return {
+    ...(r.id !== undefined ? { id: r.id } : {}),
+    ts: r.ts,
+    method: r.method,
+    path: r.path,
+    status: r.status,
+    outcome: r.outcome,
+    served: r.served === true,
+    servedEncoding: r.servedEncoding ?? null,
+    agentFamily: r.agentFamily ?? null,
+    agentClass: r.agentClass ?? null,
+    confidence: r.confidence ?? "none",
+    ua: r.ua ?? null,
+  };
+}
+
+/**
+ * Build the by-route breakdown from storage for the window. Prefers the DB-side
+ * `GROUP BY` ({@link StorageAdapter.aggregateAgentRoutes}); falls back to a
+ * BOUNDED record pull + in-JS grouping only when an adapter lacks it (never the
+ * whole table). Returns the disabled shape when there is no usable storage.
+ */
+export async function readAgentRoutes(
+  storage: StorageAdapter | null,
+  opts: ReadRoutesOptions,
+): Promise<AgentRoutesResponse> {
+  if (!storage?.aggregateAgentRoutes && !storage?.queryAgentRequests) {
+    return { enabled: false };
+  }
+  const { since, until, siteId, errorsOnly } = opts;
+  let routes: RouteAggregate[];
+  if (storage.aggregateAgentRoutes) {
+    const groups = await storage.aggregateAgentRoutes({ since, until, siteId });
+    routes = foldRouteGroups(groups, { errorsOnly });
+  } else {
+    const rows = await (
+      storage.queryAgentRequests as NonNullable<
+        StorageAdapter["queryAgentRequests"]
+      >
+    )({ since, until, siteId, limit: SESSION_ROW_CAP });
+    routes = computeAgentRoutes(rows, { errorsOnly });
+  }
+  return { enabled: true, since, routes };
+}
+
+/**
+ * Read a filtered, paginated page of the request drill-down. Pulls `limit + 1`
+ * rows so `hasMore` is known without a second count query, then trims to the
+ * page. Returns the disabled shape when there is no usable storage.
+ */
+export async function readAgentRequests(
+  storage: StorageAdapter | null,
+  opts: ReadRequestsOptions,
+): Promise<AgentRequestsResponse> {
+  if (!storage?.queryAgentRequests) {
+    return { enabled: false };
+  }
+  const { since, until, siteId, limit, offset } = opts;
+  const query: AgentRequestQuery = {
+    since,
+    until,
+    siteId,
+    outcome: opts.outcome,
+    agentFamily: opts.agentFamily,
+    agentClass: opts.agentClass,
+    status: opts.status,
+    path: opts.path,
+    // Over-fetch by one so a full page reveals whether another page follows.
+    limit: limit + 1,
+    offset,
+  };
+  const rows = await storage.queryAgentRequests(query);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  return {
+    enabled: true,
+    since,
+    requests: page.map(toRequestRow),
+    limit,
+    offset,
+    hasMore,
+  };
+}
+
 /**
  * Build the agent telemetry read API router. Mounted alongside the observability
  * router (dev-open, prod-guarded). Reads storage per-request so the disabled path
@@ -289,6 +545,82 @@ export function createAgentTelemetryRouter(
         opts.siteId = siteId;
       }
       res.json(await readAgentTelemetry(storage, opts));
+    } catch {
+      res.json({ enabled: false } satisfies AgentTelemetryDisabled);
+    }
+  });
+
+  // GET /routes?since&until&site&errorsOnly — the per-endpoint breakdown.
+  router.get(`${base}/routes`, async (req, res) => {
+    const storage = getStorage();
+    if (!storage) {
+      res.json({ enabled: false } satisfies AgentTelemetryDisabled);
+      return;
+    }
+    const since = intParam(req.query.since) ?? Date.now() - DEFAULT_WINDOW_MS;
+    const opts: ReadRoutesOptions = { since };
+    const until = intParam(req.query.until);
+    if (until !== undefined) {
+      opts.until = until;
+    }
+    const siteId = strParam(req.query.site);
+    if (siteId !== undefined) {
+      opts.siteId = siteId;
+    }
+    if (boolParam(req.query.errorsOnly)) {
+      opts.errorsOnly = true;
+    }
+    try {
+      res.json(await readAgentRoutes(storage, opts));
+    } catch {
+      res.json({ enabled: false } satisfies AgentTelemetryDisabled);
+    }
+  });
+
+  // GET /requests?since&until&site&outcome&family&class&status&path&limit&offset
+  //   — the filtered, paginated drill-down.
+  router.get(`${base}/requests`, async (req, res) => {
+    const storage = getStorage();
+    if (!storage) {
+      res.json({ enabled: false } satisfies AgentTelemetryDisabled);
+      return;
+    }
+    const since = intParam(req.query.since) ?? Date.now() - DEFAULT_WINDOW_MS;
+    const opts: ReadRequestsOptions = {
+      since,
+      limit: clampPageSize(intParam(req.query.limit)),
+      offset: intParam(req.query.offset) ?? 0,
+    };
+    const until = intParam(req.query.until);
+    if (until !== undefined) {
+      opts.until = until;
+    }
+    const siteId = strParam(req.query.site);
+    if (siteId !== undefined) {
+      opts.siteId = siteId;
+    }
+    const outcome = strParam(req.query.outcome);
+    if (outcome !== undefined) {
+      opts.outcome = outcome;
+    }
+    const family = strParam(req.query.family);
+    if (family !== undefined) {
+      opts.agentFamily = family;
+    }
+    const agentClass = strParam(req.query.class);
+    if (agentClass !== undefined) {
+      opts.agentClass = agentClass;
+    }
+    const status = intParam(req.query.status);
+    if (status !== undefined) {
+      opts.status = status;
+    }
+    const path = strParam(req.query.path);
+    if (path !== undefined) {
+      opts.path = path;
+    }
+    try {
+      res.json(await readAgentRequests(storage, opts));
     } catch {
       res.json({ enabled: false } satisfies AgentTelemetryDisabled);
     }
