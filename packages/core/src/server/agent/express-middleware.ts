@@ -133,6 +133,13 @@ export function installAgentCapture(
       next();
       return;
     }
+    // The `/__enpilink/*` plane (admin, console SPA, the agent read APIs) is internal
+    // infrastructure, not site traffic. Never record it — otherwise an operator's own
+    // dashboard polling dominates the route analytics and pollutes the corpus.
+    if (req.path.startsWith("/__enpilink")) {
+      next();
+      return;
+    }
     const { sampleRate } = gate;
     const sampled = sampleRate >= 1 || (sampleRate > 0 && rng() < sampleRate);
     if (!sampled) {

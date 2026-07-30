@@ -9,6 +9,12 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs.js";
+import {
   type AgentSummaryEnabled,
   type ClassOutcome,
   countUnrecognised,
@@ -21,6 +27,7 @@ import { RANGES, resolveRange } from "@/lib/observability-store.js";
 import { useChartTheme } from "@/lib/use-chart-theme.js";
 import { RangePicker } from "../dashboard/range-picker.js";
 import { OutcomeClassBar } from "./charts.js";
+import { AgentsRoutes } from "./routes.js";
 import { RulesetCard } from "./ruleset-card.js";
 
 const numberFmt = new Intl.NumberFormat("en-US");
@@ -429,7 +436,7 @@ function SignalTile({
 }
 
 /** Storage absent / capture off — the degraded `{enabled:false}` shape. */
-function DisabledHint() {
+export function DisabledHint() {
   return (
     <div
       className="flex h-full items-center justify-center bg-canvas p-8"
@@ -469,7 +476,7 @@ function DisabledHint() {
 }
 
 /** Capture is ON but no agent traffic yet — distinct from the disabled state. */
-function EmptyOnHint() {
+export function EmptyOnHint() {
   return (
     <div
       className="flex h-full items-center justify-center bg-canvas p-8"
@@ -551,23 +558,36 @@ export const Agents = () => {
             surface is on; independent of the traffic-summary state below. */}
         <RulesetCard />
 
-        {isLoading && !summary ? (
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <p className="text-sm text-muted-foreground">Loading metrics…</p>
-          </div>
-        ) : isError || !summary ? (
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              Could not load agent telemetry.
-            </p>
-          </div>
-        ) : !summary.enabled || !s ? (
-          <DisabledHint />
-        ) : s.outcomes.total === 0 ? (
-          <EmptyOnHint />
-        ) : (
-          <AgentsBody s={s} theme={theme} />
-        )}
+        <Tabs defaultValue="overview" className="flex min-h-0 flex-col">
+          <TabsList className="self-start">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="routes">Routes</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview" className="mt-4 min-h-0">
+            {isLoading && !summary ? (
+              <div className="flex min-h-[60vh] items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Loading metrics…
+                </p>
+              </div>
+            ) : isError || !summary ? (
+              <div className="flex min-h-[60vh] items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Could not load agent telemetry.
+                </p>
+              </div>
+            ) : !summary.enabled || !s ? (
+              <DisabledHint />
+            ) : s.outcomes.total === 0 ? (
+              <EmptyOnHint />
+            ) : (
+              <AgentsBody s={s} theme={theme} />
+            )}
+          </TabsContent>
+          <TabsContent value="routes" className="mt-4 min-h-0">
+            <AgentsRoutes since={since} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
