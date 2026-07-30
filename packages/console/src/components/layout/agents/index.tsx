@@ -7,13 +7,7 @@ import {
   RotateCcw,
   SearchX,
 } from "lucide-react";
-import { useMemo } from "react";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs.js";
+import { useMemo, useState } from "react";
 import {
   type AgentSummaryEnabled,
   type ClassOutcome,
@@ -512,6 +506,7 @@ export const Agents = () => {
   const [range, setRange] = useDashboardRange();
   // Quantize `now` to a 30s step so the derived `since` (and the query key it
   // feeds) stays referentially stable across polling renders.
+  const [subview, setSubview] = useState<"overview" | "routes">("overview");
   const { since } = useMemo(() => {
     const now = Math.floor(Date.now() / 30_000) * 30_000;
     return resolveRange(range, now);
@@ -558,36 +553,49 @@ export const Agents = () => {
             surface is on; independent of the traffic-summary state below. */}
         <RulesetCard />
 
-        <Tabs defaultValue="overview" className="flex min-h-0 flex-col">
-          <TabsList className="self-start">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="routes">Routes</TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview" className="mt-4 min-h-0">
-            {isLoading && !summary ? (
-              <div className="flex min-h-[60vh] items-center justify-center">
-                <p className="text-sm text-muted-foreground">
-                  Loading metrics…
-                </p>
-              </div>
-            ) : isError || !summary ? (
-              <div className="flex min-h-[60vh] items-center justify-center">
-                <p className="text-sm text-muted-foreground">
-                  Could not load agent telemetry.
-                </p>
-              </div>
-            ) : !summary.enabled || !s ? (
-              <DisabledHint />
-            ) : s.outcomes.total === 0 ? (
-              <EmptyOnHint />
-            ) : (
-              <AgentsBody s={s} theme={theme} />
-            )}
-          </TabsContent>
-          <TabsContent value="routes" className="mt-4 min-h-0">
-            <AgentsRoutes since={since} />
-          </TabsContent>
-        </Tabs>
+        {/* Sub-view toggle. A plain segmented control, NOT the shared `Tabs`
+            component: that uses a Tailwind group name that collides with the
+            outer vertical nav when nested, which stripped the tab chrome. */}
+        <div className="inline-flex w-fit gap-1 rounded-lg bg-muted p-[3px]">
+          {(["overview", "routes"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setSubview(v)}
+              data-testid={`agents-subtab-${v}`}
+              aria-pressed={subview === v}
+              className={`rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors ${
+                subview === v
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {subview === "overview" ? (
+          isLoading && !summary ? (
+            <div className="flex min-h-[60vh] items-center justify-center">
+              <p className="text-sm text-muted-foreground">Loading metrics…</p>
+            </div>
+          ) : isError || !summary ? (
+            <div className="flex min-h-[60vh] items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Could not load agent telemetry.
+              </p>
+            </div>
+          ) : !summary.enabled || !s ? (
+            <DisabledHint />
+          ) : s.outcomes.total === 0 ? (
+            <EmptyOnHint />
+          ) : (
+            <AgentsBody s={s} theme={theme} />
+          )
+        ) : (
+          <AgentsRoutes since={since} />
+        )}
       </div>
     </div>
   );
