@@ -1,24 +1,32 @@
 #!/usr/bin/env node
 /**
- * Build the enpitech detection-ruleset artifact from the maintained corpus and
- * emit the static JSON ready to upload to the CDN (D3).
+ * Build the detection-ruleset artifact from the maintained corpus and emit the
+ * static JSON (D3).
+ *
+ * enpilink is SELF-HOSTED: every enpilink instance already ships this exact
+ * artifact and serves it in-process at `/__enpilink/agents/ruleset` — there is no
+ * enpitech CDN. This script is for the maintainer of the corpus (or a fork), and
+ * for an operator who wants to host the artifact on THEIR OWN static host / CDN so
+ * many distributed edge adapters can fetch one file instead of hitting a Node
+ * server. The bytes are identical to what the instance serves.
  *
  * WHAT IS CODE vs WHAT IS A DEPLOY STEP:
  *   - CODE (this script + `packages/core/.../ruleset/publish.ts`): assemble the
  *     corpus, compute a content-addressed version, VALIDATE, and write the file.
- *   - DEPLOY (an ops step, NOT code): upload the emitted `dist/ruleset/v1.json`
- *     to the public CDN at `https://cdn.enpitech.dev/agent/ruleset/v1.json` with
- *     the `Cache-Control` you want (the central freshness dial). Clients fetch
- *     that stable URL; the artifact's `version` FIELD changes on each data change.
+ *   - DEPLOY (an ops step, NOT code): if you self-host the file for distributed
+ *     adapters, upload the emitted `dist/ruleset/v1.json` to YOUR OWN static host
+ *     / CDN with the `Cache-Control` you want, and point those adapters'
+ *     `agent.ruleset.url` at it. Never at enpitech. (Most deployments skip this —
+ *     each instance serves its own packaged ruleset directly.)
  *
  * ADDING A NEW AGENT SIGNATURE (the whole point):
  *   1. Edit the corpus in ONE place — `packages/core/src/server/agent/ruleset/
  *      initial.ts` (a new `uaPatterns`/`shapeRules` entry, or an
  *      `ipRanges.familyToVendor` mapping).
  *   2. `pnpm -F enpilink build` (compile the corpus), then `pnpm build:ruleset`.
- *   3. The version bumps AUTOMATICALLY (it embeds a hash of the data), so
- *      backfill re-classifies existing rows once clients fetch the new artifact.
- *   4. Upload the emitted file (the deploy step above).
+ *   3. The version bumps AUTOMATICALLY (it embeds a hash of the data), so backfill
+ *      re-classifies existing rows once instances pick up the new package (or
+ *      re-fetch a self-hosted file).
  *
  * THE #1 RULE (backfill fires only on a `version` change) is enforced
  * structurally: the version is content-addressed, and this script re-checks that
@@ -109,9 +117,15 @@ console.log(`  file:     dist/ruleset/${art.filename}  (${manifest.bytes} bytes)
 console.log(`  archive:  dist/ruleset/by-version/${art.version}.json`);
 console.log(`  manifest: dist/ruleset/manifest.json`);
 console.log("");
-console.log("DEPLOY (ops step, not code): upload dist/ruleset/" + art.filename);
 console.log(
-  "  → https://cdn.enpitech.dev/agent/ruleset/" +
-    art.filename +
-    "  with your Cache-Control.",
+  "Every enpilink instance already serves this artifact in-process at",
 );
+console.log("  /__enpilink/agents/ruleset  (no upload needed).");
+console.log(
+  "To self-host it for distributed edge adapters, upload dist/ruleset/" +
+    art.filename,
+);
+console.log(
+  "  to YOUR OWN static host / CDN with your Cache-Control, and point those",
+);
+console.log("  adapters' agent.ruleset.url at it. Never at enpitech.");

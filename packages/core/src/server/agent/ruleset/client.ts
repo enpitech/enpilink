@@ -50,11 +50,22 @@ export type RulesetFetcher = (
   init: { signal: AbortSignal },
 ) => Promise<RulesetFetchResponse>;
 
+/**
+ * Where a live ruleset came from. `packaged` = the instance's OWN ruleset loaded
+ * in-process (the self-hosted default — no network); `network`/`cache` are the D2
+ * fetch + persisted-cache paths used when a remote `url` is configured.
+ */
+export type RulesetSource = "network" | "cache" | "packaged";
+
 /** Live client config — read fresh each time (so a dashboard edit takes effect). */
 export interface RulesetClientConfig {
-  /** Master switch. `false` ⇒ never fetch (serve on-disk cache only, or empty). */
+  /** Master switch. `false` ⇒ load nothing (no packaged, no fetch — stay empty). */
   enabled: boolean;
-  /** The artifact URL. */
+  /**
+   * The artifact URL. **Empty ⇒ SELF/PACKAGED mode:** the client loads the
+   * instance's own {@link RulesetClientOptions.localRuleset} in-process, with no
+   * network call. A non-empty URL ⇒ the D2 fetch path (stale-while-revalidate).
+   */
   url: string;
   /** TTL override in seconds; `0` ⇒ honor the artifact's `Cache-Control`. */
   ttlSeconds: number;
@@ -73,7 +84,7 @@ export interface ActivateMeta {
   /** The version that was live before (or `null` on first load). */
   previousVersion: string | null;
   /** Where this artifact came from. */
-  source: "network" | "cache";
+  source: RulesetSource;
 }
 
 /** The phase an error occurred in (for the injected logger). */
@@ -93,6 +104,15 @@ export interface RulesetClientOptions {
    * hot path; keep it non-blocking (fire-and-forget any backfill).
    */
   onActivate?: (ruleset: Ruleset, meta: ActivateMeta) => void;
+  /**
+   * The instance's OWN packaged ruleset, for SELF/PACKAGED mode (an empty
+   * {@link RulesetClientConfig.url}). When the config carries no remote URL, the
+   * client activates THIS ruleset in-process — validated + version-stamped by the
+   * caller (the Node wiring passes `buildRulesetArtifact().body`), source
+   * `packaged`, NO network call. Absent + no URL ⇒ nothing loads (stay `pending`).
+   * Only consulted in self mode; a configured remote URL always takes precedence.
+   */
+  localRuleset?: () => Ruleset;
   /** Injectable fetch (tests). Defaults to the global `fetch`. */
   fetchImpl?: RulesetFetcher;
   /** Injectable clock (tests). Defaults to `Date.now`. */
@@ -137,6 +157,7 @@ export class RulesetClient {
   private readonly getConfig: () => RulesetClientConfig;
   private readonly cacheStore: RulesetCacheStore;
   private readonly onActivate: (ruleset: Ruleset, meta: ActivateMeta) => void;
+  private readonly localRuleset: (() => Ruleset) | null;
   private readonly fetchImpl: RulesetFetcher;
   private readonly now: () => number;
   private readonly onError: (err: unknown, phase: RulesetErrorPhase) => void;
@@ -144,7 +165,7 @@ export class RulesetClient {
   /** The currently-held, validated ruleset — the SWR "serve this" value. */
   private current: Ruleset | null = null;
   /** Where the held ruleset came from (for the dashboard status read). */
-  private currentSource: "network" | "cache" | null = null;
+  private currentSource: RulesetSource | null = null;
   /** Epoch-ms the held ruleset was fetched (its freshness clock). */
   private fetchedAt = 0;
   /** The held artifact's `Cache-Control: max-age` (seconds), or `null`. */
@@ -162,6 +183,7 @@ export class RulesetClient {
     this.getConfig = options.getConfig;
     this.cacheStore = options.cacheStore ?? new NoopRulesetCacheStore();
     this.onActivate = options.onActivate ?? (() => {});
+    this.localRuleset = options.localRuleset ?? null;
     this.fetchImpl = options.fetchImpl ?? defaultFetcher;
     this.now = options.now ?? Date.now;
     this.onError = options.onError ?? (() => {});
@@ -184,7 +206,7 @@ export class RulesetClient {
   getStatus(): {
     version: string | null;
     fetchedAt: number | null;
-    source: "network" | "cache" | null;
+    source: RulesetSource | null;
   } {
     return {
       version: this.current?.version ?? null,
@@ -206,28 +228,34 @@ export class RulesetClient {
     // (a) Warm from disk/KV — instant, no network. A corrupt cache is ignored
     // (re-validated here, never trusted blindly). The freshness deadline carries
     // over from WHEN THE CACHED ARTIFACT WAS FETCHED, so a still-fresh cache does
-    // not trigger a redundant network fetch on the next line.
-    try {
-      const cached = await this.cacheStore.load();
-      if (cached && !this.stopped) {
-        const rs = parseRuleset(cached.body);
-        this.activate(rs, cached.fetchedAt, cached.maxAgeSeconds, "cache");
-        this.nextAllowedAt =
-          cached.fetchedAt +
-          this.effectiveTtlMs(this.getConfig(), cached.maxAgeSeconds);
+    // not trigger a redundant network fetch on the next line. Skipped in
+    // SELF/PACKAGED mode (empty URL): the persisted cache holds a previously
+    // fetched REMOTE artifact, irrelevant when we serve our own packaged ruleset.
+    if (this.getConfig().url) {
+      try {
+        const cached = await this.cacheStore.load();
+        if (cached && !this.stopped) {
+          const rs = parseRuleset(cached.body);
+          this.activate(rs, cached.fetchedAt, cached.maxAgeSeconds, "cache");
+          this.nextAllowedAt =
+            cached.fetchedAt +
+            this.effectiveTtlMs(this.getConfig(), cached.maxAgeSeconds);
+        }
+      } catch (err) {
+        this.onError(err, "cache");
       }
-    } catch (err) {
-      this.onError(err, "cache");
     }
-    // (b) Kick a background refresh if we're stale/empty. NEVER awaited here.
+    // (b) Load the packaged ruleset (self mode) or kick a background refresh
+    // (remote mode) if we're stale/empty. NEVER awaited here.
     this.maybeRefresh();
   }
 
   /**
    * The stale-while-revalidate trigger a hot path calls. Cheap + synchronous:
    * lazy-starts, then — if enabled, not already fetching, and past the TTL /
-   * backoff floor — `void`s a background {@link refresh}. It NEVER awaits, so a
-   * request is never delayed. Serving continues from the held ruleset throughout.
+   * backoff floor — loads the packaged ruleset in-process (SELF mode) or `void`s a
+   * background {@link refresh} (REMOTE mode). It NEVER awaits, so a request is
+   * never delayed. Serving continues from the held ruleset throughout.
    */
   maybeRefresh(): void {
     if (this.stopped) {
@@ -245,6 +273,12 @@ export class RulesetClient {
       return;
     }
     if (this.now() < this.nextAllowedAt) {
+      return;
+    }
+    if (!cfg.url) {
+      // SELF/PACKAGED mode: activate the instance's own ruleset in-process. No
+      // network, fully synchronous — the self-hosted default.
+      this.loadLocalRuleset();
       return;
     }
     void this.refresh();
@@ -274,6 +308,33 @@ export class RulesetClient {
   /** Await the current in-flight refresh (or resolve immediately). Test helper. */
   whenIdle(): Promise<void> {
     return this.inflight ?? Promise.resolve();
+  }
+
+  /**
+   * SELF/PACKAGED mode: activate the instance's own packaged ruleset in-process —
+   * no network, no cache, fully synchronous. The self-hosted default: enpilink
+   * ships its detection data and serves it itself. Runs through the same
+   * {@link activate} path (holder swap + backfill), so classification works
+   * offline out of the box. With no packaged provider, nothing loads (stay
+   * `pending`). The packaged ruleset is static for the process, but we still set a
+   * finite `nextAllowedAt` so a runtime switch to a remote URL is picked up on the
+   * normal cadence rather than pinned forever.
+   */
+  private loadLocalRuleset(): void {
+    const provide = this.localRuleset;
+    if (!provide) {
+      this.nextAllowedAt = this.now() + this.retryFloorMs(this.getConfig());
+      return;
+    }
+    try {
+      const rs = provide();
+      this.activate(rs, this.now(), null, "packaged");
+      this.nextAllowedAt =
+        this.now() + this.effectiveTtlMs(this.getConfig(), null);
+    } catch (err) {
+      this.onError(err, "validate");
+      this.nextAllowedAt = this.now() + this.retryFloorMs(this.getConfig());
+    }
   }
 
   private async doFetch(): Promise<void> {
@@ -322,7 +383,7 @@ export class RulesetClient {
     rs: Ruleset,
     fetchedAt: number,
     maxAge: number | null,
-    source: "network" | "cache",
+    source: RulesetSource,
   ): void {
     const previousVersion = this.current?.version ?? null;
     const firstLoad = this.current === null;

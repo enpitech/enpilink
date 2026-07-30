@@ -37,8 +37,13 @@ import type { EdgeCaptureSink } from "./sink.js";
  *   fetchOrigin: (request, env) => env.ASSETS.fetch(request),
  *   // Store captures in D1 (CF-native) — or use a beaconCaptureSink({ sinkUrl }).
  *   sink: (env) => d1CaptureSink(env.DB),
- *   // Detection stays fresh from the CDN ruleset, warm across isolates via KV:
- *   ruleset: { cacheStore: (env) => new KVRulesetCacheStore({ kv: env.RULESET_KV }) },
+ *   // Classify at the edge from YOUR OWN enpilink server's ruleset endpoint
+ *   // (never enpitech), warm across isolates via KV. Omit `url` to classify
+ *   // `pending` at the edge and let your Node sink backfill the labels instead:
+ *   ruleset: {
+ *     url: "https://your-app.com/__enpilink/agents/ruleset",
+ *     cacheStore: (env) => new KVRulesetCacheStore({ kv: env.RULESET_KV }),
+ *   },
  * });
  * ```
  *
@@ -57,14 +62,14 @@ import type { EdgeCaptureSink } from "./sink.js";
  *    ALWAYS pass through untouched; only an eligible chat fetcher (or an explicit
  *    `Accept: text/markdown`) is served.
  *
- * No baseline: a cold isolate whose cross-isolate cache is empty serves its first
- * request classified `pending` (capture still works); the `waitUntil` warm loads
- * the ruleset for every subsequent request. Zero `node:*` — asserted by
+ * No baseline: the edge has no packaged ruleset of its own. Give `ruleset.url`
+ * (your own enpilink server's `/__enpilink/agents/ruleset`) to classify at the
+ * edge; a cold isolate whose cross-isolate cache is empty then serves its first
+ * request `pending` (capture still works) and the `waitUntil` warm loads the
+ * ruleset for every subsequent request. With NO `url`, the edge stays `pending`
+ * and your Node sink backfills the labels. Zero `node:*` — asserted by
  * `next/edge-safety.test.ts`.
  */
-
-/** The public CDN ruleset artifact (same default as the Node client). */
-const DEFAULT_RULESET_URL = "https://cdn.enpitech.dev/agent/ruleset/v1.json";
 /** The site id captured under when none is given. */
 const DEFAULT_SITE_ID = "default";
 
@@ -97,9 +102,16 @@ export interface CloudflareFetchExport<Env> {
 
 /** Detection-freshness (ruleset client) options. */
 export interface CloudflareRulesetOptions<Env> {
-  /** Fetch the ruleset from the network. Default `true`. */
+  /** Fetch the ruleset from the network. Default `true` (only takes effect when a
+   * {@link url} is set). */
   enabled?: boolean;
-  /** The artifact URL. Default the public enpitech CDN. */
+  /**
+   * The artifact URL. **Point it at YOUR OWN enpilink server's public ruleset
+   * endpoint** (`https://your-app.com/__enpilink/agents/ruleset`) or a mirror you
+   * run — never at enpitech (enpilink is self-hosted; there is no enpitech CDN).
+   * Required to classify AT the edge; without it the edge stays `pending` and your
+   * Node sink backfills the labels.
+   */
   url?: string;
   /** TTL override in seconds; `0`/absent ⇒ honor the artifact's `Cache-Control`. */
   ttlSeconds?: number;
@@ -376,11 +388,21 @@ export function agentCapture<Env = Record<string, unknown>>(
   const onError = options.onError ?? (() => {});
 
   const rulesetCfg = options.ruleset ?? {};
-  // A client is used whenever no explicit `rulesetValue` was given. Its `enabled`
-  // flag controls only NETWORK FETCH — even with fetch off it still warms from the
-  // cross-isolate cache. So `ruleset.enabled: false` = "cache-only", not "no
-  // ruleset"; pass `rulesetValue: null` for pending-only.
-  const useClient = options.rulesetValue === undefined;
+  const rulesetUrl =
+    typeof rulesetCfg.url === "string" && rulesetCfg.url.length > 0
+      ? rulesetCfg.url
+      : null;
+  // A client is used whenever no explicit `rulesetValue` was given AND there is a
+  // source for the ruleset: a `url` (fetch from YOUR OWN enpilink server / a
+  // mirror — never enpitech) or a pre-populated cross-isolate cache store. The
+  // edge has NO packaged ruleset of its own (unlike the Node instance), so with
+  // neither there is nothing to load: the edge classifies `pending` and the Node
+  // sink backfills. NETWORK FETCH happens only when a `url` is set; with just a
+  // cache store the client is cache-only. Pass `rulesetValue: null` for
+  // pending-only regardless.
+  const useClient =
+    options.rulesetValue === undefined &&
+    (rulesetUrl !== null || rulesetCfg.cacheStore !== undefined);
   // One client per adapter instance (per isolate), constructed lazily on the
   // first request so the env-derived cache store can be wired.
   let cachedClient: EdgeRulesetClient | null = null;
@@ -394,8 +416,10 @@ export function agentCapture<Env = Record<string, unknown>>(
     }
     const cacheStore = rulesetCfg.cacheStore?.(env);
     cachedClient = new EdgeRulesetClient({
-      enabled: rulesetCfg.enabled !== false,
-      url: rulesetCfg.url ?? DEFAULT_RULESET_URL,
+      // Network fetch only with a URL; a cache-store-only client warms from the
+      // cache and never dials the (empty) URL.
+      enabled: rulesetCfg.enabled !== false && rulesetUrl !== null,
+      url: rulesetUrl ?? "",
       ...(rulesetCfg.ttlSeconds !== undefined
         ? { ttlSeconds: rulesetCfg.ttlSeconds }
         : {}),

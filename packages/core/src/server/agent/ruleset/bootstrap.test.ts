@@ -179,6 +179,70 @@ describe("bootstrapRulesetClient — holder + backfill wiring", () => {
   });
 });
 
+// ── Self/packaged default (offline, no network) ───────────────────────────────
+
+describe("bootstrapRulesetClient — self/packaged default (offline)", () => {
+  it("loads the instance's OWN packaged ruleset in-process, with NO network call", async () => {
+    // Self mode = empty URL (the schema default). No CDN, no fetch.
+    gate({ rulesetUrl: "" });
+    const storage = new MemoryStorageAdapter();
+    await storage.init();
+    setActiveStorage(storage);
+    await storage.recordAgentRequests([pendingGptbot("/a")]);
+
+    // A fetcher that MUST NOT run — this proves the offline path.
+    const fetchImpl = vi.fn(async (): Promise<RulesetFetchResponse> => {
+      throw new Error("network must not be used in self/packaged mode");
+    });
+    bootstrapRulesetClient({
+      cacheStore: new NoopRulesetCacheStore(),
+      fetchImpl,
+    });
+    // loadLocalRuleset is synchronous; give backfill a tick to settle.
+    await new Promise((r) => setTimeout(r, 5));
+
+    // Zero outbound calls, packaged ruleset live, and it classifies gptbot.
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const rs = getCurrentRuleset();
+    expect(rs).not.toBeNull();
+    const row = (await storage.queryAgentRequests())[0];
+    expect(row?.agentFamily).toBe("gptbot");
+    expect(row?.agentClass).toBe("crawler");
+    expect(row?.rulesetVersion).toBe(rs?.version);
+
+    // The dashboard status shows the self-hosted (packaged, in-process) source.
+    expect(getRulesetClient()?.getStatus().source).toBe("packaged");
+  });
+
+  it("lazy-loads the packaged ruleset on a nudge when the surface starts off", async () => {
+    gate({ enabled: false, serve: false, rulesetUrl: "" });
+    const fetchImpl = vi.fn(async (): Promise<RulesetFetchResponse> => {
+      throw new Error("network must not be used in self/packaged mode");
+    });
+    bootstrapRulesetClient({
+      cacheStore: new NoopRulesetCacheStore(),
+      fetchImpl,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(getCurrentRuleset()).toBeNull(); // dormant at boot
+
+    maybeRefreshRuleset(); // a captured-request nudge
+    await new Promise((r) => setTimeout(r, 0));
+    expect(getCurrentRuleset()).not.toBeNull(); // packaged now live
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("stays pending when the ruleset is disabled, even in self mode", async () => {
+    gate({ rulesetUrl: "", rulesetEnabled: false });
+    bootstrapRulesetClient({
+      cacheStore: new NoopRulesetCacheStore(),
+      fetchImpl: async () => okResponse(RS_V1),
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(getCurrentRuleset()).toBeNull(); // nothing loaded
+  });
+});
+
 // ── Enable flag + agent-surface gating ────────────────────────────────────────
 
 describe("bootstrapRulesetClient — gating", () => {

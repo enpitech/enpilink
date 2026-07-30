@@ -6,9 +6,12 @@ import {
   RulesetClient,
   type RulesetClientConfig,
   type RulesetClientOptions,
+  type RulesetSource,
 } from "./client.js";
 import { DiskRulesetCacheStore } from "./disk-cache.js";
 import { setCurrentRuleset } from "./holder.js";
+import { buildRulesetArtifact } from "./publish.js";
+import type { Ruleset } from "./types.js";
 
 /**
  * NODE WIRING for the cached ruleset client (D2).
@@ -24,23 +27,48 @@ import { setCurrentRuleset } from "./holder.js";
  *     HOT PATH (fire-and-forget, guarded for storage presence), so `pending`
  *     rows get labelled once rules land and re-labelled when the version bumps.
  *
- * The client is CONSTRUCTED at boot (cheap; it fetches nothing until started)
- * and STARTED either at boot when the agent surface is already on, or lazily on
- * the first captured-request nudge ({@link maybeRefreshRuleset}) — so a server
- * that never uses the agent surface makes no outbound call. Nothing here is ever
+ * SELF-HOSTED BY DEFAULT: enpilink is self-hosted software, not a SaaS — there is
+ * no enpitech CDN. By default (`agent.ruleset.url` empty) the client loads THIS
+ * instance's OWN packaged ruleset in-process — {@link packagedRuleset}, the exact
+ * artifact this server also self-hosts at `/__enpilink/agents/ruleset` — with NO
+ * network call. Detection therefore works offline, out of the box. A `url` is set
+ * only for the DISTRIBUTED case (a website/edge adapter deployed apart from the
+ * enpilink server): it points at the operator's OWN enpilink server endpoint (or a
+ * mirror they run), never at enpitech, and takes the D2 fetch path.
+ *
+ * The client is CONSTRUCTED at boot (cheap; it loads nothing until started) and
+ * STARTED either at boot when the agent surface is already on, or lazily on the
+ * first captured-request nudge ({@link maybeRefreshRuleset}) — so a server that
+ * never uses the agent surface does no ruleset work at all. Nothing here is ever
  * awaited on a request path.
  */
 
 let client: RulesetClient | null = null;
+
+/**
+ * The instance's OWN packaged detection ruleset — built once from the maintained
+ * corpus (`buildRulesetArtifact`, content-addressed version) and reused. This is
+ * the SOLE default detection source (self-hosted mode), loaded through the normal
+ * validate/version/backfill path — NOT a hidden classifier fallback. It is the
+ * byte-identical artifact the D3 self-host endpoint serves, so a distributed
+ * adapter pointed at this server agrees on `version` (no needless re-classify).
+ */
+let packagedBody: Ruleset | null = null;
+function packagedRuleset(): Ruleset {
+  if (!packagedBody) {
+    packagedBody = buildRulesetArtifact().body;
+  }
+  return packagedBody;
+}
 
 /** Read the live ruleset-client config off the agent capture gate. */
 function configFromGate(): RulesetClientConfig {
   const g = getAgentCaptureGate();
   return {
     enabled: g.rulesetEnabled === true,
-    // The gate carries the schema default when unset, so these ?? fallbacks are
-    // belt-and-braces for a partially-populated test gate.
-    url: g.rulesetUrl ?? "https://cdn.enpitech.dev/agent/ruleset/v1.json",
+    // Empty URL ⇒ SELF/PACKAGED mode (the default). The `?? ""` is belt-and-braces
+    // for a partially-populated test gate — there is no CDN default.
+    url: g.rulesetUrl ?? "",
     ttlSeconds: g.rulesetTtlSeconds ?? 0,
     timeoutMs: g.rulesetTimeoutMs ?? 5000,
     mode: g.rulesetMode === "dev" ? "dev" : "live",
@@ -80,6 +108,9 @@ export function bootstrapRulesetClient(
   }
   client = new RulesetClient({
     getConfig: configFromGate,
+    // SELF-HOSTED DEFAULT: with no `url` configured, the client activates this
+    // instance's own packaged ruleset in-process (no network) via this provider.
+    localRuleset: packagedRuleset,
     cacheStore:
       overrides.cacheStore ??
       new DiskRulesetCacheStore(
@@ -114,8 +145,10 @@ export function bootstrapRulesetClient(
     ...(overrides.now !== undefined ? { now: overrides.now } : {}),
   });
 
-  // Start now only if fetching is enabled AND the agent surface is on; otherwise
-  // stay dormant and lazy-start on the first captured-request nudge.
+  // Start now only if the ruleset is enabled AND the agent surface is on;
+  // otherwise stay dormant and lazy-start on the first captured-request nudge.
+  // `start()` loads the packaged ruleset in-process (self mode) or kicks a
+  // background fetch (remote mode) — never awaited.
   if (configFromGate().enabled && agentSurfaceActive()) {
     void client.start();
   }
@@ -146,10 +179,11 @@ export interface RulesetStatus {
   loaded: boolean;
   /** The held ruleset's version, or `null` when nothing has loaded yet. */
   version: string | null;
-  /** Epoch-ms the held ruleset was fetched, or `null`. */
+  /** Epoch-ms the held ruleset was fetched/loaded, or `null`. */
   fetchedAt: number | null;
-  /** Where the held ruleset came from, or `null`. */
-  source: "network" | "cache" | null;
+  /** Where the held ruleset came from (`packaged` = in-process self-hosted
+   * default), or `null`. */
+  source: RulesetSource | null;
   /** Resolved `agent.ruleset.mode` (echoed so the card renders without a config read). */
   mode: "live" | "dev";
   /** Resolved `agent.ruleset.ttlSeconds` (0 ⇒ honor Cache-Control). */

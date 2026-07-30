@@ -56,7 +56,7 @@ describe("agent capture gate", () => {
       getRateLimit: 60,
       getRateBurst: 10,
       rulesetEnabled: true,
-      rulesetUrl: "https://cdn.enpitech.dev/agent/ruleset/v1.json",
+      rulesetUrl: "",
       rulesetTtlSeconds: 0,
       rulesetTimeoutMs: 5000,
       rulesetMode: "live",

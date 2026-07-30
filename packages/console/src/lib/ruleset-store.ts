@@ -25,10 +25,11 @@ const rulesetStatusEnabledSchema = z.object({
   loaded: z.boolean(),
   /** The held ruleset version, or null when nothing has loaded yet. */
   version: z.string().nullable(),
-  /** Epoch-ms the held ruleset was fetched, or null. */
+  /** Epoch-ms the held ruleset was fetched/loaded, or null. */
   fetchedAt: z.number().nullable(),
-  /** Where the held ruleset came from, or null. */
-  source: z.enum(["network", "cache"]).nullable(),
+  /** Where the held ruleset came from (`packaged` = the instance's own in-process
+   * ruleset, the self-hosted default), or null. */
+  source: z.enum(["network", "cache", "packaged"]).nullable(),
   /** Resolved `agent.ruleset.mode`. */
   mode: z.enum(["live", "dev"]),
   /** Resolved `agent.ruleset.ttlSeconds` (0 ⇒ honor Cache-Control). */

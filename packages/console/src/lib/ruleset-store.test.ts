@@ -18,7 +18,7 @@ describe("rulesetStatusSchema", () => {
       source: "network",
       mode: "live",
       ttlSeconds: 0,
-      url: "https://cdn.enpitech.dev/agent/ruleset/v1.json",
+      url: "https://my-app.example/__enpilink/agents/ruleset",
       fetchEnabled: true,
     });
     expect(parsed.enabled).toBe(true);
@@ -28,6 +28,25 @@ describe("rulesetStatusSchema", () => {
     expect(parsed.loaded).toBe(true);
     expect(parsed.version).toBe("2026-07-23-a1b2c3d4e5");
     expect(parsed.source).toBe("network");
+  });
+
+  it("parses the self-hosted default (packaged source, empty URL)", () => {
+    const parsed = rulesetStatusSchema.parse({
+      enabled: true,
+      loaded: true,
+      version: "2026-07-23-a1b2c3d4e5",
+      fetchedAt: 1_700_000_000_000,
+      source: "packaged",
+      mode: "live",
+      ttlSeconds: 0,
+      url: "",
+      fetchEnabled: true,
+    });
+    if (!parsed.enabled) {
+      throw new Error("expected enabled status");
+    }
+    expect(parsed.source).toBe("packaged");
+    expect(parsed.url).toBe("");
   });
 
   it("parses the pending shape (on, but no ruleset loaded yet)", () => {

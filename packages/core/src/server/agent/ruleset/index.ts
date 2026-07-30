@@ -33,6 +33,7 @@ export {
   type RulesetErrorPhase,
   type RulesetFetcher,
   type RulesetFetchResponse,
+  type RulesetSource,
 } from "./client.js";
 export { DiskRulesetCacheStore } from "./disk-cache.js";
 export { getCurrentRuleset, setCurrentRuleset } from "./holder.js";

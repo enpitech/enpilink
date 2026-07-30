@@ -166,9 +166,10 @@ still works) and warms it via `waitUntil` for subsequent requests.
   never breaks or slows a response.
 - **A served/re-encoded response** sets `Vary: Accept, User-Agent` so a shared cache
   can't hand the agent-only variant to a human or crawler.
-- **Detection classifies from the fetched ruleset.** With none loaded yet, rows are
-  `pending` and backfill once it loads — [the no-baseline
-  behaviour](/guides/agent-detection-ruleset#no-baseline-capture-always-works-labels-backfill).
+- **Detection classifies from the ruleset.** A Node instance uses its own packaged
+  ruleset in-process (offline); an edge adapter with none loaded yet captures
+  `pending` and backfills once a ruleset loads — [capture is
+  independent](/guides/agent-detection-ruleset#capture-is-independent-labels-backfill).
 
 ## Related
 

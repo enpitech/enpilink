@@ -9,9 +9,6 @@ import { EdgeRulesetClient } from "../ruleset/edge-client.js";
 // TYPE-ONLY (erased): edge-safe — the ruleset VALUE is supplied by the caller.
 import type { Ruleset } from "../ruleset/types.js";
 
-/** The public CDN ruleset artifact (same default as the Node + CF clients). */
-const DEFAULT_RULESET_URL = "https://cdn.enpitech.dev/agent/ruleset/v1.json";
-
 /**
  * `enpilink/next` — the Next.js **edge middleware** agent-capture adapter (M8).
  *
@@ -122,13 +119,20 @@ export interface WithAgentCaptureOptions {
 
   // ── Detection freshness — the auto-fetch edge ruleset client (D4b) ────────────
   /**
-   * Auto-fetch the detection ruleset from the CDN (stale-while-revalidate, off the
-   * hot path via `waitUntil`). Defaults to `true` whenever capture is active
-   * (`enabled` + a `sinkUrl`), so the edge path classifies without a hand-passed
-   * `ruleset`. Set `false` to keep the no-baseline `pending` behaviour.
+   * Auto-fetch the detection ruleset (stale-while-revalidate, off the hot path via
+   * `waitUntil`) so the edge path classifies without a hand-passed `ruleset`.
+   * Requires a {@link rulesetUrl}: the edge has no packaged ruleset of its own, so
+   * with no URL the edge captures records `pending` and your Node enpilink server
+   * classifies them on ingest. Defaults to `true` when a `rulesetUrl` is set; set
+   * `false` to keep the `pending` behaviour even with a URL configured.
    */
   rulesetEnabled?: boolean;
-  /** The ruleset artifact URL. Default the public enpitech CDN. */
+  /**
+   * The ruleset artifact URL. **Point it at YOUR OWN enpilink server's public
+   * ruleset endpoint** (`https://your-app.com/__enpilink/agents/ruleset`) or a
+   * mirror you run — never at enpitech (enpilink is self-hosted; there is no
+   * enpitech CDN). Without it the edge stays `pending` and the Node sink backfills.
+   */
   rulesetUrl?: string;
   /**
    * A cross-isolate persisted cache for the fetched ruleset — a
@@ -206,30 +210,40 @@ export function withAgentCapture(
       })
     : null;
 
-  // The auto-fetch ruleset client (D4b) — created when capture is active and no
+  // The auto-fetch ruleset client (D4b) — created when capture is active, no
   // explicit `ruleset` value was passed (which bypasses it; pass `ruleset: null`
-  // for pending-only). Its `enabled` flag controls only NETWORK FETCH — with fetch
-  // off it still warms from a provided cache store. Reads the ruleset synchronously
-  // on the hot path; refreshes in the background via `waitUntil`.
-  const rulesetClientOn = active && options.ruleset === undefined;
-  const rulesetClient = rulesetClientOn
-    ? new EdgeRulesetClient({
-        enabled: options.rulesetEnabled !== false,
-        url: options.rulesetUrl ?? DEFAULT_RULESET_URL,
-        ...(options.rulesetTtlSeconds !== undefined
-          ? { ttlSeconds: options.rulesetTtlSeconds }
-          : {}),
-        ...(options.rulesetTimeoutMs !== undefined
-          ? { timeoutMs: options.rulesetTimeoutMs }
-          : {}),
-        ...(options.rulesetMode !== undefined
-          ? { mode: options.rulesetMode }
-          : {}),
-        ...(options.rulesetCacheStore !== undefined
-          ? { cacheStore: options.rulesetCacheStore }
-          : {}),
-      })
-    : null;
+  // for pending-only), AND there is a source for the ruleset: a `rulesetUrl`
+  // (fetch from your OWN enpilink server's `/__enpilink/agents/ruleset` — never
+  // enpitech) or a pre-populated `rulesetCacheStore`. The edge has no packaged
+  // ruleset of its own, so with neither there is nothing to load: the edge
+  // captures `pending` and the Node sink backfills. NETWORK FETCH happens only
+  // with a URL; a cache-store-only client is cache-only. Reads the ruleset
+  // synchronously on the hot path; refreshes via `waitUntil`.
+  const rulesetUrl =
+    typeof options.rulesetUrl === "string" && options.rulesetUrl.length > 0
+      ? options.rulesetUrl
+      : null;
+  const rulesetClient =
+    active &&
+    options.ruleset === undefined &&
+    (rulesetUrl !== null || options.rulesetCacheStore !== undefined)
+      ? new EdgeRulesetClient({
+          enabled: options.rulesetEnabled !== false && rulesetUrl !== null,
+          url: rulesetUrl ?? "",
+          ...(options.rulesetTtlSeconds !== undefined
+            ? { ttlSeconds: options.rulesetTtlSeconds }
+            : {}),
+          ...(options.rulesetTimeoutMs !== undefined
+            ? { timeoutMs: options.rulesetTimeoutMs }
+            : {}),
+          ...(options.rulesetMode !== undefined
+            ? { mode: options.rulesetMode }
+            : {}),
+          ...(options.rulesetCacheStore !== undefined
+            ? { cacheStore: options.rulesetCacheStore }
+            : {}),
+        })
+      : null;
 
   return (request, event) => {
     // Always run the handler first; its response is returned to Next unchanged.

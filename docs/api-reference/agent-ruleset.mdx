@@ -3,11 +3,14 @@ title: "agentCapture & the ruleset"
 description: "The detection-ruleset surface: the agent.ruleset.* config keys, the public self-host endpoint and guarded status endpoint, and the build:ruleset maintainer pipeline."
 ---
 
-Agent detection reads its data from a **versioned ruleset** fetched at runtime (the
-package ships no detection data). This page is the reference for that surface: the
-config keys that control the fetch, the two HTTP endpoints an enpilink server
-exposes, and the pipeline that builds the artifact. For the conceptual model — why
-it's a soft dependency, how backfill works — see [Detection & the live
+Agent detection reads its data from a **versioned ruleset**. enpilink is
+self-hosted: that ruleset ships *with the package* and, by default, loads
+**in-process** — so detection works offline, with no call to enpitech (there is no
+enpitech CDN). A ruleset URL is set only in the distributed case, to fetch from your
+*own* enpilink server. This page is the reference for that surface: the config keys,
+the two HTTP endpoints an enpilink server exposes, and the pipeline that builds the
+artifact. For the conceptual model — the in-process default, the distributed option,
+how backfill works — see [Detection & the live
 ruleset](/guides/agent-detection-ruleset).
 
 ## Config keys
@@ -18,11 +21,11 @@ Configuration tab), and all honor `env > file > DB > default`
 
 | Key | Env var | Default | Meaning |
 |---|---|---|---|
-| `agent.ruleset.enabled` | `ENPILINK_CFG_AGENT_RULESET_ENABLED` | `true` | Fetch the ruleset from the network (stale-while-revalidate). Off → self-host / on-disk cache only; no outbound fetch. |
-| `agent.ruleset.url` | `ENPILINK_CFG_AGENT_RULESET_URL` | `https://cdn.enpitech.dev/agent/ruleset/v1.json` | Where to fetch it. Point at your own mirror or a `file://` path to self-host. Every fetched artifact is schema-validated before it goes live. |
-| `agent.ruleset.ttlSeconds` | `ENPILINK_CFG_AGENT_RULESET_TTL_SECONDS` | `0` | TTL override (seconds). `0` honors the artifact's `Cache-Control: max-age` (central control); a positive value forces this TTL. |
-| `agent.ruleset.timeoutMs` | `ENPILINK_CFG_AGENT_RULESET_TIMEOUT_MS` | `5000` | Hard fetch timeout. A hung fetch is aborted and treated as a failed refresh. |
-| `agent.ruleset.mode` | `ENPILINK_CFG_AGENT_RULESET_MODE` | `live` | `live` = long, centrally-controlled TTL; `dev` = short TTL to pick up a signature you're testing quickly. |
+| `agent.ruleset.enabled` | `ENPILINK_CFG_AGENT_RULESET_ENABLED` | `true` | Supply detection with a ruleset. Off → pure capture, rows stay `pending`. |
+| `agent.ruleset.url` | `ENPILINK_CFG_AGENT_RULESET_URL` | *empty* | Empty → the instance's own packaged ruleset, in-process (offline, no network). Set — only in the distributed case — to your own enpilink server's `/__enpilink/agents/ruleset`, a mirror you run, or a `file://` path. Never enpitech. Every fetched artifact is schema-validated before it goes live. |
+| `agent.ruleset.ttlSeconds` | `ENPILINK_CFG_AGENT_RULESET_TTL_SECONDS` | `0` | Distributed fetch only. TTL override (seconds); `0` honors the artifact's `Cache-Control: max-age`, a positive value forces this TTL. |
+| `agent.ruleset.timeoutMs` | `ENPILINK_CFG_AGENT_RULESET_TIMEOUT_MS` | `5000` | Distributed fetch only. Hard fetch timeout; a hung fetch is aborted and treated as a failed refresh. |
+| `agent.ruleset.mode` | `ENPILINK_CFG_AGENT_RULESET_MODE` | `live` | Distributed fetch only. `live` = long TTL; `dev` = short TTL to pick up a signature you're testing quickly. |
 
 <Note>
 **None of these ever affect request latency.** `getRuleset()` is a synchronous
@@ -34,7 +37,9 @@ latency guarantee](/guides/agent-detection-ruleset#stale-while-revalidate-a-requ
 The edge adapters ([Cloudflare](/api-reference/agent-capture#cloudflare-workers),
 [Next](/api-reference/next-middleware)) take the same knobs as adapter options
 (`ruleset.url`, `ruleset.mode`, `rulesetUrl`, …) rather than DB config, since the
-edge has no in-process config store.
+edge has no in-process config store. The edge has no packaged ruleset either, so it
+needs a `url` (your own server) to classify — without one it stays `pending` and the
+Node sink backfills.
 
 ## Endpoints
 
@@ -42,19 +47,21 @@ An enpilink server with the admin plane mounted exposes two ruleset endpoints.
 
 ### `GET /__enpilink/agents/ruleset` — the self-host artifact (public)
 
-Serves the exact artifact the [build pipeline](#publishing-the-ruleset) emits —
-the same keyless, non-sensitive bytes the public CDN fronts. It is **mounted before
-the admin auth guard**, on purpose: a consuming client fetches it with **no bearer**,
-so an air-gapped operator can point `agent.ruleset.url` at any enpilink instance.
+Serves the exact artifact the [build pipeline](#publishing-the-ruleset) emits — the
+same keyless, non-sensitive bytes this instance classifies with in-process. It is
+**mounted before the admin auth guard**, on purpose: a consuming client fetches it
+with **no bearer**, so a distributed adapter can point `agent.ruleset.url` at your
+own enpilink instance (never at enpitech — there is no enpitech CDN).
 
 - **One-directional.** It reads no request body, no storage, and nothing about the
   caller — it only serves rules *out*.
-- **`Cache-Control` is the central freshness dial.** The response carries
+- **`Cache-Control` is the freshness dial.** The response carries
   `public, max-age=<N>`, where `N` is driven by this server's `agent.ruleset.mode`
   and `agent.ruleset.ttlSeconds` — `dev` → 30 s, `live` → the TTL override or 3600 s
   default. A downstream client honoring `Cache-Control` refreshes on exactly that
   cadence.
-- Emits `X-Enpilink-Ruleset-Version` so you can diff CDN vs self-host at a glance.
+- Emits `X-Enpilink-Ruleset-Version` so you can diff instances (or a mirror) at a
+  glance.
 - Degrades to **503** (never 500, never a hang) if the artifact can't be produced;
   a consuming client treats a non-200 as a failed refresh and keeps its last-good
   ruleset.
@@ -71,8 +78,8 @@ interface RulesetStatus {
   enabled: true;
   loaded: boolean;              // A validated ruleset is held. false ⇒ detection is pending.
   version: string | null;      // The held ruleset's version, or null.
-  fetchedAt: number | null;    // Epoch-ms it was fetched, or null.
-  source: "network" | "cache" | null;
+  fetchedAt: number | null;    // Epoch-ms it was fetched/loaded, or null.
+  source: "packaged" | "network" | "cache" | null; // packaged = the in-process default.
   mode: "live" | "dev";        // Resolved agent.ruleset.mode.
   ttlSeconds: number;          // Resolved agent.ruleset.ttlSeconds (0 ⇒ honor Cache-Control).
   url: string;                 // Resolved agent.ruleset.url.
@@ -97,11 +104,13 @@ Maintainers (or anyone running a fork) publish a new artifact like this:
     pnpm build:ruleset       # emit dist/ruleset/v1.json (+ archive + manifest)
     ```
   </Step>
-  <Step title="Upload (an ops step, not code)">
-    Upload the emitted `dist/ruleset/v1.json` to the CDN at
-    `https://cdn.enpitech.dev/agent/ruleset/v1.json` with the `Cache-Control` you
-    want (the central freshness dial). The URL is stable; the artifact's `version`
-    field is what changes.
+  <Step title="Ship it (usually nothing to upload)">
+    Every enpilink instance already serves this artifact in-process at
+    `GET /__enpilink/agents/ruleset`, so shipping the new package is enough. **Only
+    if** you self-host the file for distributed edge adapters, upload the emitted
+    `dist/ruleset/v1.json` to **your own** static host / CDN with the `Cache-Control`
+    you want, and point those adapters' `agent.ruleset.url` at it (never enpitech).
+    The URL is stable; the artifact's `version` field is what changes.
   </Step>
 </Steps>
 
@@ -116,15 +125,16 @@ version. It is impossible to ship changed data under an unchanged version.
 
 <Note>
 **What is code vs. an ops step.** The pipeline (`publish.ts` +
-`scripts/build-ruleset.mjs`) and the self-host endpoint are **code** — tested,
-in-repo. Uploading the emitted file to the CDN is the only **ops/deploy** step; the
-"CDN hosting" is a static-file upload of the pipeline's output.
+`scripts/build-ruleset.mjs`), the in-process packaged ruleset, and the self-host
+endpoint are all **code** — tested, in-repo, and shipped in the package. Hosting the
+emitted file on your own static host (only for distributed edge adapters) is the one
+optional **ops/deploy** step; most deployments never need it.
 </Note>
 
 ## Related
 
-- [Detection & the live ruleset](/guides/agent-detection-ruleset) — the model: SWR, no-baseline, backfill, soft dependency
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — the model: in-process default, distributed self-host, backfill, fail-soft
 - [`agentCapture` (adapters)](/api-reference/agent-capture) — the adapters that consume the ruleset
 - [Configuration](/guides/configuration#agent-ruleset-keys) — the `agent.ruleset.*` keys in the full config table
-- [Telemetry](/telemetry#1-the-ruleset-download-the-one-call-to-enpitech) — the one-directional fetch, stated plainly
+- [Telemetry](/telemetry#the-detection-ruleset-self-hosted-no-outbound-call) — self-hosted, no call to enpitech, stated plainly
 - [Admin](/guides/admin) — the auth guard the status endpoint sits behind

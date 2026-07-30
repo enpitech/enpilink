@@ -198,13 +198,14 @@ recognize show up as an **unknown** class you can triage — that is how the
 supported-agent list grows from your real traffic.
 
 <Note>
-**Detection *methods* live in the package; detection *data* is fetched live.** The
-algorithms above ("no `Sec-Fetch-*`?", the title-cased tell, UA-regex, IP-CIDR) are
-code; the patterns, ranges, and labels they consume are a **versioned ruleset**
-fetched from a public CDN, stale-while-revalidate. So a new agent is recognized via
-a data update, not a package release — and a request never blocks on the fetch.
-Before the ruleset loads, capture still works and rows are labelled `pending`, then
-**backfill** once it arrives. See [Detection & the live
+**Detection *methods* and *data* both ship with your instance.** The algorithms
+above ("no `Sec-Fetch-*`?", the title-cased tell, UA-regex, IP-CIDR) are code; the
+patterns, ranges, and labels they consume are a **versioned ruleset** that ships in
+the package and loads **in-process** by default — so a Node install classifies
+offline, out of the box, with no call to enpitech (there is no enpitech CDN). A
+separately-deployed edge adapter instead fetches the ruleset from *your own*
+enpilink server, stale-while-revalidate; until it loads, capture still works and rows
+are labelled `pending`, then **backfill** labels them. See [Detection & the live
 ruleset](/guides/agent-detection-ruleset).
 </Note>
 
@@ -331,8 +332,10 @@ is the opt-in and serving is `{ serve: true }`.
 does full capture + detect + serve inside the Worker's `fetch` hop, **fail-open**
 (the origin response is resolved first and returned untouched on any internal
 error). Storage is either **D1** (written directly from the Worker) or a **beacon**
-to a Node server. The fetched ruleset is kept warm across isolates with a KV /
-Cache-API cache store.
+to a Node server. The Worker has no packaged ruleset of its own: point its
+`ruleset.url` at **your own** enpilink server to classify in-Worker (kept warm across
+isolates with a KV / Cache-API cache store), or leave it unset and let the Node sink
+classify the beaconed records.
 
 ### Next.js edge + beacon
 
@@ -358,16 +361,17 @@ corpus**; the authoritative outcome and dead-end analytics remain the Node path.
 
 The data this layer collects is **yours** — customer-owned, self-hosted, never
 sent to enpitech. IP and User-Agent are personal data under the GDPR, and when you
-enable capture you are the controller. The layer's one outbound call is the
-[detection-ruleset download](/guides/agent-detection-ruleset) — one-directional
-(rules in, nothing about your traffic out), and disableable or self-hostable. See
-[Telemetry](/telemetry) for the full statement, including the two network paths and
-how IPs are hashed and header blobs redacted.
+enable capture you are the controller. And the layer makes **no call to enpitech at
+all**: its [detection ruleset](/guides/agent-detection-ruleset) ships with your
+instance and loads in-process — there is no enpitech CDN. The only network path that
+can exist is the optional edge→your-own-server beacon (customer-internal). See
+[Telemetry](/telemetry) for the full statement, including how IPs are hashed and
+header blobs redacted.
 
 ## Related
 
 - [Install the agent layer](/guides/agent-install) — the one-line install per framework, and the storage story for each
-- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how detection stays fresh, and the self-host escape hatch
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how detection runs in-process, and the distributed self-host option
 - [Telemetry](/telemetry) — the privacy line: what leaves your machine and what doesn't
 - [`agentCapture` (adapters)](/api-reference/agent-capture) — the Express / Hono / Cloudflare adapters
 - [`agentCapture` &amp; the ruleset](/api-reference/agent-ruleset) — the `agent.ruleset.*` keys, endpoints, and build pipeline

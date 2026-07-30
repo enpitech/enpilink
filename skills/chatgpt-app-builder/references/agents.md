@@ -73,19 +73,23 @@ export default agentCapture({ serve: true, site: { title: "Acme" }, sink: (env) 
 export { default } from "enpilink/next";     // env-configured; no-op until ENPILINK_AGENT_SINK_URL is set
 ```
 
-**Account-free.** No login, no key. Detection data is fetched from a public ruleset
-(see below); captured traffic goes only to the app's own storage. Full install guide
-per framework: [docs.enpitech.dev/guides/agent-install](https://docs.enpitech.dev/guides/agent-install).
+**Account-free, self-hosted.** No login, no key, no call to enpitech. Detection data
+**ships with the instance** and loads in-process (see below); captured traffic goes
+only to the app's own storage. Full install guide per framework:
+[docs.enpitech.dev/guides/agent-install](https://docs.enpitech.dev/guides/agent-install).
 
-## Detection stays fresh from a live ruleset
+## Detection: self-hosted ruleset, in-process by default
 
-The package is **pure logic — no detection data baked in**. It fetches a versioned
-ruleset (`agent.ruleset.url`, default the enpitech public CDN),
-**stale-while-revalidate**, so a request NEVER blocks on it. No ruleset yet →
-capture still works and rows are `pending`, then **backfill** once it loads.
-One-directional (rules in, nothing about traffic out); self-host by pointing
-`agent.ruleset.url` at your own enpilink's `/__enpilink/agents/ruleset` (or a
-`file://` path), or set `agent.ruleset.enabled=false`. See
+enpilink is self-hosted software — the detection **data ships with the package**, not
+just the logic. By **default** (`agent.ruleset.url` empty) the instance loads its OWN
+packaged ruleset in-process: detection works **offline, out of the box, with no call
+to enpitech** (there is no enpitech CDN). Set `agent.ruleset.url` **only** in the
+distributed case — a website/edge adapter running apart from your enpilink server —
+pointing it at *your own* enpilink's `/__enpilink/agents/ruleset` (or a mirror /
+`file://` path), never enpitech; then it fetches **stale-while-revalidate** so a
+request NEVER blocks. No ruleset yet (a cold edge isolate) → capture still works and
+rows are `pending`, then **backfill** once it loads (the Node sink always has its
+packaged ruleset). See
 [docs.enpitech.dev/guides/agent-detection-ruleset](https://docs.enpitech.dev/guides/agent-detection-ruleset).
 
 ## Serving modes (all behind one guardrail)
@@ -163,8 +167,10 @@ app owner is the controller. Capture is off by default; `agent.sampleRate` and
 `agent.enabled`, `agent.sampleRate`, `agent.retentionDays`, `agent.verifyIpRanges`,
 `agent.serve`, `agent.site.title`, `agent.site.description`, `agent.spa`,
 `agent.reencode`, `agent.getTransport`, `agent.getRateLimit`, `agent.getRateBurst`,
-and the ruleset keys `agent.ruleset.enabled` (default true), `agent.ruleset.url`,
-`agent.ruleset.ttlSeconds`, `agent.ruleset.timeoutMs`, `agent.ruleset.mode`
-(all runtime, DB-editable), and `agent.ingestToken` (secret, env-only).
+and the ruleset keys `agent.ruleset.enabled` (default true), `agent.ruleset.url`
+(default **empty** = own packaged ruleset in-process, offline; set only in the
+distributed case, to your own server), `agent.ruleset.ttlSeconds`,
+`agent.ruleset.timeoutMs`, `agent.ruleset.mode` (all runtime, DB-editable), and
+`agent.ingestToken` (secret, env-only).
 
 Full docs: [docs.enpitech.dev/guides/agent-analytics](https://docs.enpitech.dev/guides/agent-analytics)

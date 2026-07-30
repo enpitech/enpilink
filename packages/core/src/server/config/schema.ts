@@ -292,25 +292,32 @@ export const runtimeSchema = z.object({
 
   // --- Agent detection ruleset — the cached ruleset client (D2) ---
   /**
-   * Whether to keep detection fresh by fetching the ruleset from the network
-   * (D2). ON by default — the npm package ships PURE LOGIC with NO baseline
-   * detection data, so the ruleset is fetched (stale-while-revalidate, never on
-   * the request path). This flag only has an effect once the agent surface is
-   * actually used (`agent.enabled` / `agent.serve`), so a default install that
-   * never touches the agent surface makes no outbound call. Turn OFF for an
-   * air-gapped deployment that self-hosts the ruleset via a file:// URL, or to
-   * pin detection to whatever is already cached on disk.
+   * Whether detection is supplied with a ruleset at all (D2). ON by default.
+   * enpilink is SELF-HOSTED software: the npm package ships PURE LOGIC, and the
+   * detection DATA travels with the instance too — so by default (empty
+   * {@link url}) the instance loads its OWN packaged ruleset IN-PROCESS at boot,
+   * with **no network call** (detection works offline, out of the box). With a
+   * {@link url} set (the DISTRIBUTED case — a website/edge adapter deployed apart
+   * from the enpilink server), it fetches from that URL instead (stale-while-
+   * revalidate, never on the request path). Either way this only does work once
+   * the agent surface is actually used (`agent.enabled` / `agent.serve`). Turn
+   * OFF to run pure capture with NO classification — rows stay `pending` until
+   * you backfill (nothing is loaded, no fetch).
    */
   "agent.ruleset.enabled": z.boolean().default(true),
   /**
-   * The ruleset artifact URL (D2). Defaults to the enpitech-hosted public CDN
-   * (D3 finalizes the exact path). Point it at your own URL to self-host the
-   * ruleset (the air-gapped escape hatch) — the client still validates every
-   * fetched artifact against the schema before it goes live.
+   * WHERE the detection ruleset comes from (D2). **Empty (the default) = this
+   * instance's OWN packaged ruleset, loaded in-process — NO network call, works
+   * offline.** There is no enpitech CDN: enpilink ships the detection data and
+   * serves it itself.
+   *
+   * Set a URL only for the DISTRIBUTED case, when a website/edge adapter runs
+   * SEPARATELY from your enpilink server. Point it at YOUR OWN enpilink server's
+   * public ruleset endpoint (`/__enpilink/agents/ruleset`), a mirror you run, or a
+   * `file://` path — never at enpitech. The client validates every fetched
+   * artifact against the schema before it goes live.
    */
-  "agent.ruleset.url": z
-    .string()
-    .default("https://cdn.enpitech.dev/agent/ruleset/v1.json"),
+  "agent.ruleset.url": z.string().default(""),
   /**
    * TTL OVERRIDE in seconds for the cached ruleset (D2). `0` (the default)
    * HONORS the artifact's `Cache-Control: max-age`, so freshness is tuned
@@ -701,16 +708,16 @@ const KEY_DESCRIPTORS: Record<ConfigKey, KeyDescriptor> = {
     editable: "readonly",
   },
   "agent.ruleset.enabled": {
-    label: "Fetch detection ruleset",
+    label: "Detection ruleset",
     description:
-      "Keep agent detection fresh by fetching the ruleset from the network (stale-while-revalidate — a request is never delayed by it). On by default; the package ships no baked-in detection data, so this is how classification stays current without a package release. Only makes an outbound call once the agent surface is in use. Turn off to self-host the ruleset (air-gapped) or pin to the on-disk cache.",
+      "Keep agent detection supplied with a ruleset. On by default. With no URL set (the default), the instance uses its OWN packaged ruleset in-process — offline, no network call. With a URL set (a website/edge adapter deployed apart from this server) it fetches from that URL, stale-while-revalidate — a request is never delayed. Turn off to run pure capture with no classification (rows stay pending).",
     group: "Agent",
     editable: "runtime",
   },
   "agent.ruleset.url": {
     label: "Ruleset URL",
     description:
-      "Where the detection ruleset is fetched from. Defaults to the enpitech public CDN. Point it at your own URL (including a file:// path) to self-host the ruleset; every fetched artifact is validated against the schema before it goes live.",
+      "Where the detection ruleset comes from. Empty (the default) uses this instance's own packaged ruleset in-process — no network, works offline. Set a URL only when a website/edge adapter runs separately from your enpilink server: point it at your own enpilink server's /__enpilink/agents/ruleset endpoint, a mirror you run, or a file:// path. Never enpitech. Every fetched artifact is schema-validated before it goes live.",
     group: "Agent",
     editable: "runtime",
   },

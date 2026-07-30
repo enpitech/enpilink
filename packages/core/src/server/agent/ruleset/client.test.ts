@@ -395,6 +395,62 @@ describe("RulesetClient — activation", () => {
   });
 });
 
+// ── Self/packaged mode (empty URL → in-process, no network) ───────────────────
+
+describe("RulesetClient — self/packaged mode (empty url)", () => {
+  it("activates the local packaged ruleset with NO fetch, source 'packaged'", async () => {
+    const fetchImpl = vi.fn(async () => okResponse(RS_V2));
+    const client = new RulesetClient({
+      getConfig: () => baseConfig({ url: "" }),
+      localRuleset: () => RS_V1,
+      fetchImpl,
+    });
+    await client.start();
+    await tick();
+
+    expect(client.getRuleset()?.version).toBe("v1"); // from the packaged provider
+    expect(client.getStatus().source).toBe("packaged");
+    expect(fetchImpl).not.toHaveBeenCalled(); // zero network
+    client.stop();
+  });
+
+  it("fires onActivate exactly once for the packaged ruleset (idempotent nudges)", async () => {
+    const activations: ActivateMeta[] = [];
+    let clock = 0;
+    const client = new RulesetClient({
+      getConfig: () => baseConfig({ url: "" }),
+      localRuleset: () => RS_V1,
+      onActivate: (_rs, meta) => activations.push(meta),
+      now: () => clock,
+    });
+    await client.start();
+    // Repeated nudges past the TTL re-run loadLocalRuleset but the same version
+    // never re-activates (no holder churn, no backfill).
+    clock = 10_000_000;
+    client.maybeRefresh();
+    clock = 20_000_000;
+    client.maybeRefresh();
+    await tick();
+
+    expect(activations).toHaveLength(1);
+    expect(activations[0]).toMatchObject({
+      firstLoad: true,
+      source: "packaged",
+    });
+    client.stop();
+  });
+
+  it("stays pending in self mode with no packaged provider", async () => {
+    const client = new RulesetClient({
+      getConfig: () => baseConfig({ url: "" }),
+    });
+    await client.start();
+    await tick();
+    expect(client.getRuleset()).toBeNull();
+    client.stop();
+  });
+});
+
 // ── parseMaxAge ───────────────────────────────────────────────────────────────
 
 describe("parseMaxAge", () => {

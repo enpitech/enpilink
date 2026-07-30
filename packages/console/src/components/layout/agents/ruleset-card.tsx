@@ -127,7 +127,7 @@ function RulesetCardBody({ status }: { status: RulesetStatusEnabled }) {
               Detection ruleset
             </h3>
             <p className="text-xs text-muted-foreground">
-              How agent classification stays fresh — no package release.
+              The detection data this instance classifies AI agents with.
             </p>
           </div>
         </div>
@@ -205,10 +205,10 @@ function RulesetCardBody({ status }: { status: RulesetStatusEnabled }) {
         <span>Source</span>
         <code
           className="truncate rounded bg-muted px-1.5 py-0.5 font-mono"
-          title={status.url}
+          title={status.url || "this instance's own packaged ruleset"}
           data-testid="ruleset-url"
         >
-          {status.url}
+          {status.url || "packaged (in-process)"}
         </code>
       </div>
     </div>

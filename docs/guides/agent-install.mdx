@@ -1,15 +1,17 @@
 ---
 title: Install the agent layer
-description: "One line per framework to detect, serve, and measure the AI agents fetching your site — Express, Hono, Next.js, and Cloudflare Workers. Account-free: storage you own, a public detection ruleset, no key."
+description: "One line per framework to detect, serve, and measure the AI agents fetching your site — Express, Hono, Next.js, and Cloudflare Workers. Account-free and self-hosted: storage you own, detection data that ships with your instance, no key, no call to enpitech."
 ---
 
 The [agent surface layer](/guides/agent-analytics) installs in **one line** on
 every day-one framework. This page is the install reference: the copy-paste
 one-liner for your runtime, where captured data lands there, and the honest
-caveats per platform. It is **account-free** — no login, no API key, no enpitech
-service to sign up for. Detection data comes from a public ruleset (see
-[Detection & the live ruleset](/guides/agent-detection-ruleset)); your captured
-traffic stays in **your own** storage.
+caveats per platform. It is **account-free and self-hosted** — no login, no API
+key, no enpitech service to sign up for. Detection data **ships with your
+instance** and runs in-process, so a Node install classifies agents **offline,
+out of the box** (see [Detection & the live
+ruleset](/guides/agent-detection-ruleset)); your captured traffic stays in **your
+own** storage.
 
 ## First, what agents actually do
 
@@ -73,9 +75,10 @@ storage** (default **SQLite**, a durable `enpilink.db`). You do **not** need
 writes straight to the local database. Set `ENPILINK_STORAGE=postgres` (or
 `memory`) to change the engine; see [Storage](/guides/storage).
 
-**Account-free.** No login, no key. Detection data is fetched from the [public
-ruleset](/guides/agent-detection-ruleset); everything captured is yours, in your
-own DB.
+**Account-free, offline.** No login, no key, no call to enpitech. Detection data
+**ships with your instance** and loads [in-process](/guides/agent-detection-ruleset)
+— it classifies out of the box with no network; everything captured is yours, in
+your own DB.
 
 See [`agentCapture` (adapters)](/api-reference/agent-capture#express) for the full
 option list.
@@ -147,7 +150,7 @@ flowchart LR
 The edge POSTs to **your own** Node server's ingest sink (guarded by
 `ENPILINK_AGENT_INGEST_TOKEN`) — customer-to-customer, never to enpitech. The sink
 is **disabled (404) until you set the token**. See
-[Telemetry](/telemetry#2-the-edge-beacon-customer-to-customer-not-to-enpitech).
+[Telemetry](/telemetry#the-edge-beacon-between-your-own-services).
 
 <Warning>
 **The edge sees less than the Node path — don't assume otherwise.** A Web
@@ -162,9 +165,13 @@ downstream status is recorded as unknown (`status=0`). The edge's job is
 for outcomes.
 </Warning>
 
-**Account-free.** The edge adapter also auto-fetches the [public
-ruleset](/guides/agent-detection-ruleset) (stale-while-revalidate, off the hot
-path) so records classify at the edge — no key, no account.
+**Detection at the edge (optional).** The edge has no packaged ruleset of its own,
+so by default it captures records **`pending`** and **your Node enpilink server
+classifies them on ingest** (it always has its in-process ruleset). To classify
+*at the edge* instead, point it at **your own** server's ruleset endpoint —
+`ENPILINK_AGENT_RULESET_URL=https://your-app.com/__enpilink/agents/ruleset` (never
+enpitech) — and it fetches [stale-while-revalidate](/guides/agent-detection-ruleset),
+off the hot path. Either way: no key, no account, no call to enpitech.
 
 ## Cloudflare Workers
 
@@ -183,8 +190,13 @@ export default agentCapture({
   fetchOrigin: (request, env) => env.ASSETS.fetch(request),
   // Store captures in D1 (CF-native) — or use beaconCaptureSink({ sinkUrl }).
   sink: (env) => d1CaptureSink(env.DB),
-  // Detection stays fresh from the CDN ruleset, warm across isolates via KV:
-  ruleset: { cacheStore: (env) => new KVRulesetCacheStore({ kv: env.RULESET_KV }) },
+  // Classify AT the edge from YOUR OWN enpilink server's ruleset (never enpitech),
+  // warm across isolates via KV. Omit `url` to classify pending and let your Node
+  // sink backfill the labels instead:
+  ruleset: {
+    url: "https://your-app.com/__enpilink/agents/ruleset",
+    cacheStore: (env) => new KVRulesetCacheStore({ kv: env.RULESET_KV }),
+  },
 });
 ```
 
@@ -203,14 +215,16 @@ or the sink can **never** turn a good page into an error.
 - **Beacon** (`beaconCaptureSink({ sinkUrl, token })`) — POST records to your own
   Node enpilink server's ingest sink, same topology as Next.
 
-**Ruleset cache.** Pass a `KVRulesetCacheStore` (recommended) or
-`CacheApiRulesetCacheStore` so the fetched ruleset is **warm across isolates** — a
-cold isolate whose cache is empty serves its first request classified `pending`
-(capture still works), then the background `waitUntil` warms it for every
-subsequent request. Without a cache store the ruleset is held in-isolate only.
+**Detection at the edge.** The Worker has no packaged ruleset of its own. Set
+`ruleset.url` to **your own** enpilink server's `/__enpilink/agents/ruleset` (never
+enpitech) to classify in-Worker, and pass a `KVRulesetCacheStore` (recommended) or
+`CacheApiRulesetCacheStore` so it is **warm across isolates** — a cold isolate whose
+cache is empty serves its first request classified `pending` (capture still works),
+then the background `waitUntil` warms it for every subsequent request. With **no**
+`url`, the Worker classifies `pending` and your Node sink backfills the labels.
 
-**Account-free.** D1 (or your beacon target) is storage you own; the ruleset is
-the public keyless fetch. See [`agentCapture`
+**Account-free.** D1 (or your beacon target) is storage you own; the ruleset comes
+from your own server, keyless — never enpitech. See [`agentCapture`
 (adapters)](/api-reference/agent-capture#cloudflare-workers) for D1 and beacon
 details.
 
@@ -240,17 +254,18 @@ Cloudflare Worker.
    ```
 
 2. Open the Console **Agents** tab (or `GET /__enpilink/agents/summary`) — you
-   should see the request classified as `gptbot` / `crawler`. If the ruleset
-   hasn't loaded yet, it shows as `pending` and backfills once it does (see
-   [Detection & the live ruleset](/guides/agent-detection-ruleset)).
+   should see the request classified as `gptbot` / `crawler`. On a Node install the
+   packaged ruleset is loaded at boot, so it classifies immediately; an edge
+   adapter with no ruleset URL shows `pending` and your Node server backfills the
+   labels (see [Detection & the live ruleset](/guides/agent-detection-ruleset)).
 3. Confirm the guardrail holds — a `Googlebot` request to a missing path still
    gets your **real 404**, never a served representation.
 
 ## Related
 
 - [Agent analytics](/guides/agent-analytics) — the full detect → serve → measure story
-- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how detection stays fresh, and the self-host escape hatch
+- [Detection & the live ruleset](/guides/agent-detection-ruleset) — how detection runs in-process, and the distributed self-host option
 - [`agentCapture` (adapters)](/api-reference/agent-capture) — the reference for Express, Hono, and Cloudflare
 - [Next.js edge middleware](/api-reference/next-middleware) — `withAgentCapture` and the beacon topology
 - [Configuration](/guides/configuration) — every `agent.*` key, default, and env var
-- [Telemetry](/telemetry) — the two network paths, stated plainly
+- [Telemetry](/telemetry) — self-hosted, no call to enpitech, stated plainly

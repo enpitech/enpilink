@@ -123,7 +123,7 @@ describe("createRulesetStatusRouter", () => {
         source: "network",
         mode: "live",
         ttlSeconds: 0,
-        url: "https://cdn.enpitech.dev/agent/ruleset/v1.json",
+        url: "https://my-app.example/__enpilink/agents/ruleset",
         fetchEnabled: true,
       })),
     ]);
